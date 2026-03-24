@@ -8,7 +8,15 @@ backend = "aqua:nektos/act"
 checksum = "sha256:116c7f27c4862fb01730c956c9bc9f51f9d44d8f3850fe6166b7da9f68677a5c"
 url = "https://github.com/nektos/act/releases/download/v0.2.84/act_Linux_arm64.tar.gz"
 
+[tools.act."platforms.linux-arm64-musl"]
+checksum = "sha256:116c7f27c4862fb01730c956c9bc9f51f9d44d8f3850fe6166b7da9f68677a5c"
+url = "https://github.com/nektos/act/releases/download/v0.2.84/act_Linux_arm64.tar.gz"
+
 [tools.act."platforms.linux-x64"]
+checksum = "sha256:19d4525fb0d80ff50bd3252d3fa47ee1265a331fe4c39249ac65347e527e16e2"
+url = "https://github.com/nektos/act/releases/download/v0.2.84/act_Linux_x86_64.tar.gz"
+
+[tools.act."platforms.linux-x64-musl"]
 checksum = "sha256:19d4525fb0d80ff50bd3252d3fa47ee1265a331fe4c39249ac65347e527e16e2"
 url = "https://github.com/nektos/act/releases/download/v0.2.84/act_Linux_x86_64.tar.gz"
 
@@ -24,6 +32,32 @@ url = "https://github.com/nektos/act/releases/download/v0.2.84/act_Darwin_x86_64
 checksum = "sha256:3b4fcf9497d1f23afbdd40bfa8e78e154d69754da73c2d792a4152b4f8ae5c96"
 url = "https://github.com/nektos/act/releases/download/v0.2.84/act_Windows_x86_64.zip"
 
+[[tools.adr-tools]]
+version = "3.0.0"
+backend = "aqua:npryce/adr-tools"
+
+[tools.adr-tools."platforms.linux-arm64"]
+url = "https://github.com/npryce/adr-tools/archive/refs/tags/3.0.0.tar.gz"
+
+[tools.adr-tools."platforms.linux-arm64-musl"]
+url = "https://github.com/npryce/adr-tools/archive/refs/tags/3.0.0.tar.gz"
+
+[tools.adr-tools."platforms.linux-x64"]
+url = "https://github.com/npryce/adr-tools/archive/refs/tags/3.0.0.tar.gz"
+
+[tools.adr-tools."platforms.linux-x64-musl"]
+url = "https://github.com/npryce/adr-tools/archive/refs/tags/3.0.0.tar.gz"
+
+[tools.adr-tools."platforms.macos-arm64"]
+checksum = "blake3:1b011324e104b8957270f29fde38aae5f80a8131f7854c521c8f237233ea4d2b"
+url = "https://github.com/npryce/adr-tools/archive/refs/tags/3.0.0.tar.gz"
+
+[tools.adr-tools."platforms.macos-x64"]
+url = "https://github.com/npryce/adr-tools/archive/refs/tags/3.0.0.tar.gz"
+
+[tools.adr-tools."platforms.windows-x64"]
+url = "https://github.com/npryce/adr-tools/archive/refs/tags/3.0.0.tar.gz"
+
 [[tools.gh]]
 version = "2.87.3"
 backend = "aqua:cli/cli"
@@ -32,7 +66,15 @@ backend = "aqua:cli/cli"
 checksum = "sha256:5f5d89563bf26751e2173b37e594065504e85b6b781c1f1832d24bf2c2b4554f"
 url = "https://github.com/cli/cli/releases/download/v2.87.3/gh_2.87.3_linux_arm64.tar.gz"
 
+[tools.gh."platforms.linux-arm64-musl"]
+checksum = "sha256:5f5d89563bf26751e2173b37e594065504e85b6b781c1f1832d24bf2c2b4554f"
+url = "https://github.com/cli/cli/releases/download/v2.87.3/gh_2.87.3_linux_arm64.tar.gz"
+
 [tools.gh."platforms.linux-x64"]
+checksum = "sha256:c6e5537631fca45f277ef405ce8751d139b491e9402cc20891a003525a8773b2"
+url = "https://github.com/cli/cli/releases/download/v2.87.3/gh_2.87.3_linux_amd64.tar.gz"
+
+[tools.gh."platforms.linux-x64-musl"]
 checksum = "sha256:c6e5537631fca45f277ef405ce8751d139b491e9402cc20891a003525a8773b2"
 url = "https://github.com/cli/cli/releases/download/v2.87.3/gh_2.87.3_linux_amd64.tar.gz"
 
@@ -56,7 +98,15 @@ backend = "aqua:jqlang/jq"
 checksum = "sha256:6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"
 
+[tools.jq."platforms.linux-arm64-musl"]
+checksum = "sha256:6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4"
+url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"
+
 [tools.jq."platforms.linux-x64"]
+checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
+url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"
+
+[tools.jq."platforms.linux-x64-musl"]
 checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"
 
@@ -87,7 +137,15 @@ backend = "core:python"
 checksum = "sha256:c4a5cc7681da3ed2066194f6fac24207a764db38f23fc5a2b1b56671ee3142d6"
 url = "https://github.com/astral-sh/python-build-standalone/releases/download/20260320/cpython-3.14.3+20260320-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz"
 
+[tools.python."platforms.linux-arm64-musl"]
+checksum = "sha256:c4a5cc7681da3ed2066194f6fac24207a764db38f23fc5a2b1b56671ee3142d6"
+url = "https://github.com/astral-sh/python-build-standalone/releases/download/20260320/cpython-3.14.3+20260320-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz"
+
 [tools.python."platforms.linux-x64"]
+checksum = "sha256:bc35984c271adb7b0d2f730eced89fbbb96246c4d716c415e4af7ed686627831"
+url = "https://github.com/astral-sh/python-build-standalone/releases/download/20260320/cpython-3.14.3+20260320-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz"
+
+[tools.python."platforms.linux-x64-musl"]
 checksum = "sha256:bc35984c271adb7b0d2f730eced89fbbb96246c4d716c415e4af7ed686627831"
 url = "https://github.com/astral-sh/python-build-standalone/releases/download/20260320/cpython-3.14.3+20260320-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz"
 
@@ -112,7 +170,17 @@ checksum = "sha256:7e3924a974e912e57b4a99f65ece7931f8079584dae12eb7845024f97087b
 url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-ARM64.tar.gz"
 provenance = "cosign"
 
+[tools.trivy."platforms.linux-arm64-musl"]
+checksum = "sha256:7e3924a974e912e57b4a99f65ece7931f8079584dae12eb7845024f97087bdfd"
+url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-ARM64.tar.gz"
+provenance = "cosign"
+
 [tools.trivy."platforms.linux-x64"]
+checksum = "sha256:1816b632dfe529869c740c0913e36bd1629cb7688bd5634f4a858c1d57c88b75"
+url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-64bit.tar.gz"
+provenance = "cosign"
+
+[tools.trivy."platforms.linux-x64-musl"]
 checksum = "sha256:1816b632dfe529869c740c0913e36bd1629cb7688bd5634f4a858c1d57c88b75"
 url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-64bit.tar.gz"
 provenance = "cosign"
@@ -140,7 +208,15 @@ backend = "aqua:astral-sh/uv"
 checksum = "sha256:685e47f8f88b6845a9fc2ca27c3d246c0f53af8c017daf8e98ac0a97fe20365b"
 url = "https://github.com/astral-sh/uv/releases/download/0.10.2/uv-aarch64-unknown-linux-musl.tar.gz"
 
+[tools.uv."platforms.linux-arm64-musl"]
+checksum = "sha256:685e47f8f88b6845a9fc2ca27c3d246c0f53af8c017daf8e98ac0a97fe20365b"
+url = "https://github.com/astral-sh/uv/releases/download/0.10.2/uv-aarch64-unknown-linux-musl.tar.gz"
+
 [tools.uv."platforms.linux-x64"]
+checksum = "sha256:c162182ba7dd692794362d76dd183990d6e51553217954106da19bdb6ced211b"
+url = "https://github.com/astral-sh/uv/releases/download/0.10.2/uv-x86_64-unknown-linux-musl.tar.gz"
+
+[tools.uv."platforms.linux-x64-musl"]
 checksum = "sha256:c162182ba7dd692794362d76dd183990d6e51553217954106da19bdb6ced211b"
 url = "https://github.com/astral-sh/uv/releases/download/0.10.2/uv-x86_64-unknown-linux-musl.tar.gz"
 
