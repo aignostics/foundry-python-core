@@ -8,21 +8,27 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 
 | Module | Purpose | Description |
 |--------|---------|-------------|
-| **greet** | Example module | Provides greeting functionality |
+| **health** | Service health checks | `Health` model and `HealthStatus` enum for tree-structured health status |
 
 ## Module Descriptions
 
 <!-- For each module, document its purpose, features, dependencies, and usage. -->
 
-### greet
+### health
 
-**Greeting functionality for Foundry Python Core**
+**Tree-structured health status for service health checks**
 
-- **Purpose**: Provides greeting utilities
-- **Key Features**: Simple greeting with logging
-- **Location**: `aignostics_foundry_core/greet.py`
-
-<!-- Add descriptions for additional modules as you develop them -->
+- **Purpose**: Provides `Health` and `HealthStatus` for modelling UP / DEGRADED / DOWN status across a tree of service components
+- **Key Features**:
+  - `HealthStatus(StrEnum)` — `UP`, `DEGRADED`, `DOWN` values
+  - `Health(BaseModel)` — pydantic model with `status`, `reason`, `components`, `uptime_statistics`
+  - `compute_health_from_components()` — recursively propagates DOWN/DEGRADED from children to parent (DOWN trumps DEGRADED)
+  - `validate_health_state()` — model validator: DOWN/DEGRADED require a reason; UP must not have one
+  - `__str__` — returns `"UP"`, `"DEGRADED: <reason>"`, or `"DOWN: <reason>"`
+  - `__bool__` — `True` iff status is `UP`
+  - `Health.Code` — `ClassVar` alias for `HealthStatus` (convenience)
+- **Location**: `aignostics_foundry_core/health.py`
+- **Dependencies**: `pydantic>=2`
 
 ## Architecture
 
@@ -34,30 +40,37 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 -->
 
 ```text
-<!-- Example architecture diagram (customize for your project):
-
 ┌─────────────────────────────┐
 │     Your Application        │
 └──────────────┬──────────────┘
                │
 ┌──────────────┴──────────────┐
-│      aignostics_foundry_core      │
+│    aignostics_foundry_core  │
 ├─────────────────────────────┤
-│  module_a  │  module_b  │   │
+│           health            │
 └─────────────────────────────┘
--->
 ```
 
 ## Usage Examples
 
-<!-- Document common usage patterns for your package -->
-
 ```python
-from aignostics_foundry_core import greet
+from aignostics_foundry_core.health import Health, HealthStatus
 
-# Example usage
-result = greet("World")
-print(result)  # Hello, World!
+# Simple UP status
+health = Health(status=HealthStatus.UP)
+assert bool(health)  # True
+assert str(health) == "UP"
+
+# Composite health — DOWN propagates from components automatically
+system = Health(
+    status=HealthStatus.UP,
+    components={
+        "db": Health(status=HealthStatus.UP),
+        "cache": Health(status=HealthStatus.DOWN, reason="Connection refused"),
+    },
+)
+assert system.status == HealthStatus.DOWN
+assert "cache" in system.reason
 ```
 
 ## Development Guidelines

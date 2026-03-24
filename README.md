@@ -37,10 +37,9 @@ Or follow the [installation guide](https://mise.jdx.dev/getting-started.html) fo
 ## Usage
 
 ```python
-from aignostics_foundry_core import greet
+from aignostics_foundry_core.health import Health, HealthStatus
 
-message = greet("World")
-print(message)  # Output: Hello, World!
+health = Health(status=HealthStatus.UP)
 ```
 
 ## Further Reading
