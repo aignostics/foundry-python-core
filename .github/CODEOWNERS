@@ -1,21 +1,21 @@
 # Foundry Python Core code owners
 
 # Default owners for everything in the repo
-*                   @olivermeyer
+*                   @aignostics/foundry
 
 # CI/CD and infrastructure
-.github/            @olivermeyer
-noxfile.py          @olivermeyer
-mise.toml           @olivermeyer
+.github/            @aignostics/foundry
+noxfile.py          @aignostics/foundry
+mise.toml           @aignostics/foundry
 
 # Documentation
-*.md                @olivermeyer
-docs/               @olivermeyer
+*.md                @aignostics/foundry
+docs/               @aignostics/foundry
 
 # Core source code
-src/                @olivermeyer
+src/                @aignostics/foundry
 
 # Tests
-tests/              @olivermeyer
+tests/              @aignostics/foundry
 
 # Reference: <https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners>
