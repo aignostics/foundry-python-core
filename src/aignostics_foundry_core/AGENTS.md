@@ -8,11 +8,25 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 
 | Module | Purpose | Description |
 |--------|---------|-------------|
+| **console** | Themed terminal output | Module-level `console` object (Rich `Console`) with colour theme and `_get_console()` factory |
 | **health** | Service health checks | `Health` model and `HealthStatus` enum for tree-structured health status |
 
 ## Module Descriptions
 
 <!-- For each module, document its purpose, features, dependencies, and usage. -->
+
+### console
+
+**Themed Rich console for structured terminal output**
+
+- **Purpose**: Provides a module-level `console` object pre-configured with a colour theme for consistent, styled terminal output across all Foundry components
+- **Key Features**:
+  - `console` — module-level `Console` singleton, ready to use
+  - Colour theme: `success` (green), `info` / `logging.level.info` (purple4), `warning` (yellow1), `error` (red1), `debug` (light_cyan3)
+  - `AIGNOSTICS_CONSOLE_WIDTH` env var — overrides console width (defaults to Rich's auto-detect, 80 in non-TTY environments)
+  - `legacy_windows=False` — modern Windows terminal support
+- **Location**: `aignostics_foundry_core/console.py`
+- **Dependencies**: `rich>=13`
 
 ### health
 
@@ -47,11 +61,21 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 ┌──────────────┴──────────────┐
 │    aignostics_foundry_core  │
 ├─────────────────────────────┤
+│           console           │
 │           health            │
 └─────────────────────────────┘
 ```
 
 ## Usage Examples
+
+```python
+from aignostics_foundry_core import console
+
+# Print with theme styles
+console.print("[success]Done![/success]")
+console.print("[warning]Caution: retrying...[/warning]")
+console.print("[error]Failed to connect.[/error]")
+```
 
 ```python
 from aignostics_foundry_core.health import Health, HealthStatus
