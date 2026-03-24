@@ -1,0 +1,140 @@
+name: "> Scheduled Test (Hourly)"
+
+on:
+  workflow_call:
+    inputs:
+      deploy_env:
+        description: 'Deployment environment (dev, test, staging, production)'
+        required: true
+        type: string
+      branch:
+        description: 'Branch to checkout (leave empty for default branch)'
+        required: false
+        default: ''
+        type: string
+    secrets:
+      BETTERSTACK_HEARTBEAT_URL_HOURLY:
+        required: false
+      GCP_WORKLOAD_IDENTITY_PROVIDER:
+        required: true
+
+jobs:
+  test-scheduled-hourly:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.branch || github.ref }}
+          fetch-depth: 0
+
+      - name: Setup Dev Environment
+        uses: ./.github/actions/setup-dev-env
+
+      - name: Validate and set environment suffix
+        id: env_suffix
+        run: |
+          # Validate deploy_env is one of the allowed values
+          case "${{ inputs.deploy_env }}" in
+            dev|test|staging|production)
+              # Convert to uppercase
+              SUFFIX=$(echo "${{ inputs.deploy_env }}" | tr '[:lower:]' '[:upper:]')
+              echo "suffix=${SUFFIX}" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "Error: Invalid deploy_env value '${{ inputs.deploy_env }}'. Must be one of: dev, test, staging, production"
+              exit 1
+              ;;
+          esac
+
+      - name: Test / scheduled
+        env:
+          BETTERSTACK_HEARTBEAT_URL: "${{ secrets.BETTERSTACK_HEARTBEAT_URL_HOURLY }}"
+          DEPLOY_ENV: ${{ inputs.deploy_env }}
+        shell: bash
+        run: |
+          set +e
+          mise run test_scheduled
+          EXIT_CODE=$?
+          # Show test execution in GitHub Job summary
+          found_files=0
+          for file in reports/pytest_*.md; do
+            if [ -f "$file" ]; then
+              cat "$file" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              found_files=1
+            fi
+          done
+          if [ $found_files -eq 0 ]; then
+            echo "# All scheduled tests passed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          # Show test coverage in GitHub Job summary
+          if [ -f "reports/coverage.md" ]; then
+            cat "reports/coverage.md" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "# No test coverage computed." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Provide heartbeat to BetterStack for monitoring/alerting if heartbeat url is configured as secret
+          if [ -n "$BETTERSTACK_HEARTBEAT_URL" ]; then
+            BETTERSTACK_METADATA_PAYLOAD=$(jq -n \
+              --arg github_workflow "${{ github.workflow }}" \
+              --arg github_run_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+              --arg github_run_id "${{ github.run_id }}" \
+              --arg github_job "${{ github.job }}" \
+              --arg github_sha "${{ github.sha }}" \
+              --arg github_actor "${{ github.actor }}" \
+              --arg github_repository "${{ github.repository }}" \
+              --arg github_ref "${{ github.ref }}" \
+              --arg job_status "${{ job.status }}" \
+              --arg github_event_name "${{ github.event_name }}" \
+              --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+              '{
+                github: {
+                  workflow: $github_workflow,
+                  run_url: $github_run_url,
+                  run_id: $github_run_id,
+                  job: $github_job,
+                  sha: $github_sha,
+                  actor: $github_actor,
+                  repository: $github_repository,
+                  ref: $github_ref,
+                  event_name: $github_event_name
+                },
+                job: {
+                  status: $job_status,
+                },
+                timestamp: $timestamp,
+              }'
+            )
+            curl \
+              --fail-with-body \
+              --silent \
+              --request POST \
+              --header "Content-Type: application/json" \
+              --data-binary "${BETTERSTACK_METADATA_PAYLOAD}" \
+              "${BETTERSTACK_HEARTBEAT_URL}/${EXIT_CODE}"
+            echo "INFO: Sent heartbeat to BetterStack with exit code '${EXIT_CODE}'"
+          else
+            echo "INFO: No BetterStack heartbeat URL configured, skipped heartbeat notification."
+          fi
+          exit $EXIT_CODE
+
+      - name: Upload test results
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        if: ${{ always() && (env.GITHUB_WORKFLOW_RUNTIME != 'ACT') }}
+        with:
+          name: test-results-scheduled-hourly-${{ inputs.deploy_env }}
+          path: |
+            reports/junit.xml
+            reports/coverage.xml
+            reports/coverage.md
+            reports/coverage_html
+            aignostics_foundry_core.log
+          retention-days: 7
