@@ -1,0 +1,80 @@
+name: "+ Claude Code / PR Review"
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, ready_for_review]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  claude-review:
+    if: contains(github.event.pull_request.labels.*.name, 'claude')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Code PR Review
+        uses: anthropics/claude-code-action@26ec041249acb0a944c0a47b6c0c13f05dbc5b44  # v1.0.70
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          track_progress: ${{ github.event_name == 'pull_request' && contains(fromJSON('["opened", "synchronize", "ready_for_review", "reopened"]'), github.event.action) }}
+          use_sticky_comment: true
+          claude_args: |
+            --max-turns 15
+            --model claude-sonnet-4-5-20250929
+            --allowedTools "Bash(git diff *)" "Bash(git log *)" "Bash(gh pr view *)"
+          allowed_bots: "dependabot[bot],renovate[bot]"
+          prompt: |
+            # PR REVIEW
+
+            **REPO**: ${{ github.repository }}
+            **PR**: #${{ github.event.pull_request.number }}
+            **BRANCH**: ${{ github.head_ref }}
+
+            ## Instructions
+
+            You are reviewing a pull request. Please perform a thorough code review following these steps:
+
+            1. **Read CLAUDE.md** (if it exists) to understand project-specific conventions and standards.
+
+            2. **Analyze the changes**:
+               - Run `git diff origin/main...HEAD` to see all changes
+               - Run `git log --oneline origin/main..HEAD` to see commit messages
+
+            3. **Check code quality**:
+               - Check for type errors, code style issues, and best practices
+               - **Important:** you CANNOT run linters or tests yourself
+
+            4. **Verify tests**:
+               - Check if new/modified code has appropriate test coverage
+               - Verify tests have proper markers (unit, integration, e2e)
+
+            5. **Review for**:
+               - Security issues (hardcoded secrets, injection vulnerabilities)
+               - Performance concerns
+               - Breaking changes
+               - Documentation completeness
+               - Conventional commit message compliance
+
+            ## Output Format
+
+            For each issue found, provide:
+            1. **Location**: `file_path:line_number`
+            2. **Issue**: Clear description
+            3. **Fix**: Concrete suggestion
+
+            Categorize issues as:
+            - **Blocking**: Must fix before merge
+            - **Suggestions**: Nice to have improvements
+
+            Be thorough, constructive, and kind.

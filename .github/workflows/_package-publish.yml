@@ -1,0 +1,76 @@
+name: "Publish Package"
+
+on:
+  workflow_call:
+    secrets:
+      SLACK_RELEASE_BOT_TOKEN:
+        required: true
+
+
+jobs:
+  package_publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Dev Environment
+        uses: ./.github/actions/setup-dev-env
+
+      - name: Build documentation
+        run: mise run docs
+
+      - name: Build distribution
+        run: uv build
+
+      - name: Have audit checks publish to reports/ for auditing
+        run: mise run audit
+
+      - name: Generate release notes
+        shell: bash
+        run: |
+          if [ -f "CHANGELOG.md" ]; then
+            awk '/^## / {if (++count == 2) exit} count == 1' CHANGELOG.md >> RELEASE_NOTES.md
+          fi
+          if [ ! -s "RELEASE_NOTES.md" ]; then
+            echo "No release notes available." >> RELEASE_NOTES.md
+          fi
+          echo "" >> RELEASE_NOTES.md
+
+          # Export release notes for Slack notification
+          # Convert markdown links [text](url) to Slack format <url|text>
+          # Truncate to 2900 chars for Slack's ~3000 char limit
+          # Escape for JSON (backslashes, quotes, newlines)
+          NOTES=$(sed -E 's/\[([^]]+)\]\(([^)]+)\)/<\2|\1>/g' RELEASE_NOTES.md | head -c 2900 | \
+            sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          echo "RELEASE_NOTES_CONTENT=$NOTES" >> $GITHUB_ENV
+
+
+      - name: Publish distribution to GCP Artifact Registry
+        shell: bash
+        run: |
+          uv publish \
+            --index aignx-private-registry -u oauth2accesstoken
+
+      - name: Create GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.ref_name }} ./dist/* ./reports/* \
+            --notes-file RELEASE_NOTES.md \
+            --title "${{ github.ref_name }}"
+
+
+      - name: Send Slack release notification
+        if: success()
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
+          payload: '{"channel":"#announce-foundry","text":"🚀 Foundry Python Core ${{ github.ref_name }} released","blocks":[{"type":"section","text":{"type":"mrkdwn","text":"🚀 *Foundry Python Core* <${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}|${{ github.ref_name }}> released"}},{"type":"section","text":{"type":"mrkdwn","text":"${{ env.RELEASE_NOTES_CONTENT }}"}}]}'

@@ -1,0 +1,12 @@
+name: 'Setup Dev Environment'
+description: 'Checkout, GCP auth, mise, uv, and dev tools'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install mise
+      uses: jdx/mise-action@e79ddf65a11cec7b0e882bedced08d6e976efb2d # v3.6.2
+
+    - name: Initialize mise and install Python dependencies
+      shell: bash
+      run: mise run install

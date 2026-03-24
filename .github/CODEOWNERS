@@ -1,0 +1,21 @@
+# Foundry Python Core code owners
+
+# Default owners for everything in the repo
+*                   @olivermeyer
+
+# CI/CD and infrastructure
+.github/            @olivermeyer
+noxfile.py          @olivermeyer
+mise.toml           @olivermeyer
+
+# Documentation
+*.md                @olivermeyer
+docs/               @olivermeyer
+
+# Core source code
+src/                @olivermeyer
+
+# Tests
+tests/              @olivermeyer
+
+# Reference: <https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners>

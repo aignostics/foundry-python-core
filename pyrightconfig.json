@@ -1,0 +1,15 @@
+{
+    "typeCheckingMode": "strict",
+    "exclude": [
+        "**/.venv/**",
+        "**/venv/**",
+        "dist/**",
+        "build/**",
+        "**/.nox/**",
+        "**/.ruff_cache/**",
+        "**/__pycache__/**",
+        "**/generated/**",
+        "sitecustomize.py",
+    ],
+    "reportMissingTypeStubs": "warning"
+}

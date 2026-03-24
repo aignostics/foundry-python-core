@@ -1,0 +1,57 @@
+name: "+ Release Bump"
+
+on:
+  workflow_dispatch:
+    inputs:
+      arguments:
+        description: "Optional arguments passed to `cz bump` (e.g. '--increment major --prerelease rc'). Leave empty for auto-detection from commit messages."
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        with:
+          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
+
+      - name: Install mise
+        uses: jdx/mise-action@e79ddf65a11cec7b0e882bedced08d6e976efb2d # v3.6.2
+
+      - name: Install Python, venv and dependencies
+        run: uv sync --all-extras --frozen --link-mode=copy
+
+      - name: Configure git identity
+        run: |
+          git config user.name "aignostics-release-bot[bot]"
+          git config user.email "aignostics-release-bot[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        env:
+          BUMP_ARGS: ${{ inputs.arguments }}
+        run: cz bump --no-verify --yes $BUMP_ARGS
+
+      - name: Update lockfile and amend bump commit
+        run: |
+          uv lock
+          git add uv.lock
+          git commit --amend --no-edit --no-verify
+          git tag -f "v$(cat VERSION)"
+
+      - name: Push version bump and tag
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: git push origin main --tags

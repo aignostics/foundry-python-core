@@ -1,0 +1,23 @@
+name: "+ Scheduled Test / Production (Hourly)"
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to test (leave empty for main)'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  test-scheduled-production-hourly:
+    uses: ./.github/workflows/_scheduled-test-hourly.yml
+    with:
+      deploy_env: "production"
+    permissions:
+      contents: read
+      id-token: write
+    secrets:
+      BETTERSTACK_HEARTBEAT_URL_HOURLY: ${{ secrets.BETTERSTACK_HEARTBEAT_URL_HOURLY_PRODUCTION }}
