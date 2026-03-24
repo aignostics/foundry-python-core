@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -36,7 +36,7 @@ class _TheTestSettingsWithEnvPrefix(OpaqueSettings):
     value: str
 
 
-def _make_info(context: dict | None) -> MagicMock:  # type: ignore[type-arg]
+def _make_info(context: dict[str, Any] | None) -> MagicMock:
     """Create a mock FieldSerializationInfo with the given context."""
     info = MagicMock()
     info.context = context

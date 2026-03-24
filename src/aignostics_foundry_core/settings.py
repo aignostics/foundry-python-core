@@ -1,6 +1,5 @@
 """Utilities around Pydantic settings."""
 
-import json
 import sys
 from pathlib import Path
 from typing import TypeVar
@@ -38,7 +37,7 @@ class OpaqueSettings(BaseSettings):
     """Base settings class with secret masking and path resolution serializers."""
 
     @staticmethod
-    def serialize_sensitive_info(input_value: SecretStr, info: FieldSerializationInfo) -> str | None:
+    def serialize_sensitive_info(input_value: SecretStr | None, info: FieldSerializationInfo) -> str | None:
         """Serialize a SecretStr, masking it unless context requests unhiding.
 
         Args:
@@ -56,7 +55,7 @@ class OpaqueSettings(BaseSettings):
         return str(input_value)
 
     @staticmethod
-    def serialize_path_resolve(input_value: Path, _info: FieldSerializationInfo) -> str | None:
+    def serialize_path_resolve(input_value: Path | None, _info: FieldSerializationInfo) -> str | None:
         """Serialize a Path by resolving it to an absolute string.
 
         Args:
@@ -86,7 +85,7 @@ def load_settings(settings_class: type[_T]) -> _T:
     try:
         return settings_class()
     except ValidationError as e:
-        errors = json.loads(e.json())
+        errors = e.errors()
         text = Text()
         text.append(
             "Validation error(s): \n\n",
