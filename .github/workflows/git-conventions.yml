@@ -1,0 +1,104 @@
+name: "+ Validate Git Conventions"
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  validate-branch-name:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    name: Validate Branch Name
+    steps:
+      - name: Validate Branch Name
+        env:
+          BRANCH_NAME: ${{ github.head_ref }}
+        run: |
+          branch="$BRANCH_NAME"
+          valid_regex='^(feature|feat|bugfix|fix|hotfix|performance|perf|security|sec|refactor|test|release|chore|cherry-pick)\/[a-zA-Z0-9._-]+$|^(claude|copilot|dependabot|renovate)\/[a-zA-Z0-9._/-]+$|^(main)$/'
+
+          echo "Checking branch name: $branch"
+
+          if ! echo "$branch" | grep -qE "$valid_regex"; then
+            echo "Invalid branch name: $branch"
+            echo ""
+            echo "Branch naming convention:"
+            echo "  - feature|feat/description-here"
+            echo "  - bugfix|fix/description-here"
+            echo "  - hotfix/description-here"
+            echo "  - performance|perf/description-here"
+            echo "  - security|sec/description-here"
+            echo "  - refactor/description-here"
+            echo "  - test/description-here"
+            echo "  - release/version-number"
+            echo "  - chore/description-here"
+            echo "  - claude/description-here (or claude/nested/path)"
+            echo "  - copilot/description-here (or copilot/nested/path)"
+            echo "  - dependabot/description-here (or dependabot/nested/path)"
+            echo "  - renovate/description-here (or renovate/nested/path)"
+            echo ""
+            echo "Example: feature/add-user-authentication"
+            exit 1
+          fi
+
+          echo "Valid branch name!"
+
+  validate-pr-title:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    name: Validate PR Title
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Dev Environment
+        uses: ./.github/actions/setup-dev-env
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+
+      - name: Validate PR title with commitizen
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "Validating PR title: $PR_TITLE"
+          echo ""
+          echo "PR titles must follow conventional commits format for squash merges."
+          echo "Format: <type>(<scope>): <description>"
+          echo "Example: feat(auth): add OAuth2 login support"
+          echo ""
+          echo "$PR_TITLE" | cz check
+
+  validate-commits:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    name: Validate Commits
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Dev Environment
+        uses: ./.github/actions/setup-dev-env
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+
+      - name: Validate PR commits with commitizen
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          echo "Validating commits from $BASE_SHA to $HEAD_SHA"
+          cz check --rev-range "${BASE_SHA}..${HEAD_SHA}"

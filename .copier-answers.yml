@@ -1,0 +1,13 @@
+_commit: v1.2.0
+_src_path: git@github.com:aignostics/foundry-python.git
+author_email: oliver.meyer@aignostics.com
+author_github_username: olivermeyer
+author_name: Oliver Meyer
+distribution_name: aignostics-foundry-core
+github_repository_name: foundry-python-core
+import_package_name: aignostics_foundry_core
+project_description: Foundational infrastructure for Foundry components.
+project_icon: 🏭
+project_name: Foundry Python Core
+slack_notifications_enabled: true
+slack_release_channel: '#announce-foundry'

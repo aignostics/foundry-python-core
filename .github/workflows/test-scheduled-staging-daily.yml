@@ -1,0 +1,28 @@
+name: "+ Scheduled Test / Staging (Daily)"
+
+on:
+  schedule:
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to test (leave empty for main)'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  test-scheduled-staging-daily:
+    uses: ./.github/workflows/_scheduled-test-daily.yml
+    with:
+      deploy_env: "staging"
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    secrets:
+      BETTERSTACK_HEARTBEAT_URL_DAILY: ${{ secrets.BETTERSTACK_HEARTBEAT_URL_DAILY_STAGING }}
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
