@@ -54,9 +54,9 @@ jobs:
 
       - name: Publish distribution to GCP Artifact Registry
         shell: bash
-        run: |
-          uv publish \
-            --index aignx-private-registry -u oauth2accesstoken
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}
+        run: uv publish
 
       - name: Create GitHub release
         env:

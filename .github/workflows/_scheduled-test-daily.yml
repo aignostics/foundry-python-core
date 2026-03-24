@@ -41,16 +41,19 @@ jobs:
 
       - name: Validate and set environment suffix
         id: env_suffix
+        env:
+          DEPLOY_ENV: ${{ inputs.deploy_env }}
+        shell: bash
         run: |
           # Validate deploy_env is one of the allowed values
-          case "${{ inputs.deploy_env }}" in
+          case "$DEPLOY_ENV" in
             dev|test|staging|production)
               # Convert to uppercase
-              SUFFIX=$(echo "${{ inputs.deploy_env }}" | tr '[:lower:]' '[:upper:]')
+              SUFFIX=$(echo "$DEPLOY_ENV" | tr '[:lower:]' '[:upper:]')
               echo "suffix=${SUFFIX}" >> $GITHUB_OUTPUT
               ;;
             *)
-              echo "Error: Invalid deploy_env value '${{ inputs.deploy_env }}'. Must be one of: dev, test, staging, production"
+              echo "Error: Invalid deploy_env value '$DEPLOY_ENV'. Must be one of: dev, test, staging, production"
               exit 1
               ;;
           esac
