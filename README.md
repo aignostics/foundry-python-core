@@ -12,8 +12,6 @@
 [![Coverage](https://codecov.io/gh/aignostics/foundry-python-core/graph/badge.svg?token=MXmzYbXguM)](https://codecov.io/gh/aignostics/foundry-python-core)
 [![Ruff](https://img.shields.io/badge/style-Ruff-blue?color=D6FF65)](https://github.com/aignostics/foundry-python-core/blob/main/noxfile.py)
 [![Pyright](https://microsoft.github.io/pyright/img/pyright_badge.svg)](https://microsoft.github.io/pyright/)
-[![GitHub - Version](https://img.shields.io/github/v/release/aignostics/foundry-python-core?label=GitHub&style=flat&labelColor=1C2C2E&color=blue&logo=GitHub&logoColor=white)](https://github.com/aignostics/foundry-python-core/releases)
-[![GitHub - Commits](https://img.shields.io/github/commit-activity/m/aignostics/foundry-python-core/main?label=commits&style=flat&labelColor=1C2C2E&color=blue&logo=GitHub&logoColor=white)](https://github.com/aignostics/foundry-python-core/commits/main/)
 [![Copier](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/copier-org/copier/master/img/badge/badge-grayscale-inverted-border-orange.json)](https://github.com/aignostics/foundry-python)
 
 > [!NOTE]
