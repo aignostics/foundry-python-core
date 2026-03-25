@@ -117,6 +117,12 @@ class TestOpaqueSettings:
         result = OpaqueSettings.serialize_path_resolve(cast("Path", None), _make_info(None))
         assert result is None
 
+    @pytest.mark.unit
+    def test_serialize_path_resolve_empty_path(self) -> None:
+        """Test that None is returned for Path("") rather than resolving to CWD."""
+        result = OpaqueSettings.serialize_path_resolve(Path(), _make_info(None))
+        assert result is None
+
 
 class TestLoadSettings:
     """Tests for load_settings."""

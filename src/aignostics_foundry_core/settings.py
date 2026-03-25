@@ -63,9 +63,10 @@ class OpaqueSettings(BaseSettings):
             _info: Pydantic serialization info (unused).
 
         Returns:
-            None if input is falsy, otherwise the resolved absolute path string.
+            None if input is `None` or has no path components (e.g. empty string),
+            otherwise the resolved absolute path string.
         """
-        if not input_value:
+        if input_value is None or not input_value.parts:
             return None
         return str(input_value.resolve())
 
