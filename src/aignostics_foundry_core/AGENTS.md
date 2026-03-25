@@ -9,6 +9,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 | Module | Purpose | Description |
 |--------|---------|-------------|
 | **console** | Themed terminal output | Module-level `console` object (Rich `Console`) with colour theme and `_get_console()` factory |
+| **di** | Dependency injection | `locate_subclasses`, `locate_implementations`, `load_modules`, `discover_plugin_packages`, `clear_caches`, `PLUGIN_ENTRY_POINT_GROUP` for plugin and subclass discovery |
 | **health** | Service health checks | `Health` model and `HealthStatus` enum for tree-structured health status |
 | **settings** | Pydantic settings loading | `OpaqueSettings`, `load_settings`, `strip_to_none_before_validator`, `UNHIDE_SENSITIVE_INFO` for env-based settings with secret masking and user-friendly validation errors |
 
@@ -41,6 +42,22 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
   - `load_settings(settings_class)` — instantiates settings; on `ValidationError` prints a Rich `Panel` listing each invalid field and calls `sys.exit(78)`
 - **Location**: `aignostics_foundry_core/settings.py`
 - **Dependencies**: `pydantic>=2`, `pydantic-settings>=2`, `rich>=14`
+
+### di
+
+**Plugin and subclass discovery for dependency injection**
+
+- **Purpose**: Provides reusable infrastructure for dynamically discovering plugin packages, class implementations, and subclasses across a project and its registered plugins
+- **Key Features**:
+  - `PLUGIN_ENTRY_POINT_GROUP: str` — `"aignostics.plugins"` entry-point group constant
+  - `discover_plugin_packages()` — discovers plugin packages registered via `[project.entry-points."aignostics.plugins"]`; LRU-cached
+  - `load_modules(project_name)` — imports all top-level submodules of the given package
+  - `locate_implementations(_class, project_name)` — finds all instances of `_class` via shallow plugin scan + deep project scan; cached per `(_class, project_name)` to prevent cross-project pollution
+  - `locate_subclasses(_class, project_name)` — finds all subclasses of `_class` via shallow plugin scan + deep project scan; cached per `(_class, project_name)`
+  - `clear_caches()` — resets all module-level caches (`_implementation_cache`, `_subclass_cache`, `discover_plugin_packages` LRU cache)
+  - Two internal scan helpers: `_scan_packages_shallow` (plugin top-level exports only) and `_scan_packages_deep` (full submodule walk for the main project)
+- **Location**: `aignostics_foundry_core/di.py`
+- **Dependencies**: Python stdlib only (`importlib`, `pkgutil`, `importlib.metadata`)
 
 ### health
 
