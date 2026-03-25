@@ -6,7 +6,7 @@ from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
-from pydantic import SecretStr
+from pydantic import RootModel, SecretStr, ValidationError
 from pydantic_settings import SettingsConfigDict
 
 from aignostics_foundry_core.settings import (
@@ -155,3 +155,29 @@ class TestLoadSettings:
         assert mock_console_print.call_count == 1
         panel_arg = mock_console_print.call_args[0][0]
         assert isinstance(panel_arg, Panel)
+
+    @pytest.mark.unit
+    @patch("sys.exit")
+    @patch("aignostics_foundry_core.settings.console.print")
+    def test_load_settings_validation_error_integer_loc(
+        self, mock_console_print: MagicMock, mock_exit: MagicMock
+    ) -> None:
+        """Test that integer loc[0] falls back to the model prefix instead of "PREFIX_0"."""
+        # RootModel[list[int]] produces loc=(0,) where loc[0] is an integer
+        int_loc_error: ValidationError | None = None
+        try:
+            RootModel[list[int]].model_validate(["not_an_int"])
+        except ValidationError as e:
+            int_loc_error = e
+
+        assert int_loc_error is not None
+        assert isinstance(int_loc_error.errors()[0]["loc"][0], int)
+
+        with patch.object(_TheTestSettingsWithEnvPrefix, "__new__", side_effect=int_loc_error):
+            load_settings(_TheTestSettingsWithEnvPrefix)
+
+        mock_exit.assert_called_once_with(78)
+        panel_arg = mock_console_print.call_args[0][0]
+        panel_text = str(panel_arg.renderable)
+        assert "TEST_0" not in panel_text
+        assert "• TEST:" in panel_text
