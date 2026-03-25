@@ -10,6 +10,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 |--------|---------|-------------|
 | **console** | Themed terminal output | Module-level `console` object (Rich `Console`) with colour theme and `_get_console()` factory |
 | **health** | Service health checks | `Health` model and `HealthStatus` enum for tree-structured health status |
+| **settings** | Pydantic settings loading | `OpaqueSettings`, `load_settings`, `strip_to_none_before_validator`, `UNHIDE_SENSITIVE_INFO` for env-based settings with secret masking and user-friendly validation errors |
 
 ## Module Descriptions
 
@@ -27,6 +28,19 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
   - `legacy_windows=False` — modern Windows terminal support
 - **Location**: `aignostics_foundry_core/console.py`
 - **Dependencies**: `rich>=13`
+
+### settings
+
+**Pydantic settings loading with secret masking and user-friendly validation errors**
+
+- **Purpose**: Provides reusable infrastructure for loading `pydantic-settings` classes from the environment, with secret masking and Rich-formatted validation error output
+- **Key Features**:
+  - `UNHIDE_SENSITIVE_INFO: str` — context key constant to reveal secrets in `model_dump()`
+  - `strip_to_none_before_validator(v)` — before-validator that strips whitespace and converts empty strings to `None`
+  - `OpaqueSettings(BaseSettings)` — base class with `serialize_sensitive_info` (masks `SecretStr` fields) and `serialize_path_resolve` (resolves `Path` fields to absolute strings)
+  - `load_settings(settings_class)` — instantiates settings; on `ValidationError` prints a Rich `Panel` listing each invalid field and calls `sys.exit(78)`
+- **Location**: `aignostics_foundry_core/settings.py`
+- **Dependencies**: `pydantic>=2`, `pydantic-settings>=2`, `rich>=14`
 
 ### health
 
