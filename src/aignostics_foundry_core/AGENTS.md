@@ -10,6 +10,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 |--------|---------|-------------|
 | **models** | Shared output format enum | `OutputFormat` StrEnum with `YAML` and `JSON` values for use in CLI and API responses |
 | **process** | Current process introspection | `ProcessInfo`, `ParentProcessInfo` Pydantic models and `get_process_info()` for runtime process metadata; `SUBPROCESS_CREATION_FLAGS` for subprocess creation |
+| **api.exceptions** | API exception hierarchy and FastAPI handlers | `ApiException` (500), `NotFoundException` (404), `AccessDeniedException` (401); `api_exception_handler`, `unhandled_exception_handler`, `validation_exception_handler` for FastAPI registration |
 | **console** | Themed terminal output | Module-level `console` object (Rich `Console`) with colour theme and `_get_console()` factory |
 | **di** | Dependency injection | `locate_subclasses`, `locate_implementations`, `load_modules`, `discover_plugin_packages`, `clear_caches`, `PLUGIN_ENTRY_POINT_GROUP` for plugin and subclass discovery |
 | **health** | Service health checks | `Health` model and `HealthStatus` enum for tree-structured health status |
@@ -18,6 +19,22 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 ## Module Descriptions
 
 <!-- For each module, document its purpose, features, dependencies, and usage. -->
+
+### api.exceptions
+
+**API exception hierarchy and FastAPI exception handlers**
+
+- **Purpose**: Provides standardised HTTP exceptions and matching FastAPI exception handlers so all API errors return a consistent `{"success": false, "error": {"code": …, "message": …}}` envelope
+- **Key Features**:
+  - `ApiException(Exception)` — base API error; class-level `status_code = 500`, `message = "Unhandled API exception"`; both overridable via constructor kwargs
+  - `NotFoundException(ApiException)` — `status_code = 404`
+  - `AccessDeniedException(ApiException)` — `status_code = 401`
+  - `api_exception_handler(request, exc)` — maps `ApiException` to `JSONResponse` with `success: False` and structured error body
+  - `unhandled_exception_handler(request, exc)` — catches any `Exception`, logs at CRITICAL via loguru, returns 500
+  - `validation_exception_handler(request, exc)` — handles Pydantic `ValidationError` / FastAPI `RequestValidationError`; calls `.errors()` if available, returns 422
+- **Location**: `aignostics_foundry_core/api/exceptions.py`
+- **Dependencies**: `fastapi>=0.110,<1` (mandatory); `loguru` (used lazily inside `unhandled_exception_handler`)
+- **Import**: `from aignostics_foundry_core.api.exceptions import ApiException, NotFoundException, AccessDeniedException, api_exception_handler, unhandled_exception_handler, validation_exception_handler`
 
 ### models
 
