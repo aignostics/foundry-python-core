@@ -11,6 +11,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 | **models** | Shared output format enum | `OutputFormat` StrEnum with `YAML` and `JSON` values for use in CLI and API responses |
 | **process** | Current process introspection | `ProcessInfo`, `ParentProcessInfo` Pydantic models and `get_process_info()` for runtime process metadata; `SUBPROCESS_CREATION_FLAGS` for subprocess creation |
 | **api.exceptions** | API exception hierarchy and FastAPI handlers | `ApiException` (500), `NotFoundException` (404), `AccessDeniedException` (401); `api_exception_handler`, `unhandled_exception_handler`, `validation_exception_handler` for FastAPI registration |
+| **log** | Configurable loguru logging initialisation | `logging_initialize(project_name, version, env_file, filter_func)`, `LogSettings` (env-prefix configurable), `InterceptHandler` for stdlib-to-loguru bridging |
 | **console** | Themed terminal output | Module-level `console` object (Rich `Console`) with colour theme and `_get_console()` factory |
 | **di** | Dependency injection | `locate_subclasses`, `locate_implementations`, `load_modules`, `discover_plugin_packages`, `clear_caches`, `PLUGIN_ENTRY_POINT_GROUP` for plugin and subclass discovery |
 | **health** | Service health checks | `Health` model and `HealthStatus` enum for tree-structured health status |
@@ -35,6 +36,19 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 - **Location**: `aignostics_foundry_core/api/exceptions.py`
 - **Dependencies**: `fastapi>=0.110,<1` (mandatory); `loguru` (used lazily inside `unhandled_exception_handler`)
 - **Import**: `from aignostics_foundry_core.api.exceptions import ApiException, NotFoundException, AccessDeniedException, api_exception_handler, unhandled_exception_handler, validation_exception_handler`
+
+### log
+
+**Configurable loguru logging initialisation**
+
+- **Purpose**: Bootstraps loguru as the primary logging framework, optionally redirecting stdlib `logging` via `InterceptHandler`. All project-specific constants are passed as parameters rather than hard-coded.
+- **Key Features**:
+  - `InterceptHandler(logging.Handler)` — redirects stdlib log records to loguru, preserving original module/function/line metadata
+  - `LogSettings(BaseSettings)` — reads from `FOUNDRY_LOG_*` env vars by default; override prefix and env file via constructor kwargs (e.g. `LogSettings(_env_prefix="BRIDGE_LOG_", _env_file=".env")`). Fields: `level`, `stderr_enabled`, `file_enabled`, `file_name`, `redirect_logging`
+  - `logging_initialize(project_name, version, env_file, filter_func)` — removes all existing loguru handlers, then adds stderr/file handlers per settings; embeds `project_name` and `version` in loguru `extra`; installs `InterceptHandler` for stdlib redirect; suppresses psycopg pool noise
+- **Location**: `aignostics_foundry_core/log.py`
+- **Dependencies**: `loguru>=0.7,<1`, `platformdirs>=4,<5` (mandatory)
+- **Import**: `from aignostics_foundry_core.log import logging_initialize, LogSettings, InterceptHandler`
 
 ### models
 
