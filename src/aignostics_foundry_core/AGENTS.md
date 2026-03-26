@@ -12,6 +12,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 | **process** | Current process introspection | `ProcessInfo`, `ParentProcessInfo` Pydantic models and `get_process_info()` for runtime process metadata; `SUBPROCESS_CREATION_FLAGS` for subprocess creation |
 | **api.exceptions** | API exception hierarchy and FastAPI handlers | `ApiException` (500), `NotFoundException` (404), `AccessDeniedException` (401); `api_exception_handler`, `unhandled_exception_handler`, `validation_exception_handler` for FastAPI registration |
 | **log** | Configurable loguru logging initialisation | `logging_initialize(project_name, version, env_file, filter_func)`, `LogSettings` (env-prefix configurable), `InterceptHandler` for stdlib-to-loguru bridging |
+| **sentry** | Configurable Sentry integration | `sentry_initialize(project_name, version, environment, integrations, …)`, `SentrySettings` (env-prefix configurable), `set_sentry_user(user, role_claim)` for Auth0 user context |
 | **console** | Themed terminal output | Module-level `console` object (Rich `Console`) with colour theme and `_get_console()` factory |
 | **di** | Dependency injection | `locate_subclasses`, `locate_implementations`, `load_modules`, `discover_plugin_packages`, `clear_caches`, `PLUGIN_ENTRY_POINT_GROUP` for plugin and subclass discovery |
 | **health** | Service health checks | `Health` model and `HealthStatus` enum for tree-structured health status |
@@ -49,6 +50,19 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 - **Location**: `aignostics_foundry_core/log.py`
 - **Dependencies**: `loguru>=0.7,<1`, `platformdirs>=4,<5` (mandatory)
 - **Import**: `from aignostics_foundry_core.log import logging_initialize, LogSettings, InterceptHandler`
+
+### sentry
+
+**Configurable Sentry integration for error tracking and performance monitoring**
+
+- **Purpose**: Bootstraps Sentry SDK with all project-specific metadata supplied as explicit parameters, making the initialisation reusable across any project without hard-coded constants.
+- **Key Features**:
+  - `SentrySettings(OpaqueSettings)` — reads from `FOUNDRY_SENTRY_*` env vars by default; override prefix and env file via constructor kwargs (e.g. `SentrySettings(_env_prefix="BRIDGE_SENTRY_", _env_file=".env")`). Fields: `enabled`, `dsn` (validated HTTPS Sentry URL), `debug`, `send_default_pii`, `max_breadcrumbs`, `sample_rate`, `traces_sample_rate`, `profiles_sample_rate`, `profile_session_sample_rate`, `profile_lifecycle`, `enable_logs`
+  - `sentry_initialize(project_name, version, environment, integrations, repository_url, documentation_url, is_container, is_test, is_cli, is_library, env_prefix, env_file)` — initialises Sentry SDK when enabled and DSN present; sets `aignx/base` context; suppresses noisy loggers; returns `True` on success, `False` otherwise
+  - `set_sentry_user(user, role_claim)` — maps Auth0 user claims (`sub` → `id`, `email`, `name`, …) into Sentry scope; pass `None` to clear context; no-op when `sentry_sdk` is absent
+- **Location**: `aignostics_foundry_core/sentry.py`
+- **Dependencies**: `sentry-sdk>=2,<3` (mandatory); `loguru>=0.7,<1`
+- **Import**: `from aignostics_foundry_core.sentry import SentrySettings, sentry_initialize, set_sentry_user`
 
 ### models
 
