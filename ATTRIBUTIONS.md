@@ -6247,12 +6247,13 @@ THE SOFTWARE.
 
 ```
 
-## requests (2.32.5) - Apache Software License
+## requests (2.33.0) - Apache Software License
 
 Python HTTP for Humans.
 
-* URL: https://requests.readthedocs.io
-* Author(s): Kenneth Reitz
+* URL: https://github.com/psf/requests
+* Author(s): Kenneth Reitz <me@kennethreitz.org>
+* Maintainer(s): Ian Stapleton Cordasco <graffatcolmingov@gmail.com>, Nate Prewitt <nate.prewitt@gmail.com>
 
 ### License Text
 
@@ -6432,6 +6433,14 @@ Python HTTP for Humans.
       defend, and hold each Contributor harmless for any liability
       incurred by, or claims asserted against, such Contributor by reason
       of your accepting any such warranty or additional liability.
+
+```
+
+### Notice
+
+```
+Requests
+Copyright 2019 Kenneth Reitz
 
 ```
 
