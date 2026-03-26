@@ -14,6 +14,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 | **log** | Configurable loguru logging initialisation | `logging_initialize(project_name, version, env_file, filter_func)`, `LogSettings` (env-prefix configurable), `InterceptHandler` for stdlib-to-loguru bridging |
 | **sentry** | Configurable Sentry integration | `sentry_initialize(project_name, version, environment, integrations, …)`, `SentrySettings` (env-prefix configurable), `set_sentry_user(user, role_claim)` for Auth0 user context |
 | **service** | FastAPI-injectable base service | `BaseService` ABC with `get_service()` (cached per-class FastAPI `Depends` factory), `key()`, and abstract `health()` / `info()` methods; concrete subclasses implement health checks and module info |
+| **database** | Async SQLAlchemy session management | `init_engine(db_url, pool_size, max_overflow, pool_timeout)`, `dispose_engine()`, `get_db_session()` (FastAPI dependency), `execute_with_session(func, …)`, `cli_run_with_db(func, …, db_url)`, `cli_run_with_engine(func, …, db_url)`, `with_engine(db_url)` decorator factory; auto-resets engine after `fork()` |
 | **user_agent** | Parameterised HTTP user-agent string builder | `user_agent(project_name, version, repository_url)` — builds `{project_name}-python-sdk/{version} (…)` string including platform info, current test, and GitHub Actions run URL |
 | **console** | Themed terminal output | Module-level `console` object (Rich `Console`) with colour theme and `_get_console()` factory |
 | **di** | Dependency injection | `locate_subclasses`, `locate_implementations`, `load_modules`, `discover_plugin_packages`, `clear_caches`, `PLUGIN_ENTRY_POINT_GROUP` for plugin and subclass discovery |
@@ -162,6 +163,24 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 - **Location**: `aignostics_foundry_core/service.py`
 - **Dependencies**: `fastapi>=0.110,<1` (for typing/DI); `pydantic-settings>=2`; `aignostics_foundry_core.health`, `aignostics_foundry_core.settings`
 - **Import**: `from aignostics_foundry_core.service import BaseService`
+
+### database
+
+**Async SQLAlchemy session management**
+
+- **Purpose**: Manages a process-level async database engine singleton, providing session injection for FastAPI routes, background jobs, and CLI commands. All Bridge-specific settings are replaced with explicit parameters.
+- **Key Features**:
+  - `init_engine(db_url, pool_size=10, max_overflow=10, pool_timeout=30)` — initialises the global `AsyncEngine` and `async_sessionmaker`; subsequent calls are silent no-ops. Pool parameters are omitted automatically for SQLite (which does not use `QueuePool`).
+  - `dispose_engine()` — async; disposes the engine; called during application shutdown.
+  - `get_db_session()` — async generator; yields an `AsyncSession`; raises `RuntimeError` if engine not initialised. Use as a FastAPI `Depends` target.
+  - `execute_with_session(async_func, *args, **kwargs)` — async; runs `async_func` with a session injected as the `session` keyword argument. For background jobs and CLI helpers.
+  - `cli_run_with_db(async_func, *args, db_url, pool_size, max_overflow, pool_timeout, **kwargs)` — synchronous wrapper: initialises engine, runs the coroutine, then disposes. For CLI commands.
+  - `cli_run_with_engine(async_func, *args, db_url, pool_size, max_overflow, pool_timeout, **kwargs)` — like `cli_run_with_db` but does not inject a session; for jobs that manage sessions themselves.
+  - `with_engine(db_url, pool_size, max_overflow, pool_timeout)` — decorator factory; wraps an async function to initialise the engine before execution. For long-lived workers; does **not** dispose after running.
+  - Fork safety: `multiprocessing.util.register_after_fork` resets the engine in child processes automatically.
+- **Location**: `aignostics_foundry_core/database.py`
+- **Dependencies**: `sqlalchemy[asyncio]>=2,<3`, `asyncpg>=0.29,<1` (mandatory); `loguru` for structured logging
+- **Import**: `from aignostics_foundry_core.database import init_engine, dispose_engine, get_db_session, execute_with_session, cli_run_with_db, cli_run_with_engine, with_engine`
 
 ### user_agent
 
