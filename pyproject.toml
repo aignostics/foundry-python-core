@@ -50,6 +50,7 @@ requires-python = ">=3.11, <3.15"
 
 dependencies = [
     "asyncpg>=0.29,<1",
+    "auth0-fastapi>=1.0.0b5,<2",
     "fastapi>=0.110,<1",
     "loguru>=0.7,<1",
     "platformdirs>=4,<5",

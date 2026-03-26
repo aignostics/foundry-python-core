@@ -11,6 +11,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 | **models** | Shared output format enum | `OutputFormat` StrEnum with `YAML` and `JSON` values for use in CLI and API responses |
 | **process** | Current process introspection | `ProcessInfo`, `ParentProcessInfo` Pydantic models and `get_process_info()` for runtime process metadata; `SUBPROCESS_CREATION_FLAGS` for subprocess creation |
 | **api.exceptions** | API exception hierarchy and FastAPI handlers | `ApiException` (500), `NotFoundException` (404), `AccessDeniedException` (401); `api_exception_handler`, `unhandled_exception_handler`, `validation_exception_handler` for FastAPI registration |
+| **api.auth** | Auth0 authentication FastAPI dependencies | `AuthSettings` (env-prefix configurable), `UnauthenticatedError`, `ForbiddenError` (403); `get_auth_client`, `get_user`, `require_authenticated`, `require_admin`, `require_internal`, `require_internal_admin` FastAPI dependencies; Auth0 cookie security schemes |
 | **log** | Configurable loguru logging initialisation | `logging_initialize(project_name, version, env_file, filter_func)`, `LogSettings` (env-prefix configurable), `InterceptHandler` for stdlib-to-loguru bridging |
 | **sentry** | Configurable Sentry integration | `sentry_initialize(project_name, version, environment, integrations, …)`, `SentrySettings` (env-prefix configurable), `set_sentry_user(user, role_claim)` for Auth0 user context |
 | **service** | FastAPI-injectable base service | `BaseService` ABC with `get_service()` (cached per-class FastAPI `Depends` factory), `key()`, and abstract `health()` / `info()` methods; concrete subclasses implement health checks and module info |
@@ -41,6 +42,26 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 - **Location**: `aignostics_foundry_core/api/exceptions.py`
 - **Dependencies**: `fastapi>=0.110,<1` (mandatory); `loguru` (used lazily inside `unhandled_exception_handler`)
 - **Import**: `from aignostics_foundry_core.api.exceptions import ApiException, NotFoundException, AccessDeniedException, api_exception_handler, unhandled_exception_handler, validation_exception_handler`
+
+### api.auth
+
+**Auth0 authentication and authorization FastAPI dependencies**
+
+- **Purpose**: Provides Auth0 cookie-based session authentication dependencies for FastAPI routes. All project-specific settings (org ID, role claim) are loaded from `AuthSettings` whose env prefix is configurable at instantiation.
+- **Key Features**:
+  - `AuthSettings(OpaqueSettings)` — reads from `FOUNDRY_AUTH_*` env vars by default; override prefix via constructor kwargs (e.g. `AuthSettings(_env_prefix="BRIDGE_AUTH_", _env_file=".env")`). Fields: `internal_org_id` (for internal org check), `auth0_role_claim` (JWT claim name for role)
+  - `UnauthenticatedError(Exception)` — raised when a user session is missing or invalid
+  - `ForbiddenError(ApiException)` — `status_code = 403`; raised when user lacks required role or org membership
+  - `get_auth_client(request)` — retrieves `AuthClient` from `request.app.state.auth_client`; raises `RuntimeError` if not configured
+  - `get_user(request, _cookie)` — async FastAPI dependency; returns user dict from Auth0 session or `None`; validates expiry; sets Sentry user context
+  - `require_authenticated` — dependency: requires a valid session
+  - `require_admin` — dependency: requires admin role
+  - `require_internal` — dependency: requires internal organization membership
+  - `require_internal_admin` — dependency: requires internal org membership AND admin role
+  - Auth0 cookie security scheme constants: `AUTH0_SESSION_COOKIE_NAME`, `AUTH0_TRANSACTION_COOKIE_NAME`, `AUTH0_ROLE_ADMIN`, `DEFAULT_AUTH0_ROLE_CLAIM`
+- **Location**: `aignostics_foundry_core/api/auth.py`
+- **Dependencies**: `auth0-fastapi>=1.0.0b5,<2`, `fastapi>=0.110,<1`, `loguru>=0.7,<1` (all mandatory)
+- **Import**: `from aignostics_foundry_core.api.auth import AuthSettings, ForbiddenError, UnauthenticatedError, get_auth_client, get_user, require_authenticated, require_admin, require_internal, require_internal_admin`
 
 ### log
 
