@@ -4,6 +4,10 @@ import pytest
 
 TITLE_KEY = "title"
 TEST_TITLE = "My API"
+MODULE_TAG = "test-module"
+CUSTOM_PREFIX = "/custom-prefix"
+EXTRA_TAG = "extra-tag"
+VERSION_STEP1 = "v-step1-test"
 
 
 @pytest.mark.unit
@@ -66,3 +70,104 @@ def test_init_api_returns_fastapi_instance() -> None:
     app = init_api()
 
     assert isinstance(app, FastAPI)
+
+
+@pytest.mark.unit
+def test_create_public_router_default_prefix() -> None:
+    """create_public_router uses /{module_tag} as the default prefix."""
+    from aignostics_foundry_core.api.core import create_public_router
+
+    router = create_public_router(MODULE_TAG, version=VERSION_STEP1)
+
+    assert router.prefix == f"/{MODULE_TAG}"
+
+
+@pytest.mark.unit
+def test_create_public_router_custom_prefix() -> None:
+    """create_public_router uses the explicit prefix when provided."""
+    from aignostics_foundry_core.api.core import create_public_router
+
+    router = create_public_router(MODULE_TAG, version=VERSION_STEP1, prefix=CUSTOM_PREFIX)
+
+    assert router.prefix == CUSTOM_PREFIX
+
+
+@pytest.mark.unit
+def test_create_public_router_tags() -> None:
+    """create_public_router includes module_tag and API_TAG_PUBLIC in tags."""
+    from aignostics_foundry_core.api.core import API_TAG_PUBLIC, create_public_router
+
+    router = create_public_router(MODULE_TAG, version=VERSION_STEP1)
+
+    assert MODULE_TAG in router.tags
+    assert API_TAG_PUBLIC in router.tags
+
+
+@pytest.mark.unit
+def test_create_public_router_extra_tags() -> None:
+    """create_public_router appends extra_tags to the tag list."""
+    from aignostics_foundry_core.api.core import create_public_router
+
+    router = create_public_router(MODULE_TAG, version=VERSION_STEP1, extra_tags=[EXTRA_TAG])
+
+    assert EXTRA_TAG in router.tags
+
+
+@pytest.mark.unit
+def test_create_authenticated_router_injects_auth_dependency() -> None:
+    """create_authenticated_router adds Depends(require_authenticated) to dependencies."""
+    from aignostics_foundry_core.api.auth import require_authenticated
+    from aignostics_foundry_core.api.core import create_authenticated_router
+
+    router = create_authenticated_router(MODULE_TAG, version=VERSION_STEP1)
+
+    assert any(d.dependency is require_authenticated for d in router.dependencies)
+
+
+@pytest.mark.unit
+def test_create_admin_router_injects_auth_dependency() -> None:
+    """create_admin_router adds Depends(require_admin) to dependencies."""
+    from aignostics_foundry_core.api.auth import require_admin
+    from aignostics_foundry_core.api.core import create_admin_router
+
+    router = create_admin_router(MODULE_TAG, version=VERSION_STEP1)
+
+    assert any(d.dependency is require_admin for d in router.dependencies)
+
+
+@pytest.mark.unit
+def test_create_internal_router_injects_auth_dependency() -> None:
+    """create_internal_router adds Depends(require_internal) to dependencies."""
+    from aignostics_foundry_core.api.auth import require_internal
+    from aignostics_foundry_core.api.core import create_internal_router
+
+    router = create_internal_router(MODULE_TAG, version=VERSION_STEP1)
+
+    assert any(d.dependency is require_internal for d in router.dependencies)
+
+
+@pytest.mark.unit
+def test_create_internal_admin_router_injects_auth_dependency() -> None:
+    """create_internal_admin_router adds Depends(require_internal_admin) to dependencies."""
+    from aignostics_foundry_core.api.auth import require_internal_admin
+    from aignostics_foundry_core.api.core import create_internal_admin_router
+
+    router = create_internal_admin_router(MODULE_TAG, version=VERSION_STEP1)
+
+    assert any(d.dependency is require_internal_admin for d in router.dependencies)
+
+
+@pytest.mark.unit
+def test_versioned_api_router_add_exception_handler_registration() -> None:
+    """add_exception_handler_registration stores the (exc_class, handler) pair."""
+    from typing import Any, cast
+
+    from aignostics_foundry_core.api.core import VersionedAPIRouter
+
+    def handler(request: object, exc: Exception) -> None:
+        pass
+
+    router = VersionedAPIRouter(VERSION_STEP1)
+    cast("Any", router).add_exception_handler_registration(ValueError, handler)
+
+    assert (ValueError, handler) in cast("Any", router).exception_handlers
