@@ -1,6 +1,6 @@
 # 🏭 Foundry Python Core
 
-[![License](https://img.shields.io/badge/license-Proprietary-A41831?labelColor=414042)](https://github.com/aignostics/foundry-python-core/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/aignostics/foundry-python-core/blob/main/LICENSE)
 [![CI](https://github.com/aignostics/foundry-python-core/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/aignostics/foundry-python-core/actions/workflows/ci-cd.yml)
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=aignostics_foundry-python-core&metric=alert_status&token=a2fcb508f6d22af0c9d0a38728a7f5ee22d5b2ab)](https://sonarcloud.io/summary/new_code?id=aignostics_foundry-python-core)
 [![Security](https://sonarcloud.io/api/project_badges/measure?project=aignostics_foundry-python-core&metric=security_rating&token=a2fcb508f6d22af0c9d0a38728a7f5ee22d5b2ab)](https://sonarcloud.io/summary/new_code?id=aignostics_foundry-python-core)
