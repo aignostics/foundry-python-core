@@ -47,6 +47,11 @@ class TestGetDbSession:
             await anext(gen)
 
 
+async def noop(**_kwargs: object) -> None:
+    """A no-op async function that accepts arbitrary keyword arguments."""
+    await asyncio.sleep(0)
+
+
 class TestInitEngine:
     """Tests for init_engine and dispose_engine lifecycle."""
 
@@ -61,10 +66,6 @@ class TestInitEngine:
         """Calling init_engine twice is a no-op — execute_with_session works after both calls."""
         init_engine(sqlite_url)
         init_engine(sqlite_url)  # Must not raise; second call is a silent no-op
-
-        async def noop(**_kwargs: object) -> None:
-            pass
-
         await execute_with_session(noop)  # Session maker still functional
 
     @pytest.mark.unit
@@ -82,7 +83,8 @@ class TestExecuteWithSession:
         """The wrapped function receives an AsyncSession as the 'session' keyword argument."""
         received: list[object] = []
 
-        async def capture_session(**kwargs: object) -> None:  # noqa: RUF029
+        async def capture_session(**kwargs: object) -> None:
+            await asyncio.sleep(0)  # Use an asynchronous feature
             received.append(kwargs.get(SESSION_KWARG))
 
         init_engine(sqlite_url)
@@ -94,10 +96,6 @@ class TestExecuteWithSession:
     @pytest.mark.unit
     async def test_execute_with_session_raises_before_init(self) -> None:
         """RuntimeError raised when execute_with_session is called before init_engine."""
-
-        async def noop(**_: object) -> None:
-            pass
-
         with pytest.raises(RuntimeError, match="not initialized"):
             await execute_with_session(noop)
 
@@ -109,7 +107,8 @@ class TestCliRunWithDb:
     async def test_cli_run_with_db_returns_function_result(self, sqlite_url: str) -> None:
         """cli_run_with_db returns the value produced by the async function."""
 
-        async def return_42(**_: object) -> int:  # noqa: RUF029
+        async def return_42(**_: object) -> int:
+            await asyncio.sleep(0)  # Use an asynchronous feature
             return 42
 
         result = await asyncio.to_thread(cli_run_with_db, return_42, db_url=sqlite_url)
@@ -127,10 +126,6 @@ class TestCliRunWithDb:
         with pytest.raises(ValueError, match=err_msg):
             await asyncio.to_thread(cli_run_with_db, raise_error, db_url=sqlite_url)
 
-        # Engine was cleaned up; init_engine followed by execute_with_session must work.
-        async def noop(**_: object) -> None:
-            pass
-
         init_engine(sqlite_url)
         await execute_with_session(noop)
 
@@ -142,7 +137,8 @@ class TestCliRunWithEngine:
     async def test_cli_run_with_engine_executes_function(self, sqlite_url: str) -> None:
         """cli_run_with_engine returns the value produced by the async function."""
 
-        async def return_hello() -> str:  # noqa: RUF029
+        async def return_hello() -> str:
+            await asyncio.sleep(0)  # Use an asynchronous feature
             return "hello"
 
         result = await asyncio.to_thread(cli_run_with_engine, return_hello, db_url=sqlite_url)
@@ -159,10 +155,6 @@ class TestCliRunWithEngine:
 
         with pytest.raises(ValueError, match=err_msg):
             await asyncio.to_thread(cli_run_with_engine, raise_error, db_url=sqlite_url)
-
-        # Engine was cleaned up; init_engine followed by execute_with_session must work.
-        async def noop(**_: object) -> None:
-            pass
 
         init_engine(sqlite_url)
         await execute_with_session(noop)
