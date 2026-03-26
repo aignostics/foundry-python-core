@@ -9,6 +9,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 | Module | Purpose | Description |
 |--------|---------|-------------|
 | **models** | Shared output format enum | `OutputFormat` StrEnum with `YAML` and `JSON` values for use in CLI and API responses |
+| **process** | Current process introspection | `ProcessInfo`, `ParentProcessInfo` Pydantic models and `get_process_info()` for runtime process metadata; `SUBPROCESS_CREATION_FLAGS` for subprocess creation |
 | **console** | Themed terminal output | Module-level `console` object (Rich `Console`) with colour theme and `_get_console()` factory |
 | **di** | Dependency injection | `locate_subclasses`, `locate_implementations`, `load_modules`, `discover_plugin_packages`, `clear_caches`, `PLUGIN_ENTRY_POINT_GROUP` for plugin and subclass discovery |
 | **health** | Service health checks | `Health` model and `HealthStatus` enum for tree-structured health status |
@@ -27,6 +28,19 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
   - `OutputFormat(StrEnum)` — `YAML = "yaml"`, `JSON = "json"`; each member is a plain `str` subtype, usable wherever a string format identifier is expected
 - **Location**: `aignostics_foundry_core/models.py`
 - **Dependencies**: Python stdlib only (`enum.StrEnum`, Python ≥ 3.11)
+
+### process
+
+**Current process introspection**
+
+- **Purpose**: Provides runtime process metadata for observability, diagnostics, and user-agent generation
+- **Key Features**:
+  - `ParentProcessInfo(BaseModel)` — `name` and `pid` of the parent process
+  - `ProcessInfo(BaseModel)` — `project_root`, `pid`, `parent`, and `cmdline` of the current process
+  - `get_process_info()` — returns a `ProcessInfo` for the running process (uses `psutil` lazily)
+  - `SUBPROCESS_CREATION_FLAGS` — platform-safe creation flags for `subprocess` calls (suppresses console window on Windows)
+- **Location**: `aignostics_foundry_core/process.py`
+- **Dependencies**: `psutil>=6` (mandatory)
 
 ### console
 
