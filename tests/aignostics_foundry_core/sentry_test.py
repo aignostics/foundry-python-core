@@ -41,6 +41,57 @@ class TestSentryInitialize:
             )
         assert result is False
 
+    def test_sentry_initialize_returns_true_and_calls_init_when_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Returns True and calls sentry_sdk.init with correct release when enabled with valid DSN."""
+        monkeypatch.setenv("FOUNDRY_SENTRY_ENABLED", "true")
+        monkeypatch.setenv("FOUNDRY_SENTRY_DSN", _VALID_DSN)
+        with (
+            patch("sentry_sdk.init") as mock_init,
+            patch("sentry_sdk.set_context"),
+            patch("sentry_sdk.integrations.logging.ignore_logger"),
+        ):
+            result = sentry_initialize(
+                project_name=_PROJECT,
+                version=_VERSION,
+                environment=_ENVIRONMENT,
+                integrations=None,
+            )
+        assert result is True
+        mock_init.assert_called_once()
+        assert mock_init.call_args.kwargs["release"] == f"{_PROJECT}@{_VERSION}"
+
+    def test_sentry_initialize_returns_false_when_enabled_but_dsn_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Returns False when enabled but no DSN is configured."""
+        monkeypatch.setenv("FOUNDRY_SENTRY_ENABLED", "true")
+        monkeypatch.delenv("FOUNDRY_SENTRY_DSN", raising=False)
+        result = sentry_initialize(
+            project_name=_PROJECT,
+            version=_VERSION,
+            environment=_ENVIRONMENT,
+            integrations=None,
+        )
+        assert result is False
+
+
+@pytest.mark.unit
+class TestSentrySettingsDsnValidation:
+    """Tests for SentrySettings DSN edge-case validation paths."""
+
+    def test_dsn_missing_scheme_raises(self) -> None:
+        """DSN without a URL scheme raises ValidationError."""
+        with pytest.raises(ValidationError):
+            SentrySettings(dsn="//abc@o1.ingest.de.sentry.io/1")  # pyright: ignore[reportCallIssue]
+
+    def test_dsn_missing_netloc_raises(self) -> None:
+        """DSN with only a scheme and no netloc raises ValidationError."""
+        with pytest.raises(ValidationError):
+            SentrySettings(dsn="https:")  # pyright: ignore[reportCallIssue]
+
+    def test_dsn_missing_at_sign_raises(self) -> None:
+        """DSN without an @ sign in the netloc raises ValidationError."""
+        with pytest.raises(ValidationError):
+            SentrySettings(dsn="https://o1.ingest.de.sentry.io/1")  # pyright: ignore[reportCallIssue]
+
 
 @pytest.mark.unit
 class TestSentrySettings:
@@ -98,3 +149,29 @@ class TestSetSentryUser:
         with patch("aignostics_foundry_core.sentry.find_spec", return_value=None):
             # Should not raise even though sentry_sdk is unavailable
             set_sentry_user({"sub": "auth0|x"})
+
+    def test_set_sentry_user_includes_role_from_claim(self) -> None:
+        """set_sentry_user includes role from a custom claim when role_claim is provided."""
+        mock_set_user = MagicMock()
+        with patch("sentry_sdk.set_user", mock_set_user):
+            set_sentry_user(
+                {"sub": "auth0|x", "https://my/role": "admin"},
+                role_claim="https://my/role",
+            )
+        assert mock_set_user.call_args[0][0]["role"] == "admin"
+
+    def test_set_sentry_user_maps_multiple_fields(self) -> None:
+        """set_sentry_user maps all standard Auth0 fields to Sentry user context."""
+        mock_set_user = MagicMock()
+        with patch("sentry_sdk.set_user", mock_set_user):
+            set_sentry_user({
+                "sub": "auth0|abc",
+                "email": "user@example.com",
+                "name": "Test User",
+                "org_id": "org_123",
+            })
+        sentry_user = mock_set_user.call_args[0][0]
+        assert sentry_user["id"] == "auth0|abc"
+        assert sentry_user["email"] == "user@example.com"
+        assert sentry_user["name"] == "Test User"
+        assert sentry_user["org_id"] == "org_123"
