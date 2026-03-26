@@ -13,6 +13,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 | **api.exceptions** | API exception hierarchy and FastAPI handlers | `ApiException` (500), `NotFoundException` (404), `AccessDeniedException` (401); `api_exception_handler`, `unhandled_exception_handler`, `validation_exception_handler` for FastAPI registration |
 | **log** | Configurable loguru logging initialisation | `logging_initialize(project_name, version, env_file, filter_func)`, `LogSettings` (env-prefix configurable), `InterceptHandler` for stdlib-to-loguru bridging |
 | **sentry** | Configurable Sentry integration | `sentry_initialize(project_name, version, environment, integrations, …)`, `SentrySettings` (env-prefix configurable), `set_sentry_user(user, role_claim)` for Auth0 user context |
+| **user_agent** | Parameterised HTTP user-agent string builder | `user_agent(project_name, version, repository_url)` — builds `{project_name}-python-sdk/{version} (…)` string including platform info, current test, and GitHub Actions run URL |
 | **console** | Themed terminal output | Module-level `console` object (Rich `Console`) with colour theme and `_get_console()` factory |
 | **di** | Dependency injection | `locate_subclasses`, `locate_implementations`, `load_modules`, `discover_plugin_packages`, `clear_caches`, `PLUGIN_ENTRY_POINT_GROUP` for plugin and subclass discovery |
 | **health** | Service health checks | `Health` model and `HealthStatus` enum for tree-structured health status |
@@ -144,6 +145,20 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
   - `Health.Code` — `ClassVar` alias for `HealthStatus` (convenience)
 - **Location**: `aignostics_foundry_core/health.py`
 - **Dependencies**: `pydantic>=2`
+
+### user_agent
+
+**Parameterised HTTP user-agent string builder**
+
+- **Purpose**: Generates a standard HTTP User-Agent header value for outgoing requests, embedding project identity, runtime platform info, and CI/test context
+- **Key Features**:
+  - `user_agent(project_name, version, repository_url)` — returns a string in the format `{project_name}-python-sdk/{version} ({platform}; +{repository_url}[; {PYTEST_CURRENT_TEST}][; +{github_run_url}])`
+  - Automatically includes `PYTEST_CURRENT_TEST` env var when running under pytest
+  - Automatically includes a `github.com/…/actions/runs/…` URL when `GITHUB_RUN_ID` and `GITHUB_REPOSITORY` env vars are set
+  - No external dependencies (stdlib `os` and `platform` only)
+- **Location**: `aignostics_foundry_core/user_agent.py`
+- **Dependencies**: Python stdlib only
+- **Import**: `from aignostics_foundry_core.user_agent import user_agent`
 
 ## Architecture
 
