@@ -3,9 +3,14 @@
 from typing import Any
 
 import pytest
+from pydantic_settings import BaseSettings
 
 from aignostics_foundry_core.health import Health, HealthStatus
 from aignostics_foundry_core.service import BaseService
+
+
+class _MinimalSettings(BaseSettings):
+    """Minimal settings class with no required fields for testing."""
 
 
 class _ConcreteService(BaseService):
@@ -72,6 +77,28 @@ class TestKey:
         expected = service.__module__.split(".")[-2]
         assert service.key() == expected
         assert len(service.key()) > 0
+
+
+class TestSettings:
+    """Tests for BaseService settings injection and accessor."""
+
+    @pytest.mark.unit
+    def test_service_with_settings_class_loads_settings(self) -> None:
+        """settings() returns a BaseSettings instance when settings_class is provided."""
+
+        class _ServiceWithSettings(BaseService):
+            def __init__(self) -> None:
+                super().__init__(settings_class=_MinimalSettings)
+
+            async def health(self) -> Health:
+                return Health(status=HealthStatus.UP)
+
+            async def info(self, mask_secrets: bool = True) -> dict[str, Any]:
+                return {}
+
+        service = _ServiceWithSettings()
+        result = service.settings()
+        assert isinstance(result, BaseSettings)
 
 
 class TestAbstractEnforcement:
