@@ -52,7 +52,7 @@ jobs:
           echo "RELEASE_NOTES_CONTENT=$NOTES" >> $GITHUB_ENV
 
 
-      - name: Publish distribution to GCP Artifact Registry
+      - name: Publish distribution to PyPi
         shell: bash
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}
