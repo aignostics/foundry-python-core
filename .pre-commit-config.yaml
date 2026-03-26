@@ -84,7 +84,7 @@ repos:
         pass_filenames: false
         always_run: true
         verbose: true
-        stages: [pre-push]
+        stages: [pre-commit]
       - id: test-unit
         name: Test (unit)
         entry: bash -c 'mise run test_unit'
