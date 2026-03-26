@@ -8,6 +8,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 
 | Module | Purpose | Description |
 |--------|---------|-------------|
+| **models** | Shared output format enum | `OutputFormat` StrEnum with `YAML` and `JSON` values for use in CLI and API responses |
 | **console** | Themed terminal output | Module-level `console` object (Rich `Console`) with colour theme and `_get_console()` factory |
 | **di** | Dependency injection | `locate_subclasses`, `locate_implementations`, `load_modules`, `discover_plugin_packages`, `clear_caches`, `PLUGIN_ENTRY_POINT_GROUP` for plugin and subclass discovery |
 | **health** | Service health checks | `Health` model and `HealthStatus` enum for tree-structured health status |
@@ -16,6 +17,16 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 ## Module Descriptions
 
 <!-- For each module, document its purpose, features, dependencies, and usage. -->
+
+### models
+
+**Shared output format enum for CLI and API responses**
+
+- **Purpose**: Provides a single source of truth for supported output formats across all Foundry components
+- **Key Features**:
+  - `OutputFormat(StrEnum)` — `YAML = "yaml"`, `JSON = "json"`; each member is a plain `str` subtype, usable wherever a string format identifier is expected
+- **Location**: `aignostics_foundry_core/models.py`
+- **Dependencies**: Python stdlib only (`enum.StrEnum`, Python ≥ 3.11)
 
 ### console
 
