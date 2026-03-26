@@ -19,6 +19,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 | **service** | FastAPI-injectable base service | `BaseService` ABC with `get_service()` (cached per-class FastAPI `Depends` factory), `key()`, and abstract `health()` / `info()` methods; concrete subclasses implement health checks and module info |
 | **database** | Async SQLAlchemy session management | `init_engine(db_url, pool_size, max_overflow, pool_timeout)`, `dispose_engine()`, `get_db_session()` (FastAPI dependency), `execute_with_session(func, …)`, `cli_run_with_db(func, …, db_url)`, `cli_run_with_engine(func, …, db_url)`, `with_engine(db_url)` decorator factory; auto-resets engine after `fork()` |
 | **cli** | Typer CLI preparation utilities | `prepare_cli(cli, epilog, project_name)` — discovers and registers subcommands via `locate_implementations`, sets epilog recursively, installs `no_args_is_help` workaround; `no_args_is_help_workaround(ctx)` — raises `typer.Exit` when no subcommand is invoked |
+| **boot** | Application / library boot sequence | `boot(project_name, version, sentry_integrations, is_library_mode, log_filter, show_cmdline)` — runs once per process: parses `--env` CLI args, initialises logging and Sentry, amends the SSL trust chain via *truststore* and *certifi*, and logs boot/shutdown messages |
 | **user_agent** | Parameterised HTTP user-agent string builder | `user_agent(project_name, version, repository_url)` — builds `{project_name}-python-sdk/{version} (…)` string including platform info, current test, and GitHub Actions run URL |
 | **console** | Themed terminal output | Module-level `console` object (Rich `Console`) with colour theme and `_get_console()` factory |
 | **di** | Dependency injection | `locate_subclasses`, `locate_implementations`, `load_modules`, `discover_plugin_packages`, `clear_caches`, `PLUGIN_ENTRY_POINT_GROUP` for plugin and subclass discovery |
@@ -83,6 +84,23 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 - **Location**: `aignostics_foundry_core/api/core.py`
 - **Dependencies**: `fastapi>=0.110,<1` (mandatory); `aignostics_foundry_core.di` (`load_modules`)
 - **Import**: `from aignostics_foundry_core.api.core import VersionedAPIRouter, init_api, build_api_metadata, …` or `from aignostics_foundry_core.api import …`
+
+### boot
+
+**Application / library boot sequence**
+
+- **Purpose**: Provides a single, idempotent `boot()` entry-point that initialises the full observability and SSL stack in the correct order. All project-specific metadata is injected as parameters so the function is reusable across any project.
+- **Key Features**:
+  - `boot(project_name, version, sentry_integrations, is_library_mode, log_filter, show_cmdline)` — runs once per process; subsequent calls are silent no-ops
+  - Parses `--env`/`-e KEY=VALUE` CLI arguments: vars matching `{PROJECT_NAME_UPPER}_*` are injected into `os.environ` and removed from `sys.argv`
+  - Calls `logging_initialize` with project metadata
+  - Calls `_amend_ssl_trust_chain`: injects *truststore* into the SSL context (if available) and sets `SSL_CERT_FILE` to the *certifi* bundle path when no system CA bundle is detected
+  - Calls `sentry_initialize`; reads deployment environment from `{PROJECT_NAME_UPPER}_ENVIRONMENT` env var (default: `"production"`)
+  - Logs a boot message (project, version, pid, parent process, optional cmdline) at DEBUG level
+  - Registers an atexit handler that logs a shutdown trace (skipped inside pytest to avoid closed-stream errors)
+- **Location**: `aignostics_foundry_core/boot.py`
+- **Dependencies**: `loguru>=0.7,<1`, `certifi>=2024`, `truststore>=0.9,<1` (all mandatory); `aignostics_foundry_core.log`, `aignostics_foundry_core.sentry`, `aignostics_foundry_core.process`
+- **Import**: `from aignostics_foundry_core.boot import boot`
 
 ### log
 
