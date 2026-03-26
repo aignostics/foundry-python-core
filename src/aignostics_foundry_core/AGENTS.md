@@ -15,6 +15,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 | **sentry** | Configurable Sentry integration | `sentry_initialize(project_name, version, environment, integrations, …)`, `SentrySettings` (env-prefix configurable), `set_sentry_user(user, role_claim)` for Auth0 user context |
 | **service** | FastAPI-injectable base service | `BaseService` ABC with `get_service()` (cached per-class FastAPI `Depends` factory), `key()`, and abstract `health()` / `info()` methods; concrete subclasses implement health checks and module info |
 | **database** | Async SQLAlchemy session management | `init_engine(db_url, pool_size, max_overflow, pool_timeout)`, `dispose_engine()`, `get_db_session()` (FastAPI dependency), `execute_with_session(func, …)`, `cli_run_with_db(func, …, db_url)`, `cli_run_with_engine(func, …, db_url)`, `with_engine(db_url)` decorator factory; auto-resets engine after `fork()` |
+| **cli** | Typer CLI preparation utilities | `prepare_cli(cli, epilog, project_name)` — discovers and registers subcommands via `locate_implementations`, sets epilog recursively, installs `no_args_is_help` workaround; `no_args_is_help_workaround(ctx)` — raises `typer.Exit` when no subcommand is invoked |
 | **user_agent** | Parameterised HTTP user-agent string builder | `user_agent(project_name, version, repository_url)` — builds `{project_name}-python-sdk/{version} (…)` string including platform info, current test, and GitHub Actions run URL |
 | **console** | Themed terminal output | Module-level `console` object (Rich `Console`) with colour theme and `_get_console()` factory |
 | **di** | Dependency injection | `locate_subclasses`, `locate_implementations`, `load_modules`, `discover_plugin_packages`, `clear_caches`, `PLUGIN_ENTRY_POINT_GROUP` for plugin and subclass discovery |
@@ -163,6 +164,18 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 - **Location**: `aignostics_foundry_core/service.py`
 - **Dependencies**: `fastapi>=0.110,<1` (for typing/DI); `pydantic-settings>=2`; `aignostics_foundry_core.health`, `aignostics_foundry_core.settings`
 - **Import**: `from aignostics_foundry_core.service import BaseService`
+
+### cli
+
+**Typer CLI preparation utilities**
+
+- **Purpose**: Provides helpers to bootstrap a Typer application with auto-discovered subcommands, recursive epilog propagation, and a workaround for the Typer `no_args_is_help` bug.
+- **Key Features**:
+  - `prepare_cli(cli, epilog, project_name)` — discovers all `typer.Typer` instances via `locate_implementations(typer.Typer, project_name)`, adds them as sub-typers (skipping `cli` itself), sets `cli.info.epilog`, propagates the epilog to all nested commands via `_add_epilog_recursively`, and installs `no_args_is_help_workaround` via `_no_args_is_help_recursively`. Bridge callers pass `project_name=__project_name__`.
+  - `no_args_is_help_workaround(ctx)` — Typer callback that prints help and raises `typer.Exit` when `ctx.invoked_subcommand is None`; workaround for https://github.com/fastapi/typer/pull/1240.
+- **Location**: `aignostics_foundry_core/cli.py`
+- **Dependencies**: `typer>=0.14,<1` (mandatory); `aignostics_foundry_core.di`
+- **Import**: `from aignostics_foundry_core.cli import prepare_cli, no_args_is_help_workaround`
 
 ### database
 

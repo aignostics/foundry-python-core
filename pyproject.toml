@@ -59,6 +59,7 @@ dependencies = [
     "rich>=14,<15",
     "sentry-sdk>=2,<3",
     "sqlalchemy[asyncio]>=2,<3",
+    "typer>=0.14,<1",
 ]
 
 [dependency-groups]
