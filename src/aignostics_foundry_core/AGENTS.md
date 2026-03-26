@@ -13,6 +13,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 | **api.exceptions** | API exception hierarchy and FastAPI handlers | `ApiException` (500), `NotFoundException` (404), `AccessDeniedException` (401); `api_exception_handler`, `unhandled_exception_handler`, `validation_exception_handler` for FastAPI registration |
 | **log** | Configurable loguru logging initialisation | `logging_initialize(project_name, version, env_file, filter_func)`, `LogSettings` (env-prefix configurable), `InterceptHandler` for stdlib-to-loguru bridging |
 | **sentry** | Configurable Sentry integration | `sentry_initialize(project_name, version, environment, integrations, …)`, `SentrySettings` (env-prefix configurable), `set_sentry_user(user, role_claim)` for Auth0 user context |
+| **service** | FastAPI-injectable base service | `BaseService` ABC with `get_service()` (cached per-class FastAPI `Depends` factory), `key()`, and abstract `health()` / `info()` methods; concrete subclasses implement health checks and module info |
 | **user_agent** | Parameterised HTTP user-agent string builder | `user_agent(project_name, version, repository_url)` — builds `{project_name}-python-sdk/{version} (…)` string including platform info, current test, and GitHub Actions run URL |
 | **console** | Themed terminal output | Module-level `console` object (Rich `Console`) with colour theme and `_get_console()` factory |
 | **di** | Dependency injection | `locate_subclasses`, `locate_implementations`, `load_modules`, `discover_plugin_packages`, `clear_caches`, `PLUGIN_ENTRY_POINT_GROUP` for plugin and subclass discovery |
@@ -145,6 +146,22 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
   - `Health.Code` — `ClassVar` alias for `HealthStatus` (convenience)
 - **Location**: `aignostics_foundry_core/health.py`
 - **Dependencies**: `pydantic>=2`
+
+### service
+
+**FastAPI-injectable base service class**
+
+- **Purpose**: Provides a reusable `BaseService` ABC that all module services extend. Encapsulates the FastAPI dependency-injection pattern (`Depends(Service.get_service())`) and enforces a consistent `health()` / `info()` interface across all services.
+- **Key Features**:
+  - `BaseService(ABC)` — abstract base class; accepts an optional `settings_class` in `__init__` and loads it via `load_settings`
+  - `get_service()` — class method that returns a per-class-cached generator callable suitable for `Depends()`; caching is required for `dependency_overrides` to work in tests
+  - `key()` — returns the second-to-last component of `__module__` as a string identifier (e.g. `"mymodule"` from `"bridge.mymodule._service"`)
+  - `health()` — abstract `async` method; subclasses return a `Health` instance
+  - `info(mask_secrets)` — abstract `async` method; subclasses return a `dict[str, Any]`
+  - `settings()` — returns the loaded `BaseSettings` instance
+- **Location**: `aignostics_foundry_core/service.py`
+- **Dependencies**: `fastapi>=0.110,<1` (for typing/DI); `pydantic-settings>=2`; `aignostics_foundry_core.health`, `aignostics_foundry_core.settings`
+- **Import**: `from aignostics_foundry_core.service import BaseService`
 
 ### user_agent
 
