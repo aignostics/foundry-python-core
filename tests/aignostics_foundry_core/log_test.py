@@ -1,6 +1,7 @@
 """Tests for aignostics_foundry_core.log."""
 
 import logging as stdlib_logging
+import sys
 from pathlib import Path
 
 import pytest
@@ -89,6 +90,12 @@ class TestLoggingInitialize:
         stdlib_logging.getLogger("test.sentry").warning(_SENTRY_MARKER)
         assert _SENTRY_MARKER not in capsys.readouterr().err
 
+    def test_logging_initialize_suppresses_psycopg_loggers(self) -> None:
+        """After logging_initialize(), psycopg loggers are set to WARNING to suppress noise."""
+        logging_initialize(_PROJECT, _VERSION)
+        assert stdlib_logging.getLogger("psycopg").level == stdlib_logging.WARNING
+        assert stdlib_logging.getLogger("psycopg.pool").level == stdlib_logging.WARNING
+
 
 @pytest.mark.unit
 class TestLogSettings:
@@ -104,6 +111,23 @@ class TestLogSettings:
         settings = LogSettings(file_enabled=False, file_name=str(tmp_path))  # pyright: ignore[reportCallIssue]
         assert settings.file_enabled is False
 
+    def test_log_settings_file_rejects_path_in_missing_parent_dir(self) -> None:
+        """LogSettings raises ValidationError when file_name parent directory does not exist."""
+        with pytest.raises(ValidationError):
+            LogSettings(file_enabled=True, file_name="/nonexistent_dir_xyz/app.log")  # pyright: ignore[reportCallIssue]
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="chmod not supported on Windows")
+    def test_log_settings_rejects_unwritable_existing_file(self, tmp_path: Path) -> None:
+        """LogSettings raises ValidationError when file_name points to a non-writable existing file."""
+        log_file = tmp_path / "readonly.log"
+        log_file.write_text("")
+        log_file.chmod(0o000)
+        try:
+            with pytest.raises(ValidationError):
+                LogSettings(file_enabled=True, file_name=str(log_file))  # pyright: ignore[reportCallIssue]
+        finally:
+            log_file.chmod(0o644)
+
 
 @pytest.mark.unit
 class TestInterceptHandler:
@@ -112,3 +136,31 @@ class TestInterceptHandler:
     def test_intercept_handler_is_logging_handler(self) -> None:
         """InterceptHandler is a subclass of stdlib logging.Handler."""
         assert issubclass(InterceptHandler, stdlib_logging.Handler)
+
+    def test_intercept_handler_uses_debug_for_unknown_level(self) -> None:
+        """InterceptHandler falls back to DEBUG for unknown stdlib level names without raising."""
+        record = stdlib_logging.LogRecord(
+            name="test",
+            level=stdlib_logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test message",
+            args=(),
+            exc_info=None,
+        )
+        record.levelname = "CUSTOM_UNKNOWN_LEVEL"
+        InterceptHandler().emit(record)  # Must not raise
+
+    def test_intercept_handler_handles_task_name(self) -> None:
+        """InterceptHandler stores taskName in record extras when present without raising."""
+        record = stdlib_logging.LogRecord(
+            name="test",
+            level=stdlib_logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test message",
+            args=(),
+            exc_info=None,
+        )
+        record.taskName = "MyAsyncTask"  # type: ignore[attr-defined]
+        InterceptHandler().emit(record)  # Must not raise
