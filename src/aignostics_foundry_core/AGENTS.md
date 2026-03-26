@@ -12,6 +12,8 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 | **process** | Current process introspection | `ProcessInfo`, `ParentProcessInfo` Pydantic models and `get_process_info()` for runtime process metadata; `SUBPROCESS_CREATION_FLAGS` for subprocess creation |
 | **api.exceptions** | API exception hierarchy and FastAPI handlers | `ApiException` (500), `NotFoundException` (404), `AccessDeniedException` (401); `api_exception_handler`, `unhandled_exception_handler`, `validation_exception_handler` for FastAPI registration |
 | **api.auth** | Auth0 authentication FastAPI dependencies | `AuthSettings` (env-prefix configurable), `UnauthenticatedError`, `ForbiddenError` (403); `get_auth_client`, `get_user`, `require_authenticated`, `require_admin`, `require_internal`, `require_internal_admin` FastAPI dependencies; Auth0 cookie security schemes |
+| **api.core** | Versioned API router and FastAPI factory | `VersionedAPIRouter` (tracks all created instances), `API_TAG_*` constants, `create_public/authenticated/admin/internal/internal_admin_router` factories, `build_api_metadata`, `build_versioned_api_tags`, `build_root_api_tags`, `get_versioned_api_instances`, `init_api()` |
+| **api** | Consolidated API sub-package | Re-exports all public symbols from `api.exceptions`, `api.auth`, and `api.core`; import any API symbol directly from `aignostics_foundry_core.api` |
 | **log** | Configurable loguru logging initialisation | `logging_initialize(project_name, version, env_file, filter_func)`, `LogSettings` (env-prefix configurable), `InterceptHandler` for stdlib-to-loguru bridging |
 | **sentry** | Configurable Sentry integration | `sentry_initialize(project_name, version, environment, integrations, …)`, `SentrySettings` (env-prefix configurable), `set_sentry_user(user, role_claim)` for Auth0 user context |
 | **service** | FastAPI-injectable base service | `BaseService` ABC with `get_service()` (cached per-class FastAPI `Depends` factory), `key()`, and abstract `health()` / `info()` methods; concrete subclasses implement health checks and module info |
@@ -62,6 +64,25 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 - **Location**: `aignostics_foundry_core/api/auth.py`
 - **Dependencies**: `auth0-fastapi>=1.0.0b5,<2`, `fastapi>=0.110,<1`, `loguru>=0.7,<1` (all mandatory)
 - **Import**: `from aignostics_foundry_core.api.auth import AuthSettings, ForbiddenError, UnauthenticatedError, get_auth_client, get_user, require_authenticated, require_admin, require_internal, require_internal_admin`
+
+### api.core
+
+**Versioned API router and FastAPI application factory**
+
+- **Purpose**: Provides `VersionedAPIRouter` for building versioned FastAPI sub-applications, typed tag constants, convenience router factory functions, metadata helpers, and a generic `init_api()` factory that registers the standard exception handlers.
+- **Key Features**:
+  - `VersionedAPIRouter` — class-level `_instances` registry; `__new__` creates a real `fastapi.APIRouter` subclass at runtime (lazy import); `get_instances()` returns a copy of the registry
+  - `API_TAG_PUBLIC`, `API_TAG_AUTHENTICATED`, `API_TAG_ADMIN`, `API_TAG_INTERNAL`, `API_TAG_INTERNAL_ADMIN` — string constants for OpenAPI tagging
+  - `create_public_router(module_tag, *, version, prefix, …)` — public (unauthenticated) router
+  - `create_authenticated_router`, `create_admin_router`, `create_internal_router`, `create_internal_admin_router` — router factories that inject the appropriate `require_*` dependency from `api.auth`
+  - `build_api_metadata(title, description, author_name, author_email, repository_url, documentation_url, version)` — returns a `dict` suitable for `FastAPI(**metadata)`
+  - `build_versioned_api_tags(version_name, repository_url)` — OpenAPI tags for a single versioned sub-app
+  - `build_root_api_tags(base_url, versions)` — OpenAPI tags for the root app linking to each version's docs
+  - `get_versioned_api_instances(project_name, versions, build_metadata)` — loads project modules, creates one `FastAPI` per version, routes registered `VersionedAPIRouter` instances to the matching version
+  - `init_api(root_path, lifespan, exception_handler_registrations, **fastapi_kwargs)` — creates a `FastAPI` with the standard Foundry exception handlers (`ApiException`, `RequestValidationError`, `ValidationError`, `Exception`) pre-registered
+- **Location**: `aignostics_foundry_core/api/core.py`
+- **Dependencies**: `fastapi>=0.110,<1` (mandatory); `aignostics_foundry_core.di` (`load_modules`)
+- **Import**: `from aignostics_foundry_core.api.core import VersionedAPIRouter, init_api, build_api_metadata, …` or `from aignostics_foundry_core.api import …`
 
 ### log
 
