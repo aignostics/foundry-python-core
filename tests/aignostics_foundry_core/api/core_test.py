@@ -8,6 +8,9 @@ MODULE_TAG = "test-module"
 CUSTOM_PREFIX = "/custom-prefix"
 EXTRA_TAG = "extra-tag"
 VERSION_STEP1 = "v-step1-test"
+VERSION_GVI = "v-cov-test"
+TEST_VERSION_STR = "1.2.3"
+BASE_URL = "https://example.com"
 
 
 @pytest.mark.unit
@@ -171,3 +174,69 @@ def test_versioned_api_router_add_exception_handler_registration() -> None:
     cast("Any", router).add_exception_handler_registration(ValueError, handler)
 
     assert (ValueError, handler) in cast("Any", router).exception_handlers
+
+
+@pytest.mark.unit
+def test_build_api_metadata_includes_version_when_provided() -> None:
+    """build_api_metadata adds a 'version' key when version is supplied."""
+    from aignostics_foundry_core.api.core import build_api_metadata
+
+    result = build_api_metadata(title=TEST_TITLE, version=TEST_VERSION_STR)
+
+    assert result["version"] == TEST_VERSION_STR
+
+
+@pytest.mark.unit
+def test_build_versioned_api_tags_returns_tag_for_version() -> None:
+    """build_versioned_api_tags returns a single-element list with the correct name."""
+    from aignostics_foundry_core.api.core import build_versioned_api_tags
+
+    tags = build_versioned_api_tags("v2", repository_url=BASE_URL)
+
+    assert len(tags) == 1
+    assert tags[0]["name"] == "v2"
+    assert BASE_URL in tags[0]["externalDocs"]["url"]
+
+
+@pytest.mark.unit
+def test_build_root_api_tags_one_entry_per_version() -> None:
+    """build_root_api_tags returns one tag dict per version with correct name and URL."""
+    from aignostics_foundry_core.api.core import build_root_api_tags
+
+    versions = ["v1", "v2"]
+    tags = build_root_api_tags(BASE_URL, versions)
+
+    assert len(tags) == len(versions)
+    for tag, version in zip(tags, versions, strict=True):
+        assert tag["name"] == version
+        assert f"/api/{version}/docs" in tag["externalDocs"]["url"]
+
+
+@pytest.mark.unit
+def test_get_versioned_api_instances_returns_fastapi_per_version() -> None:
+    """get_versioned_api_instances returns a FastAPI instance for each requested version."""
+    from fastapi import FastAPI
+
+    from aignostics_foundry_core.api.core import VersionedAPIRouter, get_versioned_api_instances
+
+    VersionedAPIRouter(VERSION_GVI)
+    result = get_versioned_api_instances("aignostics_foundry_core", [VERSION_GVI])
+
+    assert VERSION_GVI in result
+    assert isinstance(result[VERSION_GVI], FastAPI)
+
+
+@pytest.mark.unit
+def test_init_api_with_custom_exception_handler_registrations() -> None:
+    """init_api registers custom exception handler pairs before the standard handlers."""
+    from fastapi import FastAPI
+
+    from aignostics_foundry_core.api.core import init_api
+
+    def handler(request: object, exc: Exception) -> None:
+        pass
+
+    app = init_api(exception_handler_registrations=[(ValueError, handler)])
+
+    assert isinstance(app, FastAPI)
+    assert ValueError in app.exception_handlers
