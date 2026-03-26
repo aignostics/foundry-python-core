@@ -73,4 +73,4 @@ jobs:
         with:
           method: chat.postMessage
           token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
-          payload: '{"channel":"#announce-foundry","text":"🚀 Foundry Python Core ${{ github.ref_name }} released","blocks":[{"type":"section","text":{"type":"mrkdwn","text":"🚀 *Foundry Python Core* <${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}|${{ github.ref_name }}> released"}},{"type":"section","text":{"type":"mrkdwn","text":"${{ env.RELEASE_NOTES_CONTENT }}"}}]}'
+          payload: '{"channel":"#announce-foundry","text":"🚀 aignostics-foundry-core ${{ github.ref_name }} released","blocks":[{"type":"section","text":{"type":"mrkdwn","text":"🚀 *aignostics-foundry-core* <${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}|${{ github.ref_name }}> released"}},{"type":"section","text":{"type":"mrkdwn","text":"${{ env.RELEASE_NOTES_CONTENT }}"}}]}'
