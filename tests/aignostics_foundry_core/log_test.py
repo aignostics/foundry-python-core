@@ -39,7 +39,7 @@ class TestLoggingInitialize:
     ) -> None:
         """When stderr is disabled via env var, no output is written to stderr."""
         monkeypatch.setenv(f"{_PROJECT.upper()}_LOG_STDERR_ENABLED", "false")
-        logging_initialize(context=make_context(_PROJECT))
+        logging_initialize(context=make_context(_PROJECT, env_prefix=f"{_PROJECT.upper()}_"))
         from loguru import logger
 
         logger.info(_MARKER_MESSAGE)
@@ -60,7 +60,7 @@ class TestLoggingInitialize:
         log_file = tmp_path / "test.log"
         monkeypatch.setenv(f"{_PROJECT.upper()}_LOG_FILE_ENABLED", "true")
         monkeypatch.setenv(f"{_PROJECT.upper()}_LOG_FILE_NAME", str(log_file))
-        logging_initialize(context=make_context(_PROJECT))
+        logging_initialize(context=make_context(_PROJECT, env_prefix=f"{_PROJECT.upper()}_"))
         from loguru import logger
 
         logger.info(_FILE_HANDLER_MARKER)
@@ -102,11 +102,22 @@ class TestLoggingInitialize:
     ) -> None:
         """logging_initialize reads env-var prefix from context.name."""
         monkeypatch.setenv(f"{_PROJECT.upper()}_LOG_LEVEL", "DEBUG")
-        logging_initialize(context=make_context(_PROJECT))
+        logging_initialize(context=make_context(_PROJECT, env_prefix=f"{_PROJECT.upper()}_"))
         from loguru import logger
 
         logger.debug(_MARKER_MESSAGE)
         assert _MARKER_MESSAGE in capsys.readouterr().err
+
+    def test_logging_initialize_respects_env_prefix_from_context(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """logging_initialize uses ctx.env_prefix to resolve settings env vars."""
+        monkeypatch.setenv("MYPROJECT_LOG_STDERR_ENABLED", "false")
+        logging_initialize(context=make_context("myproject", env_prefix="MYPROJECT_"))
+        from loguru import logger
+
+        logger.info(_MARKER_MESSAGE)
+        assert _MARKER_MESSAGE not in capsys.readouterr().err
 
 
 @pytest.mark.unit

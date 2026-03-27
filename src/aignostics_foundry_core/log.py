@@ -171,7 +171,7 @@ def logging_initialize(
 
     Removes all existing loguru handlers, then adds stderr and/or file
     handlers based on settings read from environment variables with the
-    ``{project_name.upper()}_LOG_`` prefix.
+    ``{ctx.env_prefix}LOG_`` prefix (derived from the context).
 
     Args:
         filter_func: Optional loguru filter callable; receives a ``Record``
@@ -182,16 +182,14 @@ def logging_initialize(
             :func:`~aignostics_foundry_core.foundry.set_context`.
     """
     ctx = context or get_context()
-    project_name = ctx.name
-    version = ctx.version
-    settings = LogSettings(_env_prefix=f"{project_name.upper()}_LOG_", _env_file=ctx.env_file)  # pyright: ignore[reportCallIssue]
+    settings = LogSettings(_env_prefix=f"{ctx.env_prefix}LOG_", _env_file=ctx.env_file)  # pyright: ignore[reportCallIssue]
 
     logger.remove()  # Remove all default loggers
 
     logger.configure(
         extra={
-            "project_name": project_name,
-            "version": version,
+            "project_name": ctx.name,
+            "version": ctx.version,
             "K_SERVICE": os.getenv("K_SERVICE", ""),
         }
     )

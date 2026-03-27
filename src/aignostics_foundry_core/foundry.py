@@ -48,6 +48,7 @@ class FoundryContext(BaseModel):
     version_full: str
     environment: str
     env_file: list[Path] = Field(default_factory=_empty_path_list)
+    env_prefix: str = ""
     repository_url: str = ""
     documentation_url: str = ""
     is_container: bool = False
@@ -89,6 +90,7 @@ class FoundryContext(BaseModel):
             version_full=_build_version_full(version),
             environment=environment,
             env_file=_build_env_file_list(name, name_upper, environment),
+            env_prefix=f"{name_upper}_",
             repository_url=repository_url,
             documentation_url=documentation_url,
             **_build_runtime_flags(name, name_upper),

@@ -162,6 +162,18 @@ def test_from_package_version_full_omits_builder_and_extra_when_all_unknown(
 
 
 # ---------------------------------------------------------------------------
+# from_package — env_prefix
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_from_package_env_prefix_is_upper_name() -> None:
+    """from_package() sets env_prefix to '{PACKAGE_NAME.upper()}_'."""
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.env_prefix == f"{PACKAGE_NAME.upper()}_"
+
+
+# ---------------------------------------------------------------------------
 # from_package — env_file
 # ---------------------------------------------------------------------------
 
