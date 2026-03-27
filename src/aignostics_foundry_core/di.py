@@ -1,12 +1,20 @@
 """Dependency injection using dynamic import and discovery of implementations and subclasses."""
 
+from __future__ import annotations
+
 import importlib
 import pkgutil
-from collections.abc import Callable
 from functools import lru_cache
 from importlib.metadata import entry_points
 from inspect import isclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+from aignostics_foundry_core.foundry import get_context
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from aignostics_foundry_core.foundry import FoundryContext
 
 _implementation_cache: dict[tuple[Any, str], list[Any]] = {}
 _subclass_cache: dict[tuple[Any, str], list[Any]] = {}
@@ -32,15 +40,19 @@ def discover_plugin_packages() -> tuple[str, ...]:
     return tuple(ep.value for ep in eps)
 
 
-def load_modules(project_name: str) -> None:
-    """Import all top-level submodules of the given project package.
+def load_modules(*, context: FoundryContext | None = None) -> None:
+    """Import all top-level submodules of the configured project package.
 
     Args:
-        project_name: The importable package name to scan (e.g. ``"bridge"``).
+        context: Project context supplying the package name.  When ``None``,
+            the global context installed via :func:`aignostics_foundry_core.foundry.set_context`
+            is used; :func:`~aignostics_foundry_core.foundry.get_context` raises
+            ``RuntimeError`` if no context has been configured.
     """
-    package = importlib.import_module(project_name)
+    ctx = context or get_context()
+    package = importlib.import_module(ctx.name)
     for _, name, _ in pkgutil.iter_modules(package.__path__):
-        importlib.import_module(f"{project_name}.{name}")
+        importlib.import_module(f"{ctx.name}.{name}")
 
 
 def _scan_packages_deep(
@@ -117,7 +129,7 @@ def _scan_packages_shallow(
     return results
 
 
-def locate_implementations(_class: type[Any], project_name: str) -> list[Any]:
+def locate_implementations(_class: type[Any], *, context: FoundryContext | None = None) -> list[Any]:
     """Dynamically discover all instances of some class.
 
     Searches plugin top-level exports first (shallow scan), then deep-scans all
@@ -125,19 +137,21 @@ def locate_implementations(_class: type[Any], project_name: str) -> list[Any]:
     points; only their top-level ``__init__.py`` exports are examined (submodules
     are not walked). The main package retains full deep-scan behaviour.
 
-    Cache keys include *project_name* to avoid cross-project cache pollution when
-    multiple projects share this library.
+    Cache keys include the context name to avoid cross-project cache pollution
+    when multiple projects share this library.
 
     Args:
         _class: Class to search for.
-        project_name: Importable package name of the calling project
-            (e.g. ``"bridge"``). Used as the deep-scan root and as part of the
-            cache key.
+        context: Project context supplying the package name.  When ``None``,
+            the global context installed via :func:`aignostics_foundry_core.foundry.set_context`
+            is used; :func:`~aignostics_foundry_core.foundry.get_context` raises
+            ``RuntimeError`` if no context has been configured.
 
     Returns:
         List of discovered instances of the given class.
     """
-    cache_key = (_class, project_name)
+    ctx = context or get_context()
+    cache_key = (_class, ctx.name)
     if cache_key in _implementation_cache:
         return _implementation_cache[cache_key]
 
@@ -146,13 +160,13 @@ def locate_implementations(_class: type[Any], project_name: str) -> list[Any]:
 
     results = [
         *_scan_packages_shallow(discover_plugin_packages(), predicate),
-        *_scan_packages_deep(project_name, predicate),
+        *_scan_packages_deep(ctx.name, predicate),
     ]
     _implementation_cache[cache_key] = results
     return results
 
 
-def locate_subclasses(_class: type[Any], project_name: str) -> list[Any]:
+def locate_subclasses(_class: type[Any], *, context: FoundryContext | None = None) -> list[Any]:
     """Dynamically discover all classes that are subclasses of some type.
 
     Searches plugin top-level exports first (shallow scan), then deep-scans all
@@ -160,19 +174,21 @@ def locate_subclasses(_class: type[Any], project_name: str) -> list[Any]:
     points; only their top-level ``__init__.py`` exports are examined (submodules
     are not walked). The main package retains full deep-scan behaviour.
 
-    Cache keys include *project_name* to avoid cross-project cache pollution when
-    multiple projects share this library.
+    Cache keys include the context name to avoid cross-project cache pollution
+    when multiple projects share this library.
 
     Args:
         _class: Parent class of subclasses to search for.
-        project_name: Importable package name of the calling project
-            (e.g. ``"bridge"``). Used as the deep-scan root and as part of the
-            cache key.
+        context: Project context supplying the package name.  When ``None``,
+            the global context installed via :func:`aignostics_foundry_core.foundry.set_context`
+            is used; :func:`~aignostics_foundry_core.foundry.get_context` raises
+            ``RuntimeError`` if no context has been configured.
 
     Returns:
         List of discovered subclasses of the given class.
     """
-    cache_key = (_class, project_name)
+    ctx = context or get_context()
+    cache_key = (_class, ctx.name)
     if cache_key in _subclass_cache:
         return _subclass_cache[cache_key]
 
@@ -181,7 +197,7 @@ def locate_subclasses(_class: type[Any], project_name: str) -> list[Any]:
 
     results = [
         *_scan_packages_shallow(discover_plugin_packages(), predicate),
-        *_scan_packages_deep(project_name, predicate),
+        *_scan_packages_deep(ctx.name, predicate),
     ]
     _subclass_cache[cache_key] = results
     return results

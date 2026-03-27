@@ -6,6 +6,10 @@ import os
 import psutil
 import pytest
 
+from aignostics_foundry_core.foundry import FoundryContext
+
+__all__ = ["make_context"]
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,3 +53,8 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     """
     if exitstatus == 5:
         session.exitstatus = 0
+
+
+def make_context(name: str) -> FoundryContext:
+    """Create a minimal FoundryContext for testing."""
+    return FoundryContext(name=name, version="0.0.0", version_full="0.0.0", environment="test")

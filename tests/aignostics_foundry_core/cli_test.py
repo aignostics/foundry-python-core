@@ -6,6 +6,7 @@ import pytest
 import typer
 
 from aignostics_foundry_core.cli import no_args_is_help_workaround, prepare_cli
+from tests.conftest import make_context
 
 _LOCATE_IMPLEMENTATIONS_PATH = "aignostics_foundry_core.cli.locate_implementations"
 _PROJECT_NAME = "myproj"
@@ -41,14 +42,14 @@ class TestPrepareCli:
     def test_sets_epilog(self) -> None:
         """prepare_cli sets the epilog on the CLI app."""
         cli = typer.Typer()
-        prepare_cli(cli, _MY_EPILOG, _PROJECT_NAME)
+        prepare_cli(cli, _MY_EPILOG, context=make_context(_PROJECT_NAME))
 
         assert cli.info.epilog == _MY_EPILOG
 
     def test_adds_no_args_is_help_callback(self) -> None:
         """prepare_cli installs the no_args_is_help workaround callback."""
         cli = typer.Typer()
-        prepare_cli(cli, _MY_EPILOG, _PROJECT_NAME)
+        prepare_cli(cli, _MY_EPILOG, context=make_context(_PROJECT_NAME))
 
         assert hasattr(cli, "no_args_callback_added")
         assert cli.no_args_callback_added is True  # type: ignore[attr-defined]
@@ -59,7 +60,7 @@ class TestPrepareCli:
         sub = typer.Typer()
         cli.add_typer(sub)
         with patch(_LOCATE_IMPLEMENTATIONS_PATH, return_value=[]):
-            prepare_cli(cli, _MY_EPILOG, _PROJECT_NAME)
+            prepare_cli(cli, _MY_EPILOG, context=make_context(_PROJECT_NAME))
 
         assert sub.info.epilog == _MY_EPILOG
 
@@ -69,7 +70,7 @@ class TestPrepareCli:
         sub = typer.Typer()
         cli.add_typer(sub)
         with patch(_LOCATE_IMPLEMENTATIONS_PATH, return_value=[]):
-            prepare_cli(cli, _MY_EPILOG, _PROJECT_NAME)
+            prepare_cli(cli, _MY_EPILOG, context=make_context(_PROJECT_NAME))
 
         assert hasattr(sub, "no_args_callback_added")
 
@@ -78,7 +79,7 @@ class TestPrepareCli:
         cli = typer.Typer()
         sub_cli = typer.Typer()
         with patch(_LOCATE_IMPLEMENTATIONS_PATH, return_value=[sub_cli]):
-            prepare_cli(cli, "epilog", _PROJECT_NAME)
+            prepare_cli(cli, "epilog", context=make_context(_PROJECT_NAME))
 
         registered = [g.typer_instance for g in cli.registered_groups]
         assert sub_cli in registered
@@ -87,7 +88,7 @@ class TestPrepareCli:
         """prepare_cli does not add cli to itself when it appears in discovered results."""
         cli = typer.Typer()
         with patch(_LOCATE_IMPLEMENTATIONS_PATH, return_value=[cli]):
-            prepare_cli(cli, "epilog", _PROJECT_NAME)
+            prepare_cli(cli, "epilog", context=make_context(_PROJECT_NAME))
 
         registered = [g.typer_instance for g in cli.registered_groups]
         assert cli not in registered

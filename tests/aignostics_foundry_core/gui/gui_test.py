@@ -21,6 +21,7 @@ from aignostics_foundry_core.gui.nav import (
     NavItem,
     gui_get_nav_groups,
 )
+from tests.conftest import make_context
 
 _PATCH_GET_GUI_USER = "aignostics_foundry_core.gui.auth.get_gui_user"
 _PATCH_GET_AUTH_CLIENT = "aignostics_foundry_core.gui.auth.get_auth_client"
@@ -91,7 +92,7 @@ class TestGuiGetNavGroups:
     def test_returns_empty_list_when_no_builders(self) -> None:
         """gui_get_nav_groups returns [] when no NavBuilders are discovered."""
         with patch(_PATH_NAV_LOCATE, return_value=[]):
-            result = gui_get_nav_groups("myproject")
+            result = gui_get_nav_groups(context=make_context("myproject"))
         assert result == []
 
     def test_collects_group_from_single_builder(self) -> None:
@@ -108,7 +109,7 @@ class TestGuiGetNavGroups:
                 return items
 
         with patch(_PATH_NAV_LOCATE, return_value=[FakeBuilder]):
-            result = gui_get_nav_groups("myproject")
+            result = gui_get_nav_groups(context=make_context("myproject"))
 
         assert len(result) == 1
         assert result[0].name == "Fake"
@@ -144,7 +145,7 @@ class TestGuiGetNavGroups:
                 return 100
 
         with patch(_PATH_NAV_LOCATE, return_value=[LowPriority, HighPriority]):
-            result = gui_get_nav_groups("myproject")
+            result = gui_get_nav_groups(context=make_context("myproject"))
 
         assert [g.name for g in result] == ["High", "Low"]
 
@@ -161,7 +162,7 @@ class TestGuiGetNavGroups:
                 return []
 
         with patch(_PATH_NAV_LOCATE, return_value=[EmptyBuilder]):
-            result = gui_get_nav_groups(_PROJECT_NAME)
+            result = gui_get_nav_groups(context=make_context(_PROJECT_NAME))
 
         assert result == []
 
@@ -191,7 +192,7 @@ class TestGuiGetNavGroups:
                 return 100
 
         with patch(_PATH_NAV_LOCATE, return_value=[DefaultPositionBuilder, ExplicitPositionBuilder]):
-            result = gui_get_nav_groups(_PROJECT_NAME)
+            result = gui_get_nav_groups(context=make_context(_PROJECT_NAME))
 
         assert [g.name for g in result] == ["Explicit", "Default"]
 
@@ -250,7 +251,7 @@ class TestGuiRegisterPages:
         builder_b = MagicMock(spec=BasePageBuilder)
 
         with patch(_PATH_CORE_LOCATE, return_value=[builder_a, builder_b]):
-            gui_register_pages("myproject")
+            gui_register_pages(context=make_context("myproject"))
 
         builder_a.register_pages.assert_called_once()
         builder_b.register_pages.assert_called_once()
@@ -258,7 +259,7 @@ class TestGuiRegisterPages:
     def test_no_error_when_no_builders_found(self) -> None:
         """gui_register_pages silently succeeds when no builders are discovered."""
         with patch(_PATH_CORE_LOCATE, return_value=[]):
-            gui_register_pages(_PROJECT_NAME)  # must not raise
+            gui_register_pages(context=make_context(_PROJECT_NAME))  # must not raise
 
 
 # ---------------------------------------------------------------------------
@@ -295,12 +296,12 @@ class TestGuiRun:
     """Tests for gui_run behaviour."""
 
     def _call_gui_run(self, nicegui_mock: MagicMock, **kwargs: object) -> None:
-        """Call gui_run(_PROJECT_NAME) with nicegui and locate_subclasses mocked."""
+        """Call gui_run with context and nicegui and locate_subclasses mocked."""
         with (
             patch.dict(sys.modules, {"nicegui": nicegui_mock, "starlette.responses": MagicMock()}),
             patch(_PATH_CORE_LOCATE, return_value=[]),
         ):
-            gui_run(_PROJECT_NAME, **kwargs)  # type: ignore[arg-type]
+            gui_run(context=make_context(_PROJECT_NAME), **kwargs)  # type: ignore[arg-type]
 
     def test_ui_run_called_with_project_name_as_title(self) -> None:
         """When title is empty, ui.run receives project_name as title."""
@@ -430,14 +431,15 @@ class TestGuiRun:
         assert app_mock.state.config is config
 
     def test_gui_register_pages_called(self) -> None:
-        """locate_subclasses is invoked with BasePageBuilder and the project name."""
+        """locate_subclasses is invoked with BasePageBuilder and the configured context."""
         nicegui_mock, _, _ = _make_nicegui_app_mock()
+        ctx = make_context(_PROJECT_NAME)
         with (
             patch.dict(sys.modules, {"nicegui": nicegui_mock, "starlette.responses": MagicMock()}),
             patch(_PATH_CORE_LOCATE, return_value=[]) as locate_mock,
         ):
-            gui_run(_PROJECT_NAME)
-        locate_mock.assert_called_once_with(BasePageBuilder, _PROJECT_NAME)
+            gui_run(context=ctx)
+        locate_mock.assert_called_once_with(BasePageBuilder, context=ctx)
 
 
 # ---------------------------------------------------------------------------
