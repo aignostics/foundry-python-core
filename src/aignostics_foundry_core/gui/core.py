@@ -57,7 +57,52 @@ def gui_register_pages(project_name: str) -> None:
         page_builder.register_pages()
 
 
-def gui_run(  # noqa: PLR0913, PLR0917, C901
+def _register_callbacks(
+    app: FastAPI,
+    startup_callbacks: list[Callable[[], Any]] | None,
+    shutdown_callbacks: list[Callable[[], Any]] | None,
+) -> None:
+    if startup_callbacks:
+        for cb in startup_callbacks:
+            app.on_startup(cb)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
+    if shutdown_callbacks:
+        for cb in shutdown_callbacks:
+            app.on_shutdown(cb)  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
+
+
+def _mount_fastapi_app(
+    app: FastAPI,
+    fastapi_app: FastAPI,
+    auth_router: APIRouter | None,
+) -> None:
+    from starlette.responses import RedirectResponse  # noqa: PLC0415
+
+    app.mount("/api", fastapi_app)
+
+    if auth_router is not None:
+        existing_paths = {getattr(r, "path", None) for r in app.routes}
+        if "/auth/login" not in existing_paths:
+            app.include_router(auth_router)
+
+    existing_paths = {getattr(r, "path", None) for r in app.routes}
+    if "/docs" not in existing_paths:
+
+        @app.get("/docs", include_in_schema=False)
+        def redirect_to_api_docs() -> RedirectResponse:  # pyright: ignore[reportUnusedFunction]
+            """Redirect /docs to /api/docs.
+
+            Returns:
+                Redirect to the API documentation at /api/docs.
+            """
+            return RedirectResponse(url="/api/docs")
+
+    if hasattr(fastapi_app.state, "auth_client"):
+        app.state.auth_client = fastapi_app.state.auth_client
+    if hasattr(fastapi_app.state, "config"):
+        app.state.config = fastapi_app.state.config
+
+
+def gui_run(  # noqa: PLR0913, PLR0917
     project_name: str,
     show: bool = False,
     host: str | None = None,
@@ -92,41 +137,11 @@ def gui_run(  # noqa: PLR0913, PLR0917, C901
     from nicegui import app, ui  # noqa: PLC0415
     from nicegui import native as native_app  # noqa: PLC0415
 
-    if startup_callbacks:
-        for cb in startup_callbacks:
-            app.on_startup(cb)  # pyright: ignore[reportUnknownMemberType]
-    if shutdown_callbacks:
-        for cb in shutdown_callbacks:
-            app.on_shutdown(cb)  # pyright: ignore[reportUnknownMemberType]
-
+    _register_callbacks(app, startup_callbacks, shutdown_callbacks)
     gui_register_pages(project_name)
 
     if fastapi_app is not None:
-        from starlette.responses import RedirectResponse  # noqa: PLC0415
-
-        app.mount("/api", fastapi_app)
-
-        if auth_router is not None:
-            existing_paths = {getattr(r, "path", None) for r in app.routes}
-            if "/auth/login" not in existing_paths:
-                app.include_router(auth_router)
-
-        existing_paths = {getattr(r, "path", None) for r in app.routes}
-        if "/docs" not in existing_paths:
-
-            @app.get("/docs", include_in_schema=False)
-            def redirect_to_api_docs() -> RedirectResponse:  # pyright: ignore[reportUnusedFunction]
-                """Redirect /docs to /api/docs.
-
-                Returns:
-                    Redirect to the API documentation at /api/docs.
-                """
-                return RedirectResponse(url="/api/docs")
-
-        if hasattr(fastapi_app.state, "auth_client"):
-            app.state.auth_client = fastapi_app.state.auth_client
-        if hasattr(fastapi_app.state, "config"):
-            app.state.config = fastapi_app.state.config
+        _mount_fastapi_app(app, fastapi_app, auth_router)
 
     ui.run(  # pyright: ignore[reportUnknownMemberType]
         title=title or project_name,
