@@ -3,6 +3,7 @@
 import sys
 import time
 from contextlib import contextmanager
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -13,6 +14,7 @@ from aignostics_foundry_core.gui.core import (
     WINDOW_SIZE,
     BasePageBuilder,
     gui_register_pages,
+    gui_run,
 )
 from aignostics_foundry_core.gui.nav import (
     BaseNavBuilder,
@@ -32,6 +34,8 @@ _TEST_PATH = "/test-page"
 _INTERNAL_ORG = "org_internal"
 _OTHER_ORG = "org_other"
 _ROLE_CLAIM = "https://example.com/role"
+_PROJECT_NAME = "myproject"
+_FIXED_PORT = 9000
 
 
 # ---------------------------------------------------------------------------
@@ -258,7 +262,186 @@ class TestGuiRegisterPages:
     def test_no_error_when_no_builders_found(self) -> None:
         """gui_register_pages silently succeeds when no builders are discovered."""
         with patch(_PATH_CORE_LOCATE, return_value=[]):
-            gui_register_pages("myproject")  # must not raise
+            gui_register_pages(_PROJECT_NAME)  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# gui_run
+# ---------------------------------------------------------------------------
+
+
+def _make_nicegui_app_mock() -> tuple[MagicMock, MagicMock, MagicMock]:
+    """Return (nicegui_mock, app_mock, ui_mock).
+
+    Constructs a nicegui mock suitable for testing gui_run:
+    - app_mock has routes=[] and a MagicMock state
+    - ui_mock.run is a MagicMock
+    - native_mock.find_open_port() returns _FIXED_PORT
+    """
+    app_mock = MagicMock()
+    app_mock.routes = []
+
+    ui_mock = MagicMock()
+
+    native_mock = MagicMock()
+    native_mock.find_open_port.return_value = _FIXED_PORT
+
+    nicegui_mock = MagicMock()
+    nicegui_mock.app = app_mock
+    nicegui_mock.ui = ui_mock
+    nicegui_mock.native = native_mock
+
+    return nicegui_mock, app_mock, ui_mock
+
+
+@pytest.mark.unit
+class TestGuiRun:
+    """Tests for gui_run behaviour."""
+
+    def _call_gui_run(self, nicegui_mock: MagicMock, **kwargs: object) -> None:
+        """Call gui_run(_PROJECT_NAME) with nicegui and locate_subclasses mocked."""
+        with (
+            patch.dict(sys.modules, {"nicegui": nicegui_mock, "starlette.responses": MagicMock()}),
+            patch(_PATH_CORE_LOCATE, return_value=[]),
+        ):
+            gui_run(_PROJECT_NAME, **kwargs)  # type: ignore[arg-type]
+
+    def test_ui_run_called_with_project_name_as_title(self) -> None:
+        """When title is empty, ui.run receives project_name as title."""
+        nicegui_mock, _, ui_mock = _make_nicegui_app_mock()
+        self._call_gui_run(nicegui_mock, title="")
+        assert ui_mock.run.call_args.kwargs["title"] == _PROJECT_NAME
+
+    def test_ui_run_called_with_explicit_title(self) -> None:
+        """Explicit title is passed through to ui.run."""
+        nicegui_mock, _, ui_mock = _make_nicegui_app_mock()
+        self._call_gui_run(nicegui_mock, title="My App")
+        assert ui_mock.run.call_args.kwargs["title"] == "My App"
+
+    def test_watch_flag_maps_to_reload_in_ui_run(self) -> None:
+        """watch=True passes reload=True to ui.run."""
+        nicegui_mock, _, ui_mock = _make_nicegui_app_mock()
+        self._call_gui_run(nicegui_mock, watch=True)
+        assert ui_mock.run.call_args.kwargs["reload"] is True
+
+    def test_port_defaults_to_find_open_port(self) -> None:
+        """When port=None, native.find_open_port() result is used for port in ui.run."""
+        nicegui_mock, _, ui_mock = _make_nicegui_app_mock()
+        self._call_gui_run(nicegui_mock)
+        assert ui_mock.run.call_args.kwargs["port"] == _FIXED_PORT
+
+    def test_explicit_port_passed_to_ui_run(self) -> None:
+        """Explicit port is forwarded directly to ui.run."""
+        nicegui_mock, _, ui_mock = _make_nicegui_app_mock()
+        self._call_gui_run(nicegui_mock, port=8080)
+        assert ui_mock.run.call_args.kwargs["port"] == 8080
+
+    def test_reconnect_timeout_uses_constant(self) -> None:
+        """ui.run receives reconnect_timeout=BROWSER_RECONNECT_TIMEOUT."""
+        nicegui_mock, _, ui_mock = _make_nicegui_app_mock()
+        self._call_gui_run(nicegui_mock)
+        assert ui_mock.run.call_args.kwargs["reconnect_timeout"] == BROWSER_RECONNECT_TIMEOUT
+
+    def test_startup_callbacks_registered(self) -> None:
+        """Each callable in startup_callbacks is passed to app.on_startup once."""
+        nicegui_mock, app_mock, _ = _make_nicegui_app_mock()
+        cb1, cb2 = MagicMock(), MagicMock()
+        self._call_gui_run(nicegui_mock, startup_callbacks=[cb1, cb2])
+        app_mock.on_startup.assert_any_call(cb1)
+        app_mock.on_startup.assert_any_call(cb2)
+        assert app_mock.on_startup.call_count == 2
+
+    def test_shutdown_callbacks_registered(self) -> None:
+        """Each callable in shutdown_callbacks is passed to app.on_shutdown once."""
+        nicegui_mock, app_mock, _ = _make_nicegui_app_mock()
+        cb1, cb2 = MagicMock(), MagicMock()
+        self._call_gui_run(nicegui_mock, shutdown_callbacks=[cb1, cb2])
+        app_mock.on_shutdown.assert_any_call(cb1)
+        app_mock.on_shutdown.assert_any_call(cb2)
+        assert app_mock.on_shutdown.call_count == 2
+
+    def test_no_callbacks_does_not_error(self) -> None:
+        """gui_run with no optional args completes without raising."""
+        nicegui_mock, _, _ = _make_nicegui_app_mock()
+        self._call_gui_run(nicegui_mock)  # must not raise
+
+    def test_fastapi_app_mounted_at_api(self) -> None:
+        """When fastapi_app is provided, app.mount('/api', fastapi_app) is called."""
+        nicegui_mock, app_mock, _ = _make_nicegui_app_mock()
+        fastapi_mock = MagicMock()
+        fastapi_mock.state = SimpleNamespace()
+        self._call_gui_run(nicegui_mock, fastapi_app=fastapi_mock)
+        app_mock.mount.assert_called_once_with("/api", fastapi_mock)
+
+    def test_auth_router_included_when_login_not_present(self) -> None:
+        """When auth_router is provided and no /auth/login route exists, include_router is called."""
+        nicegui_mock, app_mock, _ = _make_nicegui_app_mock()
+        fastapi_mock = MagicMock()
+        fastapi_mock.state = SimpleNamespace()
+        auth_router_mock = MagicMock()
+        self._call_gui_run(nicegui_mock, fastapi_app=fastapi_mock, auth_router=auth_router_mock)
+        app_mock.include_router.assert_called_once_with(auth_router_mock)
+
+    def test_auth_router_skipped_when_login_already_present(self) -> None:
+        """When /auth/login route already exists, include_router is NOT called."""
+        nicegui_mock, app_mock, _ = _make_nicegui_app_mock()
+        login_route = MagicMock()
+        login_route.path = "/auth/login"
+        app_mock.routes = [login_route]
+        fastapi_mock = MagicMock()
+        fastapi_mock.state = SimpleNamespace()
+        auth_router_mock = MagicMock()
+        self._call_gui_run(nicegui_mock, fastapi_app=fastapi_mock, auth_router=auth_router_mock)
+        app_mock.include_router.assert_not_called()
+
+    def test_docs_redirect_added_when_not_present(self) -> None:
+        """When fastapi_app is provided and no /docs route exists, app.get('/docs', ...) is called."""
+        nicegui_mock, app_mock, _ = _make_nicegui_app_mock()
+        fastapi_mock = MagicMock()
+        fastapi_mock.state = SimpleNamespace()
+        self._call_gui_run(nicegui_mock, fastapi_app=fastapi_mock)
+        docs_calls = [c for c in app_mock.get.call_args_list if c.args[0] == "/docs"]
+        assert len(docs_calls) == 1
+
+    def test_docs_redirect_skipped_when_already_present(self) -> None:
+        """When /docs route already exists, app.get is NOT called for /docs."""
+        nicegui_mock, app_mock, _ = _make_nicegui_app_mock()
+        docs_route = MagicMock()
+        docs_route.path = "/docs"
+        app_mock.routes = [docs_route]
+        fastapi_mock = MagicMock()
+        fastapi_mock.state = SimpleNamespace()
+        self._call_gui_run(nicegui_mock, fastapi_app=fastapi_mock)
+        docs_calls = [c for c in app_mock.get.call_args_list if c.args[0] == "/docs"]
+        assert len(docs_calls) == 0
+
+    def test_auth_client_state_copied(self) -> None:
+        """When fastapi_app.state has auth_client, it is assigned to nicegui app.state.auth_client."""
+        nicegui_mock, app_mock, _ = _make_nicegui_app_mock()
+        auth_client = MagicMock()
+        fastapi_mock = MagicMock()
+        fastapi_mock.state = SimpleNamespace(auth_client=auth_client)
+        self._call_gui_run(nicegui_mock, fastapi_app=fastapi_mock)
+        assert app_mock.state.auth_client is auth_client
+
+    def test_config_state_copied(self) -> None:
+        """When fastapi_app.state has config, it is assigned to nicegui app.state.config."""
+        nicegui_mock, app_mock, _ = _make_nicegui_app_mock()
+        config = MagicMock()
+        fastapi_mock = MagicMock()
+        fastapi_mock.state = SimpleNamespace(config=config)
+        self._call_gui_run(nicegui_mock, fastapi_app=fastapi_mock)
+        assert app_mock.state.config is config
+
+    def test_gui_register_pages_called(self) -> None:
+        """locate_subclasses is invoked with BasePageBuilder and the project name."""
+        nicegui_mock, _, _ = _make_nicegui_app_mock()
+        with (
+            patch.dict(sys.modules, {"nicegui": nicegui_mock, "starlette.responses": MagicMock()}),
+            patch(_PATH_CORE_LOCATE, return_value=[]) as locate_mock,
+        ):
+            gui_run(_PROJECT_NAME)
+        locate_mock.assert_called_once_with(BasePageBuilder, _PROJECT_NAME)
 
 
 # ---------------------------------------------------------------------------
