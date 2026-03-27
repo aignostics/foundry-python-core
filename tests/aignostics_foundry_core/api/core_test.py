@@ -168,7 +168,8 @@ def test_versioned_api_router_add_exception_handler_registration() -> None:
     from aignostics_foundry_core.api.core import VersionedAPIRouter
 
     def handler(request: object, exc: Exception) -> None:
-        pass
+        # Test double: only verifies registration, not invocation
+        ...
 
     router = VersionedAPIRouter(VERSION_STEP1)
     cast("Any", router).add_exception_handler_registration(ValueError, handler)
@@ -234,7 +235,8 @@ def test_init_api_with_custom_exception_handler_registrations() -> None:
     from aignostics_foundry_core.api.core import init_api
 
     def handler(request: object, exc: Exception) -> None:
-        pass
+        # Test double: only verifies registration, not invocation
+        ...
 
     app = init_api(exception_handler_registrations=[(ValueError, handler)])
 

@@ -35,6 +35,8 @@ _OTHER_ORG = "org_other"
 _ROLE_CLAIM = "https://example.com/role"
 _PROJECT_NAME = "myproject"
 _FIXED_PORT = 9000
+_DOCS_PATH = "/docs"
+_USER_SUB = "auth0|x"
 
 
 # ---------------------------------------------------------------------------
@@ -394,19 +396,19 @@ class TestGuiRun:
         fastapi_mock = MagicMock()
         fastapi_mock.state = SimpleNamespace()
         self._call_gui_run(nicegui_mock, fastapi_app=fastapi_mock)
-        docs_calls = [c for c in app_mock.get.call_args_list if c.args[0] == "/docs"]
+        docs_calls = [c for c in app_mock.get.call_args_list if c.args[0] == _DOCS_PATH]
         assert len(docs_calls) == 1
 
     def test_docs_redirect_skipped_when_already_present(self) -> None:
         """When /docs route already exists, app.get is NOT called for /docs."""
         nicegui_mock, app_mock, _ = _make_nicegui_app_mock()
         docs_route = MagicMock()
-        docs_route.path = "/docs"
+        docs_route.path = _DOCS_PATH
         app_mock.routes = [docs_route]
         fastapi_mock = MagicMock()
         fastapi_mock.state = SimpleNamespace()
         self._call_gui_run(nicegui_mock, fastapi_app=fastapi_mock)
-        docs_calls = [c for c in app_mock.get.call_args_list if c.args[0] == "/docs"]
+        docs_calls = [c for c in app_mock.get.call_args_list if c.args[0] == _DOCS_PATH]
         assert len(docs_calls) == 0
 
     def test_auth_client_state_copied(self) -> None:
@@ -462,7 +464,7 @@ class TestGetGuiUser:
         from aignostics_foundry_core.gui.auth import get_gui_user
 
         request = MagicMock()
-        expired_user = {"sub": "auth0|x", "exp": int(time.time()) - 3600}
+        expired_user = {"sub": _USER_SUB, "exp": int(time.time()) - 3600}
         fake_client = MagicMock()
         fake_client.require_session = AsyncMock(return_value={"user": expired_user})
 
@@ -480,7 +482,7 @@ class TestGetGuiUser:
 
         request = MagicMock()
         fake_client = MagicMock()
-        fake_client.require_session = AsyncMock(return_value={"user": {"sub": "auth0|x"}})
+        fake_client.require_session = AsyncMock(return_value={"user": {"sub": _USER_SUB}})
 
         with (
             patch(_PATCH_GET_AUTH_CLIENT, return_value=fake_client),
@@ -495,7 +497,7 @@ class TestGetGuiUser:
         from aignostics_foundry_core.gui.auth import get_gui_user
 
         request = MagicMock()
-        user = {"sub": "auth0|x", "email": "x@x.com", "exp": int(time.time()) + 3600}
+        user = {"sub": _USER_SUB, "email": "x@x.com", "exp": int(time.time()) + 3600}
         fake_client = MagicMock()
         fake_client.require_session = AsyncMock(return_value={"user": user})
 
@@ -557,7 +559,7 @@ class TestRequireGuiUser:
         from aignostics_foundry_core.gui.auth import require_gui_user
 
         request = MagicMock()
-        user = {"sub": "auth0|x", "exp": int(time.time()) + 3600}
+        user = {"sub": _USER_SUB, "exp": int(time.time()) + 3600}
 
         with patch(_PATCH_GET_GUI_USER, new=AsyncMock(return_value=user)):
             result = await require_gui_user(request)
@@ -625,7 +627,8 @@ class TestPagePublicRegistration:
         nicegui_mock, _ = _make_nicegui_mock()
 
         def my_named_page(user: object) -> None:
-            pass
+            # Test double: content is irrelevant; only __name__ is tested
+            ...
 
         with patch.dict(sys.modules, {"nicegui": nicegui_mock}):
             result = page_public(_TEST_PATH)(my_named_page)
