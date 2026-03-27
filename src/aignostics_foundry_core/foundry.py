@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import string
 import sys
 from importlib import metadata
 from pathlib import Path
@@ -47,6 +48,13 @@ class FoundryContext(BaseModel):
     name: str
     version: str
     version_full: str
+    """Version string with optional build metadata suffix.
+
+    Derived from :attr:`version` with ``+<metadata>`` appended when build
+    environment variables (``VCS_REF``, ``COMMIT_SHA``, etc.) are present.
+    Falls back to reading the current branch or commit SHA from ``.git/HEAD``
+    when ``VCS_REF`` is absent and :attr:`project_path` is set.
+    """
     environment: str
     env_file: list[Path] = Field(default_factory=_empty_path_list)
     env_prefix: str = ""
@@ -92,10 +100,11 @@ class FoundryContext(BaseModel):
         environment = _detect_environment(name_upper)
         repository_url, documentation_url = _extract_urls(package_name)
         project_path = _find_project_path(package_name)
+        vcs_ref = os.environ.get("VCS_REF") or (project_path and _get_vcs_ref_from_git(project_path)) or "unknown"
         return cls(
             name=name,
             version=version,
-            version_full=_build_version_full(version),
+            version_full=_build_version_full(version, vcs_ref),
             environment=environment,
             env_file=_build_env_file_list(name, name_upper, environment),
             env_prefix=f"{name_upper}_",
@@ -126,13 +135,38 @@ def _find_project_path(package_name: str) -> Path | None:
     return None
 
 
-def _build_version_full(version: str) -> str:
+def _get_vcs_ref_from_git(project_path: Path) -> str:
+    """Read the current VCS ref from ``.git/HEAD``.
+
+    Args:
+        project_path: The repository root (directory containing ``.git``).
+
+    Returns:
+        Branch name if on a branch, short SHA (7 chars) if in detached HEAD
+        state, or ``"unknown"`` if the file is missing, unreadable, or in an
+        unexpected format.
+    """
+    try:
+        content = (project_path / ".git" / "HEAD").read_text().strip()
+    except OSError:
+        return "unknown"
+    if content.startswith("ref: refs/heads/"):
+        return content[len("ref: refs/heads/") :]
+    if len(content) == 40 and all(c in string.hexdigits for c in content):  # noqa: PLR2004
+        return content[:7]
+    return "unknown"
+
+
+def _build_version_full(version: str, vcs_ref: str) -> str:
     """Append build metadata to *version* from environment variables.
+
+    Args:
+        version: The base version string (e.g. ``"1.2.3"``).
+        vcs_ref: The VCS ref string (branch name, short SHA, or ``"unknown"``).
 
     Returns:
         The version string with optional ``+<metadata>`` suffix.
     """
-    vcs_ref = os.getenv("VCS_REF", "unknown")
     commit_sha = os.getenv("COMMIT_SHA", "unknown")
     builder = os.getenv("BUILDER", "uv")
     build_date = os.getenv("BUILD_DATE", "unknown")

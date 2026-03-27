@@ -17,11 +17,15 @@ PACKAGE_NAME = "aignostics_foundry_core"
 STAGING = "staging"
 ERROR_MSG_FRAGMENT = "set_context"
 VCS_REF_VALUE = "abc123"
+VCS_REF_OVERRIDE = "ci-override-ref"
 COMMIT_SHA_VALUE = "deadbeef"
 CI_RUN_ID_VALUE = "99"
 CI_RUN_NUMBER_VALUE = "42"
 BUILD_DATE_VALUE = "2024-01-15"
 BUILDER_UNKNOWN = "unknown"
+GIT_BRANCH = "main"
+GIT_SHA_FULL = "a" * 40
+GIT_SHA_SHORT = "a" * 7
 
 
 @pytest.fixture(autouse=True)
@@ -88,7 +92,14 @@ def test_from_package_version_full_equals_version_when_no_build_metadata(monkeyp
 
     BUILDER defaults to 'uv', so it must be explicitly set to 'unknown' to
     make the any() guard False and skip the version_full enrichment block.
+    find_spec is stubbed to None so that project_path is None and no git
+    fallback is attempted.
     """
+
+    def _find_spec_none(name: str, package: str | None = None) -> None:
+        return None
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_none)
     monkeypatch.setenv("BUILDER", BUILDER_UNKNOWN)
     for var in ["VCS_REF", "COMMIT_SHA", "BUILD_DATE", "CI_RUN_ID", "CI_RUN_NUMBER"]:
         monkeypatch.delenv(var, raising=False)
@@ -201,6 +212,87 @@ def test_from_package_project_path_resolves_git_root() -> None:
     ctx = FoundryContext.from_package(PACKAGE_NAME)
     assert ctx.project_path is not None
     assert (ctx.project_path / ".git").exists()
+
+
+# ---------------------------------------------------------------------------
+# from_package — vcs_ref resolution (git fallback)
+# ---------------------------------------------------------------------------
+
+
+def _fake_spec_for(tmp_path: Path) -> ModuleSpec:
+    """Return a ModuleSpec whose origin sits inside *tmp_path*."""
+    return ModuleSpec(PACKAGE_NAME, None, origin=str(tmp_path / PACKAGE_NAME / "__init__.py"))
+
+
+def _make_git_head(tmp_path: Path, content: str) -> None:
+    """Write *content* to ``tmp_path/.git/HEAD``."""
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    (git_dir / "HEAD").write_text(content)
+
+
+@pytest.mark.unit
+def test_from_package_vcs_ref_from_env_var_takes_precedence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """VCS_REF env var wins over the local .git/HEAD branch name."""
+    _make_git_head(tmp_path, f"ref: refs/heads/{GIT_BRANCH}")
+
+    def _find_spec_tmp(name: str, package: str | None = None) -> ModuleSpec:
+        return _fake_spec_for(tmp_path)
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_tmp)
+    monkeypatch.setenv("VCS_REF", VCS_REF_OVERRIDE)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert VCS_REF_OVERRIDE in ctx.version_full
+    assert GIT_BRANCH not in ctx.version_full
+
+
+@pytest.mark.unit
+def test_from_package_vcs_ref_reads_branch_from_git_head(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """When VCS_REF is absent, the branch name from .git/HEAD appears in version_full."""
+    _make_git_head(tmp_path, f"ref: refs/heads/{GIT_BRANCH}")
+
+    def _find_spec_tmp(name: str, package: str | None = None) -> ModuleSpec:
+        return _fake_spec_for(tmp_path)
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_tmp)
+    monkeypatch.delenv("VCS_REF", raising=False)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert GIT_BRANCH in ctx.version_full
+
+
+@pytest.mark.unit
+def test_from_package_vcs_ref_reads_short_sha_from_detached_head(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """When HEAD contains a 40-char SHA, the first 7 chars appear in version_full."""
+    _make_git_head(tmp_path, GIT_SHA_FULL)
+
+    def _find_spec_tmp(name: str, package: str | None = None) -> ModuleSpec:
+        return _fake_spec_for(tmp_path)
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_tmp)
+    monkeypatch.delenv("VCS_REF", raising=False)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert GIT_SHA_SHORT in ctx.version_full
+
+
+@pytest.mark.unit
+def test_from_package_vcs_ref_defaults_to_unknown_when_no_git(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When project_path is None (no git root found), vcs_ref falls back to 'unknown'."""
+
+    def _find_spec_none(name: str, package: str | None = None) -> None:
+        return None
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_none)
+    monkeypatch.delenv("VCS_REF", raising=False)
+    monkeypatch.setenv("BUILDER", BUILDER_UNKNOWN)
+    for var in ["COMMIT_SHA", "BUILD_DATE", "CI_RUN_ID", "CI_RUN_NUMBER"]:
+        monkeypatch.delenv(var, raising=False)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    # All metadata fields resolve to "unknown" → version_full equals base version
+    assert ctx.version_full == ctx.version
 
 
 # ---------------------------------------------------------------------------
