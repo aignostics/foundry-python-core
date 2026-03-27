@@ -58,11 +58,11 @@ project_name = os.getenv("FOUNDRY_CORE_PROJECT_NAME")
 A one-time call at startup sets global library state; all functions then read from it. This is similar to configuration/init pattern used by logging libraries and the Sentry SDK.
 
 ```python
-foundry.set_context(project_name="bridge", version=__version__, ...)
+set_context(project_name="bridge", version=__version__, ...)
 locate_subclasses(BaseService)  # reads from global state
 
 def locate_subclasses(_class):
-    project_name = foundry.context.name
+    project_name = get_context().name
     ...
 ```
 
@@ -83,23 +83,23 @@ locate_subclasses(BaseService, context=ctx)
 * Pros: requirements #1 and #2 satisfied; typed; derivation logic lives once in the library
 * Cons: requirement #3 only partially satisfied — projects must hold and thread their own `context` reference to read derived values, which doesn't fully eliminate `_constants.py`
 
-**#5 `FoundryContext.from_package()` + `set_context()` + `foundry.context` accessor (combination of #3 and #4)**
+**#5 `FoundryContext.from_package()` + `set_context()` + `get_context()` (combination of #3 and #4)**
 
-Extends #4 with a `set_context()` call that stores the context as library-level state, exposed back to callers via `foundry.context`. Library functions fall back to the configured default but accept an explicit `context` override for testing.
+Extends #4 with a `set_context()` call that stores the context as library-level state, retrieved via `get_context()`. Library functions fall back to the configured default but accept an explicit `context` override for testing.
 
 ```python
 # at startup — replaces _constants.py entirely
-foundry.set_context(FoundryContext.from_package("bridge"))
+set_context(FoundryContext.from_package("bridge"))
 
 # library functions use the configured default
 locate_subclasses(BaseService)
 
 def locate_subclasses(_class: type, context: FoundryContext | None = None) -> list:
-    context = context or foundry.context
+    context = context or get_context()
     ...
 
 # projects read derived values back from the library
-print(foundry.context.version_full)
+print(get_context().version_full)
 
 # in tests — explicit override, no global state touched
 locate_subclasses(BaseService, context=FoundryContext(name="test-project", ...))
@@ -150,23 +150,30 @@ class FoundryContext(BaseModel):
 Each project calls `set_context()` once at startup. This single line replaces `_constants.py` entirely:
 
 ```python
-foundry.set_context(FoundryContext.from_package("bridge"))
+from aignostics_foundry_core.foundry import FoundryContext, set_context
+
+set_context(FoundryContext.from_package("bridge"))
 ```
 
-The configured `FoundryContext` is accessible anywhere via `foundry.context`:
+The configured `FoundryContext` is accessible anywhere via `get_context()`:
 
 ```python
+from aignostics_foundry_core.foundry import get_context
+
 # before: from bridge.utils._constants import __version_full__, __project_name__
 # after:
-foundry.context.version_full
-foundry.context.name
+get_context().version_full
+get_context().name
 ```
 
-All public library functions fall back to `foundry.context` but accept an explicit override:
+All public library functions fall back to `get_context()` but accept an explicit override:
 
 ```python
+from aignostics_foundry_core.foundry import get_context
+
+
 def locate_subclasses(_class: type, context: FoundryContext | None = None) -> list:
-    context = context or foundry.context
+    context = context or get_context()
     ...
 ```
 
@@ -197,13 +204,15 @@ At startup the subclass instance is passed to `set_context()` as usual:
 foundry.set_context(BridgeContext.from_package("bridge"))
 ```
 
-`foundry.context` is typed as `FoundryContext` — sufficient for all library functions. Project code that needs access to the extended fields keeps its own reference to the concrete instance:
+`get_context()` returns `FoundryContext` — sufficient for all library functions. Project code that needs access to the extended fields keeps its own reference to the concrete instance:
 
 ```python
-bridge_context = BridgeContext.from_package("bridge")
-foundry.set_context(bridge_context)
+from aignostics_foundry_core.foundry import set_context
 
-# library uses foundry.context (FoundryContext) — no project-specific fields needed
+bridge_context = BridgeContext.from_package("bridge")
+set_context(bridge_context)
+
+# library uses get_context() → FoundryContext — no project-specific fields needed
 # project code uses bridge_context directly for its own extended fields
 bridge_context.tenant_id
 ```
@@ -212,9 +221,9 @@ This avoids module-level generics (which are awkward in Python) while keeping bo
 
 ## Consequences
 
-- `_constants.py` is eliminated entirely across all projects; derivation logic lives once in the library and derived values are read back via `foundry.context`.
+- `_constants.py` is eliminated entirely across all projects; derivation logic lives once in the library and derived values are read back via `get_context()`.
 - New projects (API servers and CLI tools alike) require a single `set_context()` call and no boilerplate.
 - Production call sites are clean — no context threading.
 - Tests can pass a `FoundryContext` directly without touching or resetting global state.
 - `SentryContext` nesting makes it clear that the mode flags are Sentry-specific and not general-purpose project metadata.
-- Projects that need additional fields subclass `FoundryContext` and pass their subclass to `configure()`; they hold their own typed reference for project-specific access.
+- Projects that need additional fields subclass `FoundryContext` and pass their subclass to `set_context()`; they hold their own typed reference for project-specific access.
