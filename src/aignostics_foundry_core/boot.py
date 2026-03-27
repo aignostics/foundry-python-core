@@ -83,14 +83,8 @@ def boot(
     logging_initialize(filter_func=log_filter, context=context)
     _amend_ssl_trust_chain()
     sentry_initialize(
-        project_name=context.name,
-        version=context.version_full,
-        environment=context.environment,
         integrations=sentry_integrations,
-        is_container=context.is_container,
-        is_test=context.is_test,
-        is_cli=context.is_cli,
-        is_library=context.is_library,
+        context=context,
     )
     _log_boot_message(
         project_name=context.name,

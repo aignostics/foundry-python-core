@@ -35,7 +35,7 @@ def get_process_info() -> ProcessInfo:
     parent = current_process.parent()
 
     return ProcessInfo(
-        project_root=str(Path(__file__).parent.parent.parent),
+        project_root=str(Path(__file__).parent.parent.parent),  # TODO(oliverm): get this from context
         pid=current_process.pid,
         parent=ParentProcessInfo(
             name=parent.name() if parent else None,

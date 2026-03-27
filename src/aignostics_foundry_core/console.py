@@ -23,7 +23,7 @@ def _get_console() -> Console:
             "warning": "yellow1",
             "error": "red1",
         }),
-        width=int(os.environ.get("AIGNOSTICS_CONSOLE_WIDTH", "0")) or None,
+        width=int(os.environ.get("AIGNOSTICS_CONSOLE_WIDTH", "0")) or None,  # TODO(oliverm): use ctx.env_prefix
         legacy_windows=False,  # Modern Windows (10+) doesn't need width adjustment
     )
 
