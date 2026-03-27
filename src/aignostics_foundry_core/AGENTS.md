@@ -23,6 +23,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 | **user_agent** | Parameterised HTTP user-agent string builder | `user_agent(project_name, version, repository_url)` — builds `{project_name}-python-sdk/{version} (…)` string including platform info, current test, and GitHub Actions run URL |
 | **gui** | NiceGUI page helpers, auth decorators, and nav builder | `GUINamespace` (configurable page decorator namespace), `gui` (default singleton), `page_public/authenticated/admin/internal/internal_admin` decorators, `get_gui_user`, `require_gui_user`, `BaseNavBuilder`, `NavItem`, `NavGroup`, `gui_get_nav_groups`, `BasePageBuilder`, `gui_register_pages`, `gui_run`; constants `WINDOW_SIZE`, `BROWSER_RECONNECT_TIMEOUT`, `RESPONSE_TIMEOUT` |
 | **console** | Themed terminal output | Module-level `console` object (Rich `Console`) with colour theme and `_get_console()` factory |
+| **foundry** | Project context injection | `FoundryContext`, `SentryContext`, `FoundryContext.from_package()`, `set_context()`, `get_context()` — centralised project-specific values (name, version, environment, env files, URLs, Sentry flags) derived from package metadata and environment variables |
 | **di** | Dependency injection | `locate_subclasses`, `locate_implementations`, `load_modules`, `discover_plugin_packages`, `clear_caches`, `PLUGIN_ENTRY_POINT_GROUP` for plugin and subclass discovery |
 | **health** | Service health checks | `Health` model and `HealthStatus` enum for tree-structured health status |
 | **settings** | Pydantic settings loading | `OpaqueSettings`, `load_settings`, `strip_to_none_before_validator`, `UNHIDE_SENSITIVE_INFO` for env-based settings with secret masking and user-friendly validation errors |
@@ -30,6 +31,49 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 ## Module Descriptions
 
 <!-- For each module, document its purpose, features, dependencies, and usage. -->
+
+### foundry
+
+**Project context injection — single startup call replaces all per-project `_constants.py` files**
+
+- **Purpose**: Provides `FoundryContext` — a frozen Pydantic model that owns all derivation logic for
+  project-specific values. One `set_context(FoundryContext.from_package("myproject"))` call at
+  application startup makes the context available everywhere in the library without threading values
+  through call sites. Tests pass an explicit context override and never touch global state.
+- **Key Features**:
+  - `SentryContext(BaseModel)` — frozen; four bool flags (`is_container`, `is_cli`, `is_test`,
+    `is_library`) all defaulting to `False`.
+  - `FoundryContext(BaseModel)` — frozen; fields: `name`, `version`, `version_full`, `environment`,
+    `env_file: list[Path]`, `repository_url`, `documentation_url`, `sentry: SentryContext`.
+  - `FoundryContext.from_package(package_name)` — classmethod that derives all values from
+    `importlib.metadata` and environment variables (`{NAME}_ENVIRONMENT`, `VCS_REF`, `COMMIT_SHA`,
+    `BUILDER`, `BUILD_DATE`, `CI_RUN_ID`, `CI_RUN_NUMBER`, `{NAME}_ENV_FILE`,
+    `{NAME}_RUNNING_IN_CONTAINER`, `PYTEST_RUNNING_{NAME}`). Environment fallback chain:
+    `{NAME}_ENVIRONMENT` → `ENV` → `VERCEL_ENV` → `RAILWAY_ENVIRONMENT` → `"local"`.
+  - `set_context(ctx)` — installs *ctx* as the process-level singleton.
+  - `get_context()` — returns the installed context or raises `RuntimeError` with a helpful message
+    if `set_context()` has not been called.
+- **Location**: `aignostics_foundry_core/foundry.py`
+- **Dependencies**: `pydantic>=2`, Python stdlib (`importlib.metadata`, `os`, `sys`, `pathlib`)
+- **Import**:
+  ```python
+  from aignostics_foundry_core.foundry import FoundryContext, SentryContext, set_context, get_context
+  ```
+- **Usage example**:
+  ```python
+  # Application startup (e.g. main.py or boot.py):
+  from aignostics_foundry_core.foundry import FoundryContext, set_context, get_context
+
+  set_context(FoundryContext.from_package("myproject"))
+
+  # Library code — no threading of values through parameters:
+  ctx = get_context()  # raises RuntimeError if startup omitted set_context()
+  logger.info(f"Starting {ctx.name} {ctx.version} in {ctx.environment}")
+
+  # Tests — pass context explicitly, do not call set_context():
+  ctx = FoundryContext(name="test", version="0.0.0", version_full="0.0.0", environment="test")
+  result = my_library_function(context=ctx)
+  ```
 
 ### api.exceptions
 
