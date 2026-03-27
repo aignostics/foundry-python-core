@@ -1,4 +1,4 @@
-"""Tests for the foundry module — FoundryContext, SentryContext, set_context, get_context."""
+"""Tests for the foundry module — FoundryContext, set_context, get_context."""
 
 import importlib.metadata
 import sys
@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from aignostics_foundry_core.foundry import FoundryContext, SentryContext, get_context, set_context
+from aignostics_foundry_core.foundry import FoundryContext, get_context, set_context
 
 # Constants (SonarQube S1192)
 PACKAGE_NAME = "aignostics_foundry_core"
@@ -184,18 +184,28 @@ def test_from_package_custom_env_file_inserted_at_index_two(monkeypatch: pytest.
 
 
 # ---------------------------------------------------------------------------
-# from_package — SentryContext flags
+# from_package — runtime mode flags
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
-def test_from_package_sentry_is_test_when_pytest_running_env_set(monkeypatch: pytest.MonkeyPatch) -> None:
-    """sentry.is_test is True when pytest is in sys.modules and PYTEST_RUNNING_{NAME} is set."""
+def test_from_package_is_test_when_pytest_running_env_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    """is_test is True when pytest is in sys.modules and PYTEST_RUNNING_{NAME} is set."""
     monkeypatch.setenv(f"PYTEST_RUNNING_{PACKAGE_NAME.upper()}", "1")
     # pytest is already in sys.modules when tests run
     assert "pytest" in sys.modules
     ctx = FoundryContext.from_package(PACKAGE_NAME)
-    assert ctx.sentry.is_test is True
+    assert ctx.is_test is True
+
+
+@pytest.mark.unit
+def test_foundry_context_mode_flags_default_to_false() -> None:
+    """FoundryContext constructed directly has all four mode flags as False."""
+    ctx = FoundryContext(name="test", version="0.0.0", version_full="0.0.0", environment="test")
+    assert ctx.is_container is False
+    assert ctx.is_cli is False
+    assert ctx.is_test is False
+    assert ctx.is_library is False
 
 
 # ---------------------------------------------------------------------------
@@ -209,16 +219,6 @@ def test_foundry_context_is_frozen() -> None:
     ctx = FoundryContext.from_package(PACKAGE_NAME)
     with pytest.raises(ValidationError):
         ctx.name = "mutated"  # type: ignore[misc]
-
-
-@pytest.mark.unit
-def test_sentry_context_defaults_all_false() -> None:
-    """SentryContext() has all mode flags set to False by default."""
-    sentry = SentryContext()
-    assert sentry.is_container is False
-    assert sentry.is_cli is False
-    assert sentry.is_test is False
-    assert sentry.is_library is False
 
 
 # ---------------------------------------------------------------------------

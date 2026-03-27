@@ -1,7 +1,7 @@
 """Project context injection for Foundry components.
 
 Provides :class:`FoundryContext` — a frozen Pydantic model that derives all
-project-specific values (name, version, environment, env files, URLs, Sentry
+project-specific values (name, version, environment, env files, URLs, runtime
 mode flags) from package metadata and environment variables at call time.
 
 Typical usage::
@@ -31,21 +31,6 @@ def _empty_path_list() -> list[Path]:
     return []
 
 
-class SentryContext(BaseModel):
-    """Sentry mode flags derived from the runtime environment.
-
-    All flags default to ``False`` so that a plain ``SentryContext()`` is safe to
-    use as a default value.
-    """
-
-    model_config = {"frozen": True}
-
-    is_container: bool = False
-    is_cli: bool = False
-    is_test: bool = False
-    is_library: bool = False
-
-
 class FoundryContext(BaseModel):
     """Immutable project context carrying all project-specific values.
 
@@ -65,7 +50,10 @@ class FoundryContext(BaseModel):
     env_file: list[Path] = Field(default_factory=_empty_path_list)
     repository_url: str = ""
     documentation_url: str = ""
-    sentry: SentryContext = Field(default_factory=SentryContext)
+    is_container: bool = False
+    is_cli: bool = False
+    is_test: bool = False
+    is_library: bool = False
 
     @classmethod
     def from_package(cls, package_name: str) -> FoundryContext:
@@ -80,9 +68,8 @@ class FoundryContext(BaseModel):
           — deployment environment.
         * ``{NAME}_ENV_FILE`` — optional extra env-file path inserted at index 2 of
           :attr:`env_file`.
-        * ``{NAME}_RUNNING_IN_CONTAINER`` — sets :attr:`SentryContext.is_container`.
-        * ``PYTEST_RUNNING_{NAME}`` — controls :attr:`SentryContext.is_test` /
-          :attr:`SentryContext.is_library`.
+        * ``{NAME}_RUNNING_IN_CONTAINER`` — sets :attr:`is_container`.
+        * ``PYTEST_RUNNING_{NAME}`` — controls :attr:`is_test` / :attr:`is_library`.
 
         Args:
             package_name: The importable package name (e.g. ``"bridge"``).
@@ -104,7 +91,7 @@ class FoundryContext(BaseModel):
             env_file=_build_env_file_list(name, name_upper, environment),
             repository_url=repository_url,
             documentation_url=documentation_url,
-            sentry=_build_sentry_context(name, name_upper),
+            **_build_runtime_flags(name, name_upper),
         )
 
 
@@ -182,21 +169,21 @@ def _extract_urls(package_name: str) -> tuple[str, str]:
     return repository_url, documentation_url
 
 
-def _build_sentry_context(name: str, name_upper: str) -> SentryContext:
-    """Build :class:`SentryContext` flags from environment and process state.
+def _build_runtime_flags(name: str, name_upper: str) -> dict[str, bool]:
+    """Compute runtime mode flags from environment and process state.
 
     Returns:
-        A populated, frozen :class:`SentryContext`.
+        A dict with ``is_container``, ``is_cli``, ``is_test``, and ``is_library`` keys.
     """
     is_container = bool(os.getenv(f"{name_upper}_RUNNING_IN_CONTAINER"))
     is_cli = sys.argv[0].endswith(name) or (len(sys.argv) > 1 and sys.argv[1] == name)
     pytest_running = bool(os.getenv(f"PYTEST_RUNNING_{name_upper}"))
-    return SentryContext(
-        is_container=is_container,
-        is_cli=is_cli,
-        is_test="pytest" in sys.modules and pytest_running,
-        is_library=not is_cli and not pytest_running,
-    )
+    return {
+        "is_container": is_container,
+        "is_cli": is_cli,
+        "is_test": "pytest" in sys.modules and pytest_running,
+        "is_library": not is_cli and not pytest_running,
+    }
 
 
 # Module-level context singleton — set via set_context(), read via get_context().

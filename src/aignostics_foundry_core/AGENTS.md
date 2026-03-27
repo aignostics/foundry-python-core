@@ -19,11 +19,11 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 | **service** | FastAPI-injectable base service | `BaseService` ABC with `get_service()` (cached per-class FastAPI `Depends` factory), `key()`, and abstract `health()` / `info()` methods; concrete subclasses implement health checks and module info |
 | **database** | Async SQLAlchemy session management | `init_engine(db_url, pool_size, max_overflow, pool_timeout)`, `dispose_engine()`, `get_db_session()` (FastAPI dependency), `execute_with_session(func, …)`, `cli_run_with_db(func, …, db_url)`, `cli_run_with_engine(func, …, db_url)`, `with_engine(db_url)` decorator factory; auto-resets engine after `fork()` |
 | **cli** | Typer CLI preparation utilities | `prepare_cli(cli, epilog, *, context=None)` — discovers and registers subcommands via `locate_implementations`, sets epilog recursively, installs `no_args_is_help` workaround; `no_args_is_help_workaround(ctx)` — raises `typer.Exit` when no subcommand is invoked |
-| **boot** | Application / library boot sequence | `boot(context, sentry_integrations, is_library_mode, log_filter, show_cmdline)` — runs once per process: parses `--env` CLI args, initialises logging and Sentry, amends the SSL trust chain via *truststore* and *certifi*, and logs boot/shutdown messages |
+| **boot** | Application / library boot sequence | `boot(context, sentry_integrations, log_filter, show_cmdline)` — runs once per process: parses `--env` CLI args, initialises logging and Sentry, amends the SSL trust chain via *truststore* and *certifi*, and logs boot/shutdown messages |
 | **user_agent** | Parameterised HTTP user-agent string builder | `user_agent(project_name, version, repository_url)` — builds `{project_name}-python-sdk/{version} (…)` string including platform info, current test, and GitHub Actions run URL |
 | **gui** | NiceGUI page helpers, auth decorators, and nav builder | `GUINamespace` (configurable page decorator namespace), `gui` (default singleton), `page_public/authenticated/admin/internal/internal_admin` decorators, `get_gui_user`, `require_gui_user`, `BaseNavBuilder`, `NavItem`, `NavGroup`, `gui_get_nav_groups(*, context=None)`, `BasePageBuilder`, `gui_register_pages(*, context=None)`, `gui_run(*, context=None, …)`; constants `WINDOW_SIZE`, `BROWSER_RECONNECT_TIMEOUT`, `RESPONSE_TIMEOUT` |
 | **console** | Themed terminal output | Module-level `console` object (Rich `Console`) with colour theme and `_get_console()` factory |
-| **foundry** | Project context injection | `FoundryContext`, `SentryContext`, `FoundryContext.from_package()`, `set_context()`, `get_context()` — centralised project-specific values (name, version, environment, env files, URLs, Sentry flags) derived from package metadata and environment variables |
+| **foundry** | Project context injection | `FoundryContext`, `FoundryContext.from_package()`, `set_context()`, `get_context()` — centralised project-specific values (name, version, environment, env files, URLs, runtime mode flags `is_container`, `is_cli`, `is_test`, `is_library`) derived from package metadata and environment variables |
 | **di** | Dependency injection | `locate_subclasses(cls, *, context=None)`, `locate_implementations(cls, *, context=None)`, `load_modules(*, context=None)`, `discover_plugin_packages`, `clear_caches`, `PLUGIN_ENTRY_POINT_GROUP` for plugin and subclass discovery |
 | **health** | Service health checks | `Health` model and `HealthStatus` enum for tree-structured health status |
 | **settings** | Pydantic settings loading | `OpaqueSettings`, `load_settings`, `strip_to_none_before_validator`, `UNHIDE_SENSITIVE_INFO` for env-based settings with secret masking and user-friendly validation errors |
@@ -41,10 +41,9 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
   application startup makes the context available everywhere in the library without threading values
   through call sites. Tests pass an explicit context override and never touch global state.
 - **Key Features**:
-  - `SentryContext(BaseModel)` — frozen; four bool flags (`is_container`, `is_cli`, `is_test`,
-    `is_library`) all defaulting to `False`.
   - `FoundryContext(BaseModel)` — frozen; fields: `name`, `version`, `version_full`, `environment`,
-    `env_file: list[Path]`, `repository_url`, `documentation_url`, `sentry: SentryContext`.
+    `env_file: list[Path]`, `repository_url`, `documentation_url`, plus four runtime mode bool
+    flags: `is_container`, `is_cli`, `is_test`, `is_library` (all default `False`).
   - `FoundryContext.from_package(package_name)` — classmethod that derives all values from
     `importlib.metadata` and environment variables (`{NAME}_ENVIRONMENT`, `VCS_REF`, `COMMIT_SHA`,
     `BUILDER`, `BUILD_DATE`, `CI_RUN_ID`, `CI_RUN_NUMBER`, `{NAME}_ENV_FILE`,
@@ -57,7 +56,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 - **Dependencies**: `pydantic>=2`, Python stdlib (`importlib.metadata`, `os`, `sys`, `pathlib`)
 - **Import**:
   ```python
-  from aignostics_foundry_core.foundry import FoundryContext, SentryContext, set_context, get_context
+  from aignostics_foundry_core.foundry import FoundryContext, set_context, get_context
   ```
 - **Usage example**:
   ```python
@@ -136,7 +135,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 
 - **Purpose**: Provides a single, idempotent `boot()` entry-point that initialises the full observability and SSL stack in the correct order. All project-specific metadata is injected as parameters so the function is reusable across any project.
 - **Key Features**:
-  - `boot(context, sentry_integrations, is_library_mode, log_filter, show_cmdline)` — runs once per process; subsequent calls are silent no-ops
+  - `boot(context, sentry_integrations, log_filter, show_cmdline)` — runs once per process; subsequent calls are silent no-ops
   - Parses `--env`/`-e KEY=VALUE` CLI arguments: vars matching `{PROJECT_NAME_UPPER}_*` are injected into `os.environ` and removed from `sys.argv`
   - Calls `logging_initialize` with project metadata
   - Calls `_amend_ssl_trust_chain`: injects *truststore* into the SSL context (if available) and sets `SSL_CERT_FILE` to the *certifi* bundle path when no system CA bundle is detected

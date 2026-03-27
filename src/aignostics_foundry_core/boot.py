@@ -46,7 +46,6 @@ _boot_called = False
 def boot(
     context: FoundryContext,
     sentry_integrations: list[Integration] | None,
-    is_library_mode: bool = False,
     log_filter: Callable[[Record], bool] | None = None,
     show_cmdline: bool = True,
 ) -> None:
@@ -66,12 +65,10 @@ def boot(
 
     Args:
         context: :class:`~aignostics_foundry_core.foundry.FoundryContext` providing
-            project name, version, and environment for logging, Sentry, and
-            ``--env`` argument injection.
+            project name, version, environment, and runtime mode flags for logging,
+            Sentry, and ``--env`` argument injection.
         sentry_integrations: List of Sentry SDK integrations to register, or
             ``None`` to skip Sentry initialisation.
-        is_library_mode: When ``True`` the boot message includes
-            ``", library-mode"`` to distinguish library from app boots.
         log_filter: Optional loguru filter callable forwarded to
             :func:`~aignostics_foundry_core.log.logging_initialize`.
         show_cmdline: Whether to include the process command line in the
@@ -90,12 +87,15 @@ def boot(
         version=context.version_full,
         environment=context.environment,
         integrations=sentry_integrations,
-        is_library=is_library_mode,
+        is_container=context.is_container,
+        is_test=context.is_test,
+        is_cli=context.is_cli,
+        is_library=context.is_library,
     )
     _log_boot_message(
         project_name=context.name,
         version=context.version,
-        is_library_mode=is_library_mode,
+        is_library_mode=context.is_library,
         show_cmdline=show_cmdline,
     )
     _register_shutdown_message(project_name=context.name, version=context.version)
