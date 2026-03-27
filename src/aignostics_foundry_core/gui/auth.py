@@ -9,6 +9,7 @@ This module provides:
 - gui: Default GUINamespace singleton (no frame)
 """
 
+import contextlib
 import inspect
 import time
 from collections.abc import Awaitable, Callable
@@ -29,6 +30,14 @@ CLASS_FORBIDDEN_ERROR = "text-red-500 text-2xl"
 # Call signature: frame_func(title, user=user)
 # Example: contextlib.contextmanager-decorated function.
 FrameFunc = Callable[..., Any] | None
+
+
+async def _invoke_page_func(func: Callable[..., Any], user: dict[str, Any] | None) -> None:
+    """Invoke a page function, awaiting it if it is a coroutine function."""
+    if inspect.iscoroutinefunction(func):
+        await func(user)
+    else:
+        func(user)
 
 
 async def get_gui_user(request: Request) -> dict[str, Any] | None:
@@ -143,15 +152,8 @@ def page_public(
         @ui.page(path, response_timeout=RESPONSE_TIMEOUT)
         async def wrapper(request: Request) -> None:
             user = await get_gui_user(request)
-
-            if frame_func is not None:
-                with frame_func(title, user=user):
-                    pass
-
-            if inspect.iscoroutinefunction(func):
-                await func(user)
-            else:
-                func(user)
+            with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
+                await _invoke_page_func(func, user)
 
         wrapper.__name__ = func.__name__
         wrapper.__doc__ = func.__doc__
@@ -192,15 +194,8 @@ def page_authenticated(
             user = await require_gui_user(request)
             if not user:
                 return
-
-            if frame_func is not None:
-                with frame_func(title, user=user):
-                    pass
-
-            if inspect.iscoroutinefunction(func):
-                await func(user)
-            else:
-                func(user)
+            with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
+                await _invoke_page_func(func, user)
 
         wrapper.__name__ = func.__name__
         wrapper.__doc__ = func.__doc__
@@ -245,20 +240,12 @@ def page_admin(
             auth_settings = load_settings(AuthSettings)
             role = user.get(auth_settings.auth0_role_claim)
             if role != AUTH0_ROLE_ADMIN:
-                if frame_func is not None:
-                    with frame_func(title, user=user):
-                        pass
-                ui.label("403 Forbidden - Admin access required").classes(CLASS_FORBIDDEN_ERROR)
+                with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
+                    ui.label("403 Forbidden - Admin access required").classes(CLASS_FORBIDDEN_ERROR)
                 return
 
-            if frame_func is not None:
-                with frame_func(title, user=user):
-                    pass
-
-            if inspect.iscoroutinefunction(func):
-                await func(user)
-            else:
-                func(user)
+            with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
+                await _invoke_page_func(func, user)
 
         wrapper.__name__ = func.__name__
         wrapper.__doc__ = func.__doc__
@@ -304,20 +291,12 @@ def page_internal(
             auth_settings = load_settings(AuthSettings)
             org_id = user.get("org_id")
             if org_id != auth_settings.internal_org_id:
-                if frame_func is not None:
-                    with frame_func(title, user=user):
-                        pass
-                ui.label("403 Forbidden - Internal access required").classes(CLASS_FORBIDDEN_ERROR)
+                with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
+                    ui.label("403 Forbidden - Internal access required").classes(CLASS_FORBIDDEN_ERROR)
                 return
 
-            if frame_func is not None:
-                with frame_func(title, user=user):
-                    pass
-
-            if inspect.iscoroutinefunction(func):
-                await func(user)
-            else:
-                func(user)
+            with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
+                await _invoke_page_func(func, user)
 
         wrapper.__name__ = func.__name__
         wrapper.__doc__ = func.__doc__
@@ -363,20 +342,12 @@ def page_internal_admin(
             role = user.get(auth_settings.auth0_role_claim)
 
             if org_id != auth_settings.internal_org_id or role != AUTH0_ROLE_ADMIN:
-                if frame_func is not None:
-                    with frame_func(title, user=user):
-                        pass
-                ui.label("403 Forbidden - Internal admin access required").classes(CLASS_FORBIDDEN_ERROR)
+                with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
+                    ui.label("403 Forbidden - Internal admin access required").classes(CLASS_FORBIDDEN_ERROR)
                 return
 
-            if frame_func is not None:
-                with frame_func(title, user=user):
-                    pass
-
-            if inspect.iscoroutinefunction(func):
-                await func(user)
-            else:
-                func(user)
+            with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
+                await _invoke_page_func(func, user)
 
         wrapper.__name__ = func.__name__
         wrapper.__doc__ = func.__doc__
