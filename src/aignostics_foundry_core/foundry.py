@@ -19,6 +19,7 @@ References:
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import sys
 from importlib import metadata
@@ -55,6 +56,13 @@ class FoundryContext(BaseModel):
     is_cli: bool = False
     is_test: bool = False
     is_library: bool = False
+    project_path: Path | None = None
+    """Absolute path to the project/repo root (directory containing ``.git``).
+
+    Populated by walking up from the installed package location to find the git
+    root.  ``None`` when the package is installed into site-packages without a
+    source checkout (i.e. no ``.git`` directory is found in any ancestor).
+    """
 
     @classmethod
     def from_package(cls, package_name: str) -> FoundryContext:
@@ -83,7 +91,7 @@ class FoundryContext(BaseModel):
         version = metadata.version(package_name)
         environment = _detect_environment(name_upper)
         repository_url, documentation_url = _extract_urls(package_name)
-
+        project_path = _find_project_path(package_name)
         return cls(
             name=name,
             version=version,
@@ -93,8 +101,29 @@ class FoundryContext(BaseModel):
             env_prefix=f"{name_upper}_",
             repository_url=repository_url,
             documentation_url=documentation_url,
+            project_path=project_path,
             **_build_runtime_flags(name, name_upper),
         )
+
+
+def _find_project_path(package_name: str) -> Path | None:
+    """Walk up from the installed package location to find the git root.
+
+    Args:
+        package_name: The importable package name (e.g. ``"aignostics_foundry_core"``).
+
+    Returns:
+        The directory containing ``.git``, or ``None`` if not found (e.g. the
+        package is installed into site-packages without a source checkout).
+    """
+    spec = importlib.util.find_spec(package_name)
+    if spec is None or spec.origin is None:
+        return None
+    current = Path(spec.origin).parent
+    for directory in [current, *current.parents]:
+        if (directory / ".git").exists():
+            return directory
+    return None
 
 
 def _build_version_full(version: str) -> str:

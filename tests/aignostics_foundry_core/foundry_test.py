@@ -1,8 +1,10 @@
 """Tests for the foundry module — FoundryContext, set_context, get_context."""
 
 import importlib.metadata
+import importlib.util
 import sys
 from collections.abc import Generator
+from importlib.machinery import ModuleSpec
 from pathlib import Path
 
 import pytest
@@ -159,6 +161,46 @@ def test_from_package_version_full_omits_builder_and_extra_when_all_unknown(
     ctx = FoundryContext.from_package(PACKAGE_NAME)
     assert "builder." not in ctx.version_full
     assert "---" not in ctx.version_full
+
+
+# ---------------------------------------------------------------------------
+# from_package — project_path
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_from_package_project_path_is_none_when_package_not_importable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """from_package() sets project_path=None when importlib cannot locate the package spec."""
+
+    def _find_spec_none(name: str, package: str | None = None) -> None:
+        return None
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_none)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.project_path is None
+
+
+@pytest.mark.unit
+def test_from_package_project_path_is_none_when_no_git_ancestor(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """from_package() sets project_path=None when no .git directory exists in any ancestor."""
+    fake_spec = ModuleSpec(PACKAGE_NAME, None, origin=str(tmp_path / PACKAGE_NAME / "__init__.py"))
+
+    def _find_spec_no_git(name: str, package: str | None = None) -> ModuleSpec:
+        return fake_spec
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_no_git)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.project_path is None
+
+
+@pytest.mark.unit
+def test_from_package_project_path_resolves_git_root() -> None:
+    """from_package() resolves project_path to a directory containing .git."""
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.project_path is not None
+    assert (ctx.project_path / ".git").exists()
 
 
 # ---------------------------------------------------------------------------
