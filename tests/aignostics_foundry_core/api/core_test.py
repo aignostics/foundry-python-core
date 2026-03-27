@@ -2,6 +2,8 @@
 
 import pytest
 
+from tests.conftest import make_context
+
 TITLE_KEY = "title"
 TEST_TITLE = "My API"
 MODULE_TAG = "test-module"
@@ -221,7 +223,7 @@ def test_get_versioned_api_instances_returns_fastapi_per_version() -> None:
     from aignostics_foundry_core.api.core import VersionedAPIRouter, get_versioned_api_instances
 
     VersionedAPIRouter(VERSION_GVI)
-    result = get_versioned_api_instances("aignostics_foundry_core", [VERSION_GVI])
+    result = get_versioned_api_instances([VERSION_GVI], context=make_context("aignostics_foundry_core"))
 
     assert VERSION_GVI in result
     assert isinstance(result[VERSION_GVI], FastAPI)

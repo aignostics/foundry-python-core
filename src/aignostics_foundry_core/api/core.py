@@ -6,9 +6,15 @@ This module provides:
 - API initialization and metadata building
 """
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
 
 from aignostics_foundry_core.di import load_modules
+from aignostics_foundry_core.foundry import get_context
+
+if TYPE_CHECKING:
+    from aignostics_foundry_core.foundry import FoundryContext
 
 from .exceptions import (
     AccessDeniedException,
@@ -50,10 +56,10 @@ class VersionedAPIRouter:
     """
 
     # Class variable to track all created instances
-    _instances: ClassVar[list["VersionedAPIRouter"]] = []
+    _instances: ClassVar[list[VersionedAPIRouter]] = []
 
     @classmethod
-    def get_instances(cls) -> list["VersionedAPIRouter"]:
+    def get_instances(cls) -> list[VersionedAPIRouter]:
         """Get all created router instances.
 
         Returns:
@@ -117,7 +123,7 @@ def create_public_router(
     prefix: str | None = None,
     extra_tags: list[str] | None = None,
     extra_dependencies: list[Any] | None = None,
-) -> "APIRouter":
+) -> APIRouter:
     """Create a public API router (no authentication required).
 
     Args:
@@ -143,7 +149,7 @@ def create_authenticated_router(
     prefix: str | None = None,
     extra_tags: list[str] | None = None,
     extra_dependencies: list[Any] | None = None,
-) -> "APIRouter":
+) -> APIRouter:
     """Create an authenticated API router (requires valid Auth0 session).
 
     Args:
@@ -173,7 +179,7 @@ def create_admin_router(
     prefix: str | None = None,
     extra_tags: list[str] | None = None,
     extra_dependencies: list[Any] | None = None,
-) -> "APIRouter":
+) -> APIRouter:
     """Create an admin API router (requires admin role).
 
     Args:
@@ -203,7 +209,7 @@ def create_internal_router(
     prefix: str | None = None,
     extra_tags: list[str] | None = None,
     extra_dependencies: list[Any] | None = None,
-) -> "APIRouter":
+) -> APIRouter:
     """Create an internal API router (requires internal org membership).
 
     Args:
@@ -233,7 +239,7 @@ def create_internal_admin_router(
     prefix: str | None = None,
     extra_tags: list[str] | None = None,
     extra_dependencies: list[Any] | None = None,
-) -> "APIRouter":
+) -> APIRouter:
     """Create an internal admin API router (requires internal org + admin role).
 
     Args:
@@ -344,28 +350,31 @@ def build_root_api_tags(base_url: str, versions: list[str]) -> list[dict[str, An
 
 
 def get_versioned_api_instances(
-    project_name: str,
     versions: list[str],
     build_metadata: dict[str, Any] | None = None,
-) -> "dict[str, FastAPI]":
+    *,
+    context: FoundryContext | None = None,
+) -> dict[str, FastAPI]:
     """Build per-version FastAPI instances and route registered routers to them.
 
-    Loads all modules in *project_name* so that ``VersionedAPIRouter`` instances
-    created at module import time are registered.  Each router whose ``version``
-    attribute matches a name in *versions* is included in the corresponding
+    Loads all modules in the configured project package so that ``VersionedAPIRouter``
+    instances created at module import time are registered.  Each router whose
+    ``version`` attribute matches a name in *versions* is included in the corresponding
     FastAPI sub-application.
 
     Args:
-        project_name: Package name whose modules should be loaded (to trigger router registration).
         versions: Ordered list of API version names (e.g., ``["v1", "v2"]``).
         build_metadata: Optional extra kwargs forwarded to each ``FastAPI()`` constructor.
+        context: Project context supplying the package name.  When ``None``,
+            the global context installed via
+            :func:`aignostics_foundry_core.foundry.set_context` is used.
 
     Returns:
         Mapping from version name to its configured ``FastAPI`` instance.
     """
     from fastapi import FastAPI  # noqa: PLC0415
 
-    load_modules(project_name)
+    load_modules(context=context or get_context())
     api_instances: dict[str, FastAPI] = {version: FastAPI(**(build_metadata or {})) for version in versions}
 
     for router in VersionedAPIRouter.get_instances():
@@ -386,7 +395,7 @@ def init_api(
     lifespan: Any | None = None,  # noqa: ANN401
     exception_handler_registrations: list[tuple[type[Exception], Any]] | None = None,
     **fastapi_kwargs: Any,  # noqa: ANN401
-) -> "FastAPI":
+) -> FastAPI:
     """Initialise a FastAPI application with standard exception handlers.
 
     This is a generic factory that creates a ``FastAPI`` instance and registers

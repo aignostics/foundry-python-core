@@ -7,10 +7,17 @@ This module provides:
 - gui_get_nav_groups: Collect and sort navigation groups from all NavBuilders
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from aignostics_foundry_core.di import locate_subclasses
+from aignostics_foundry_core.foundry import get_context
+
+if TYPE_CHECKING:
+    from aignostics_foundry_core.foundry import FoundryContext
 
 
 @dataclass
@@ -128,16 +135,18 @@ class BaseNavBuilder(ABC):
         return True
 
 
-def gui_get_nav_groups(project_name: str) -> list[NavGroup]:
+def gui_get_nav_groups(*, context: FoundryContext | None = None) -> list[NavGroup]:
     """Collect navigation groups from all NavBuilders.
 
     Args:
-        project_name: Project name passed to locate_subclasses for discovery.
+        context: Project context used for NavBuilder discovery.  When ``None``,
+            the global context installed via
+            :func:`aignostics_foundry_core.foundry.set_context` is used.
 
     Returns:
         Navigation groups sorted by position (lower = higher in sidebar).
     """
-    nav_builders = locate_subclasses(BaseNavBuilder, project_name)
+    nav_builders = locate_subclasses(BaseNavBuilder, context=context or get_context())
     groups: list[NavGroup] = []
 
     for nav_builder in nav_builders:

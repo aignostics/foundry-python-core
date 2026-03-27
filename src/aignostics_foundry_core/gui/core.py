@@ -7,14 +7,21 @@ This module provides:
 - Constants: WINDOW_SIZE, BROWSER_RECONNECT_TIMEOUT, RESPONSE_TIMEOUT
 """
 
-from abc import ABC, abstractmethod
-from collections.abc import Callable
-from typing import Any
+from __future__ import annotations
 
-from fastapi import FastAPI
-from fastapi.routing import APIRouter
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any
 
 from aignostics_foundry_core.di import locate_subclasses
+from aignostics_foundry_core.foundry import get_context
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from fastapi import FastAPI
+    from fastapi.routing import APIRouter
+
+    from aignostics_foundry_core.foundry import FoundryContext
 
 WINDOW_SIZE = (1280, 768)
 BROWSER_RECONNECT_TIMEOUT = 60 * 60 * 24 * 7  # 7 days
@@ -42,16 +49,18 @@ class BasePageBuilder(ABC):
         """Register NiceGUI pages."""
 
 
-def gui_register_pages(project_name: str) -> None:
+def gui_register_pages(*, context: FoundryContext | None = None) -> None:
     """Register pages from all discovered PageBuilders.
 
-    Discovers all ``BasePageBuilder`` subclasses for the given project and calls
-    ``register_pages()`` on each one.
+    Discovers all ``BasePageBuilder`` subclasses for the configured project and
+    calls ``register_pages()`` on each one.
 
     Args:
-        project_name: Project name passed to locate_subclasses for discovery.
+        context: Project context used for PageBuilder discovery.  When ``None``,
+            the global context installed via
+            :func:`aignostics_foundry_core.foundry.set_context` is used.
     """
-    page_builders = locate_subclasses(BasePageBuilder, project_name)
+    page_builders = locate_subclasses(BasePageBuilder, context=context or get_context())
     for page_builder in page_builders:
         page_builder: BasePageBuilder  # type: ignore[no-redef]
         page_builder.register_pages()
@@ -103,7 +112,6 @@ def _mount_fastapi_app(
 
 
 def gui_run(  # noqa: PLR0913, PLR0917
-    project_name: str,
     show: bool = False,
     host: str | None = None,
     port: int | None = None,
@@ -113,15 +121,17 @@ def gui_run(  # noqa: PLR0913, PLR0917
     auth_router: APIRouter | None = None,
     startup_callbacks: list[Callable[[], Any]] | None = None,
     shutdown_callbacks: list[Callable[[], Any]] | None = None,
+    *,
+    context: FoundryContext | None = None,
 ) -> None:
     """Start the NiceGUI application.
 
     Args:
-        project_name: Project name for page builder discovery.
         show: Whether to open a browser window on startup.
         host: Host to bind to. Defaults to NiceGUI's default.
         port: Port to listen on. Defaults to an open port found automatically.
-        title: Title shown in the browser tab. Defaults to ``project_name``.
+        title: Title shown in the browser tab. Defaults to the project name
+            from *context*.
         watch: Whether to reload on source file changes.
         fastapi_app: Optional FastAPI application to mount at ``/api``. When
             provided, ``/docs`` is redirected to ``/api/docs``, and the
@@ -133,18 +143,23 @@ def gui_run(  # noqa: PLR0913, PLR0917
             ``app.on_startup``. Use this to initialise a database engine etc.
         shutdown_callbacks: Optional list of callables registered via
             ``app.on_shutdown``. Use this to dispose resources on shutdown.
+        context: Project context used for page builder discovery and window
+            title.  When ``None``, the global context installed via
+            :func:`aignostics_foundry_core.foundry.set_context` is used.
     """
     from nicegui import app, ui  # noqa: PLC0415
     from nicegui import native as native_app  # noqa: PLC0415
 
+    ctx = context or get_context()
+
     _register_callbacks(app, startup_callbacks, shutdown_callbacks)
-    gui_register_pages(project_name)
+    gui_register_pages(context=ctx)
 
     if fastapi_app is not None:
         _mount_fastapi_app(app, fastapi_app, auth_router)
 
     ui.run(  # pyright: ignore[reportUnknownMemberType]
-        title=title or project_name,
+        title=title or ctx.name,
         native=False,
         reload=watch,
         host=host,

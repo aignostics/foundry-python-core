@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from aignostics_foundry_core import di
+from tests.conftest import make_context
 
 # Constants to avoid duplication (SonarQube S1192)
 MAIN_PKG = "my_project"
@@ -194,7 +195,7 @@ def test_load_modules_imports_the_package_itself() -> None:
         patch.object(di.importlib, "import_module", return_value=pkg) as mock_import,
         patch.object(di.pkgutil, "iter_modules", return_value=[]),
     ):
-        di.load_modules(MAIN_PKG)
+        di.load_modules(context=make_context(MAIN_PKG))
 
     mock_import.assert_any_call(MAIN_PKG)
 
@@ -211,7 +212,7 @@ def test_load_modules_imports_each_top_level_submodule() -> None:
             return_value=[("", SUBMOD_A, False), ("", SUBMOD_B, False)],
         ),
     ):
-        di.load_modules(MAIN_PKG)
+        di.load_modules(context=make_context(MAIN_PKG))
 
     mock_import.assert_any_call(f"{MAIN_PKG}.{SUBMOD_A}")
     mock_import.assert_any_call(f"{MAIN_PKG}.{SUBMOD_B}")
@@ -238,7 +239,7 @@ def test_locate_implementations_searches_plugins(clear_caches: None) -> None:
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[]),
     ):
-        result = di.locate_implementations(_DummyBase, MAIN_PKG)
+        result = di.locate_implementations(_DummyBase, context=make_context(MAIN_PKG))
 
     assert plugin_instance in result
 
@@ -267,7 +268,7 @@ def test_locate_implementations_only_finds_plugin_top_level_exports(clear_caches
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[]),
     ):
-        result = di.locate_implementations(_DummyBase, MAIN_PKG)
+        result = di.locate_implementations(_DummyBase, context=make_context(MAIN_PKG))
 
     assert top_instance in result
     assert sub_instance not in result
@@ -282,7 +283,7 @@ def test_locate_implementations_handles_broken_plugin_package(clear_caches: None
     main_mod.main_instance = main_instance  # type: ignore[attr-defined]
 
     with _broken_plugin_package_patches(main_pkg, main_mod):
-        result = di.locate_implementations(_DummyBase, MAIN_PKG)
+        result = di.locate_implementations(_DummyBase, context=make_context(MAIN_PKG))
 
     assert main_instance in result
 
@@ -297,7 +298,7 @@ def test_locate_implementations_handles_plugin_with_no_matching_top_level_member
     main_mod.main_instance = main_instance  # type: ignore[attr-defined]
 
     with _no_match_plugin_patches(plugin_pkg, main_pkg, main_mod):
-        result = di.locate_implementations(_DummyBase, MAIN_PKG)
+        result = di.locate_implementations(_DummyBase, context=make_context(MAIN_PKG))
 
     assert main_instance in result
 
@@ -322,7 +323,7 @@ def test_locate_implementations_deep_scans_main_package(clear_caches: None) -> N
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
     ):
-        result = di.locate_implementations(_DummyBase, MAIN_PKG)
+        result = di.locate_implementations(_DummyBase, context=make_context(MAIN_PKG))
 
     assert main_instance in result
 
@@ -351,7 +352,7 @@ def test_locate_subclasses_searches_plugins(clear_caches: None) -> None:
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[]),
     ):
-        result = di.locate_subclasses(_DummyBase, MAIN_PKG)
+        result = di.locate_subclasses(_DummyBase, context=make_context(MAIN_PKG))
 
     assert PluginSub in result
 
@@ -384,7 +385,7 @@ def test_locate_subclasses_only_finds_plugin_top_level_exports(clear_caches: Non
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[]),
     ):
-        result = di.locate_subclasses(_DummyBase, MAIN_PKG)
+        result = di.locate_subclasses(_DummyBase, context=make_context(MAIN_PKG))
 
     assert TopSub in result
     assert SubSub not in result
@@ -402,7 +403,7 @@ def test_locate_subclasses_handles_broken_plugin_package(clear_caches: None) -> 
     main_mod.MainSub = MainSub  # type: ignore[attr-defined]
 
     with _broken_plugin_package_patches(main_pkg, main_mod):
-        result = di.locate_subclasses(_DummyBase, MAIN_PKG)
+        result = di.locate_subclasses(_DummyBase, context=make_context(MAIN_PKG))
 
     assert MainSub in result
 
@@ -420,7 +421,7 @@ def test_locate_subclasses_handles_plugin_with_no_matching_top_level_members(cle
     main_mod.MainSub = MainSub  # type: ignore[attr-defined]
 
     with _no_match_plugin_patches(plugin_pkg, main_pkg, main_mod):
-        result = di.locate_subclasses(_DummyBase, MAIN_PKG)
+        result = di.locate_subclasses(_DummyBase, context=make_context(MAIN_PKG))
 
     assert MainSub in result
 
@@ -448,7 +449,7 @@ def test_locate_subclasses_deep_scans_main_package(clear_caches: None) -> None:
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
     ):
-        result = di.locate_subclasses(_DummyBase, MAIN_PKG)
+        result = di.locate_subclasses(_DummyBase, context=make_context(MAIN_PKG))
 
     assert MainSub in result
 
@@ -478,7 +479,7 @@ def test_locate_implementations_no_plugins_detects_main_package(clear_caches: No
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
     ):
-        result = di.locate_implementations(_DummyBase, MAIN_PKG)
+        result = di.locate_implementations(_DummyBase, context=make_context(MAIN_PKG))
 
     assert instance in result
 
@@ -506,7 +507,7 @@ def test_locate_subclasses_no_plugins_detects_main_package(clear_caches: None) -
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
     ):
-        result = di.locate_subclasses(_DummyBase, MAIN_PKG)
+        result = di.locate_subclasses(_DummyBase, context=make_context(MAIN_PKG))
 
     assert LocalSub in result
 
@@ -534,7 +535,7 @@ def test_clear_caches_resets_implementation_cache() -> None:
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
     ):
-        result_before = di.locate_implementations(_DummyBase, MAIN_PKG)
+        result_before = di.locate_implementations(_DummyBase, context=make_context(MAIN_PKG))
     assert instance_v1 in result_before
 
     di.clear_caches()
@@ -553,7 +554,7 @@ def test_clear_caches_resets_implementation_cache() -> None:
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
     ):
-        result_after = di.locate_implementations(_DummyBase, MAIN_PKG)
+        result_after = di.locate_implementations(_DummyBase, context=make_context(MAIN_PKG))
 
     assert instance_v2 in result_after
     assert instance_v1 not in result_after
@@ -580,7 +581,7 @@ def test_clear_caches_resets_subclass_cache() -> None:
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
     ):
-        result_before = di.locate_subclasses(_DummyBase, MAIN_PKG)
+        result_before = di.locate_subclasses(_DummyBase, context=make_context(MAIN_PKG))
     assert SubV1 in result_before
 
     di.clear_caches()
@@ -600,7 +601,7 @@ def test_clear_caches_resets_subclass_cache() -> None:
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
     ):
-        result_after = di.locate_subclasses(_DummyBase, MAIN_PKG)
+        result_after = di.locate_subclasses(_DummyBase, context=make_context(MAIN_PKG))
 
     assert SubV2 in result_after
     assert SubV1 not in result_after
@@ -631,8 +632,8 @@ def test_locate_implementations_caches_result_on_second_call(clear_caches: None)
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]) as mock_iter,
     ):
-        di.locate_implementations(_DummyBase, MAIN_PKG)
-        di.locate_implementations(_DummyBase, MAIN_PKG)
+        di.locate_implementations(_DummyBase, context=make_context(MAIN_PKG))
+        di.locate_implementations(_DummyBase, context=make_context(MAIN_PKG))
 
     assert mock_iter.call_count == 1
 
@@ -660,8 +661,8 @@ def test_locate_subclasses_caches_result_on_second_call(clear_caches: None) -> N
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]) as mock_iter,
     ):
-        di.locate_subclasses(_DummyBase, MAIN_PKG)
-        di.locate_subclasses(_DummyBase, MAIN_PKG)
+        di.locate_subclasses(_DummyBase, context=make_context(MAIN_PKG))
+        di.locate_subclasses(_DummyBase, context=make_context(MAIN_PKG))
 
     assert mock_iter.call_count == 1
 
@@ -717,7 +718,7 @@ def test_locate_subclasses_excludes_base_class_from_results(clear_caches: None) 
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
     ):
-        result = di.locate_subclasses(_DummyBase, MAIN_PKG)
+        result = di.locate_subclasses(_DummyBase, context=make_context(MAIN_PKG))
 
     assert LocalSub in result
     assert _DummyBase not in result
@@ -740,7 +741,7 @@ def test_locate_implementations_handles_broken_main_package_submodule(clear_cach
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
     ):
-        result = di.locate_implementations(_DummyBase, MAIN_PKG)
+        result = di.locate_implementations(_DummyBase, context=make_context(MAIN_PKG))
 
     assert result == []
 
@@ -762,7 +763,7 @@ def test_locate_subclasses_handles_broken_main_package_submodule(clear_caches: N
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
     ):
-        result = di.locate_subclasses(_DummyBase, MAIN_PKG)
+        result = di.locate_subclasses(_DummyBase, context=make_context(MAIN_PKG))
 
     assert result == []
 
@@ -793,7 +794,7 @@ def test_locate_implementations_combines_plugin_and_main_package_results(clear_c
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
     ):
-        result = di.locate_implementations(_DummyBase, MAIN_PKG)
+        result = di.locate_implementations(_DummyBase, context=make_context(MAIN_PKG))
 
     assert plugin_instance in result
     assert main_instance in result
@@ -829,7 +830,7 @@ def test_locate_subclasses_combines_plugin_and_main_package_results(clear_caches
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
     ):
-        result = di.locate_subclasses(_DummyBase, MAIN_PKG)
+        result = di.locate_subclasses(_DummyBase, context=make_context(MAIN_PKG))
 
     assert PluginSub in result
     assert MainSub in result
@@ -863,8 +864,8 @@ def test_locate_implementations_cache_isolated_by_project_name(clear_caches: Non
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
     ):
-        result_a = di.locate_implementations(_DummyBase, PROJ_A)
-        result_b = di.locate_implementations(_DummyBase, PROJ_B)
+        result_a = di.locate_implementations(_DummyBase, context=make_context(PROJ_A))
+        result_b = di.locate_implementations(_DummyBase, context=make_context(PROJ_B))
 
     assert instance_a in result_a
     assert instance_b not in result_a
@@ -904,10 +905,67 @@ def test_locate_subclasses_cache_isolated_by_project_name(clear_caches: None) ->
         ),
         patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
     ):
-        result_a = di.locate_subclasses(_DummyBase, PROJ_A)
-        result_b = di.locate_subclasses(_DummyBase, PROJ_B)
+        result_a = di.locate_subclasses(_DummyBase, context=make_context(PROJ_A))
+        result_b = di.locate_subclasses(_DummyBase, context=make_context(PROJ_B))
 
     assert SubA in result_a
     assert SubB not in result_a
     assert SubB in result_b
     assert SubA not in result_b
+
+
+# ---------------------------------------------------------------------------
+# Context fallback — global context and error cases
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_locate_subclasses_raises_without_context(clear_caches: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    """locate_subclasses raises RuntimeError when no context arg and no global context."""
+    import aignostics_foundry_core.foundry as _foundry_mod
+
+    monkeypatch.setattr(_foundry_mod, "_context", None)
+    with pytest.raises(RuntimeError, match="get_context\\(\\) called before set_context"):
+        di.locate_subclasses(_DummyBase)
+
+
+@pytest.mark.unit
+def test_locate_implementations_raises_without_context(clear_caches: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    """locate_implementations raises RuntimeError when no context arg and no global context."""
+    import aignostics_foundry_core.foundry as _foundry_mod
+
+    monkeypatch.setattr(_foundry_mod, "_context", None)
+    with pytest.raises(RuntimeError, match="get_context\\(\\) called before set_context"):
+        di.locate_implementations(_DummyBase)
+
+
+@pytest.mark.unit
+def test_locate_subclasses_uses_global_context(clear_caches: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    """locate_subclasses uses the global context when no explicit context is passed."""
+
+    class GlobalSub(_DummyBase):
+        pass
+
+    main_pkg = _mock_package()
+    main_mod = ModuleType(MAIN_PKG_MYMODULE)
+    main_mod.GlobalSub = GlobalSub  # type: ignore[attr-defined]
+
+    import aignostics_foundry_core.foundry as _foundry_mod
+
+    monkeypatch.setattr(_foundry_mod, "_context", make_context(MAIN_PKG))
+
+    with (
+        patch.object(di, "discover_plugin_packages", return_value=()),
+        patch.object(
+            di.importlib,
+            "import_module",
+            side_effect=_make_import_side_effect({
+                MAIN_PKG: main_pkg,
+                MAIN_PKG_MYMODULE: main_mod,
+            }),
+        ),
+        patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
+    ):
+        result = di.locate_subclasses(_DummyBase)  # no explicit context
+
+    assert GlobalSub in result

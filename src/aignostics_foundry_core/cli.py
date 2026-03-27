@@ -1,22 +1,31 @@
 """Command-line interface (CLI) utilities."""
 
+from __future__ import annotations
+
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 
 from aignostics_foundry_core.di import locate_implementations
+from aignostics_foundry_core.foundry import get_context
+
+if TYPE_CHECKING:
+    from aignostics_foundry_core.foundry import FoundryContext
 
 
-def prepare_cli(cli: typer.Typer, epilog: str, project_name: str) -> None:
+def prepare_cli(cli: typer.Typer, epilog: str, *, context: FoundryContext | None = None) -> None:
     """Dynamically locate, register and prepare subcommands.
 
     Args:
         cli (typer.Typer): Typer instance
         epilog (str): Epilog to add
-        project_name (str): Project name used for subcommand discovery
+        context: Project context used for subcommand discovery.  When ``None``,
+            the global context installed via
+            :func:`aignostics_foundry_core.foundry.set_context` is used.
     """
-    for sub_cli in locate_implementations(typer.Typer, project_name):
+    for sub_cli in locate_implementations(typer.Typer, context=context or get_context()):
         if sub_cli != cli:
             cli.add_typer(sub_cli)
 
