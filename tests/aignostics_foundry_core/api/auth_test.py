@@ -25,6 +25,8 @@ _PATCH_SET_SENTRY_USER = "aignostics_foundry_core.sentry.set_sentry_user"
 _INTERNAL_ORG_ID = "org_internal_123"
 _OTHER_ORG_ID = "org_other_456"
 _USER_NOT_AUTHENTICATED = "User is not authenticated"
+_USER_SUB = "auth0|x"
+_USER_EMAIL = "x@x.com"
 
 
 @pytest.mark.unit
@@ -113,7 +115,7 @@ class TestGetUser:
         cookie = "fake-cookie"
 
         fake_client = MagicMock()
-        expired_user = {"sub": "auth0|x", "email": "x@x.com", "exp": int(time.time()) - 3600}
+        expired_user = {"sub": _USER_SUB, "email": _USER_EMAIL, "exp": int(time.time()) - 3600}
         fake_client.require_session = AsyncMock(return_value={"user": expired_user})
 
         with (
@@ -155,7 +157,7 @@ class TestGetUser:
         """get_user returns the user dict when the session is valid and not expired."""
         request = MagicMock()
         cookie = "fake-cookie"
-        user = {"sub": "auth0|x", "email": "x@x.com", "exp": int(time.time()) + 3600}
+        user = {"sub": _USER_SUB, "email": _USER_EMAIL, "exp": int(time.time()) + 3600}
         fake_client = MagicMock()
         fake_client.require_session = AsyncMock(return_value={"user": user})
 
@@ -184,7 +186,7 @@ class TestRequireAuthenticated:
     async def test_authenticated_user_passes(self) -> None:
         """require_authenticated returns None without raising when user is authenticated."""
         request = MagicMock()
-        user = {"sub": "auth0|x", "email": "x@x.com"}
+        user = {"sub": _USER_SUB, "email": _USER_EMAIL}
         with patch(_PATCH_GET_USER, new=AsyncMock(return_value=user)):
             result = await require_authenticated(request, None)
         assert result is None
@@ -205,7 +207,7 @@ class TestRequireAdmin:
         """require_admin raises ForbiddenError when user has a non-admin role."""
         monkeypatch.delenv("FOUNDRY_AUTH_AUTH0_ROLE_CLAIM", raising=False)
         request = MagicMock()
-        user = {"sub": "auth0|x", DEFAULT_AUTH0_ROLE_CLAIM: "viewer"}
+        user = {"sub": _USER_SUB, DEFAULT_AUTH0_ROLE_CLAIM: "viewer"}
         with (
             patch(_PATCH_GET_USER, new=AsyncMock(return_value=user)),
             pytest.raises(ForbiddenError, match="does not match required role"),
@@ -216,7 +218,7 @@ class TestRequireAdmin:
         """require_admin returns None without raising when user has the admin role."""
         monkeypatch.delenv("FOUNDRY_AUTH_AUTH0_ROLE_CLAIM", raising=False)
         request = MagicMock()
-        user = {"sub": "auth0|x", DEFAULT_AUTH0_ROLE_CLAIM: AUTH0_ROLE_ADMIN}
+        user = {"sub": _USER_SUB, DEFAULT_AUTH0_ROLE_CLAIM: AUTH0_ROLE_ADMIN}
         with patch(_PATCH_GET_USER, new=AsyncMock(return_value=user)):
             result = await require_admin(request, None)
         assert result is None
@@ -240,7 +242,7 @@ class TestRequireInternal:
         """require_internal raises ForbiddenError when user belongs to a different org."""
         monkeypatch.setenv("FOUNDRY_AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
         request = MagicMock()
-        user = {"sub": "auth0|x", "org_id": _OTHER_ORG_ID}
+        user = {"sub": _USER_SUB, "org_id": _OTHER_ORG_ID}
         with (
             patch(_PATCH_GET_USER, new=AsyncMock(return_value=user)),
             pytest.raises(ForbiddenError, match="not a member of the internal organization"),
@@ -251,7 +253,7 @@ class TestRequireInternal:
         """require_internal returns None without raising when user is in the internal org."""
         monkeypatch.setenv("FOUNDRY_AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
         request = MagicMock()
-        user = {"sub": "auth0|x", "org_id": _INTERNAL_ORG_ID}
+        user = {"sub": _USER_SUB, "org_id": _INTERNAL_ORG_ID}
         with patch(_PATCH_GET_USER, new=AsyncMock(return_value=user)):
             result = await require_internal(request, None)
         assert result is None
@@ -275,7 +277,7 @@ class TestRequireInternalAdmin:
         """require_internal_admin raises ForbiddenError when user belongs to a different org."""
         monkeypatch.setenv("FOUNDRY_AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
         request = MagicMock()
-        user = {"sub": "auth0|x", "org_id": _OTHER_ORG_ID}
+        user = {"sub": _USER_SUB, "org_id": _OTHER_ORG_ID}
         with (
             patch(_PATCH_GET_USER, new=AsyncMock(return_value=user)),
             pytest.raises(ForbiddenError, match="not a member of the internal organization"),
@@ -287,7 +289,7 @@ class TestRequireInternalAdmin:
         monkeypatch.setenv("FOUNDRY_AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
         monkeypatch.delenv("FOUNDRY_AUTH_AUTH0_ROLE_CLAIM", raising=False)
         request = MagicMock()
-        user = {"sub": "auth0|x", "org_id": _INTERNAL_ORG_ID, DEFAULT_AUTH0_ROLE_CLAIM: "viewer"}
+        user = {"sub": _USER_SUB, "org_id": _INTERNAL_ORG_ID, DEFAULT_AUTH0_ROLE_CLAIM: "viewer"}
         with (
             patch(_PATCH_GET_USER, new=AsyncMock(return_value=user)),
             pytest.raises(ForbiddenError, match="does not match required role"),
@@ -299,7 +301,7 @@ class TestRequireInternalAdmin:
         monkeypatch.setenv("FOUNDRY_AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
         monkeypatch.delenv("FOUNDRY_AUTH_AUTH0_ROLE_CLAIM", raising=False)
         request = MagicMock()
-        user = {"sub": "auth0|x", "org_id": _INTERNAL_ORG_ID, DEFAULT_AUTH0_ROLE_CLAIM: AUTH0_ROLE_ADMIN}
+        user = {"sub": _USER_SUB, "org_id": _INTERNAL_ORG_ID, DEFAULT_AUTH0_ROLE_CLAIM: AUTH0_ROLE_ADMIN}
         with patch(_PATCH_GET_USER, new=AsyncMock(return_value=user)):
             result = await require_internal_admin(request, None)
         assert result is None
