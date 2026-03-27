@@ -73,6 +73,8 @@ def locate_subclasses(_class):
 
 The library owns the derivation logic in `FoundryContext.from_package(project_name)`, which reads from `importlib.metadata`, `sys.argv`, CI env vars, etc. Projects construct a context and pass it at call sites.
 
+**Why Pydantic:** a frozen Pydantic model provides an immutable, typed data structure with built-in validation and convenient construction from dicts. It also plays well with subclassing for projects that need extra fields. It is already installed as a dependency and is used for `SentrySettings`, so it fits well within the existing codebase.
+
 ```python
 ctx = FoundryContext.from_package("bridge")
 locate_subclasses(BaseService, context=ctx)
