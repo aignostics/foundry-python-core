@@ -38,12 +38,13 @@ if TYPE_CHECKING:
     from loguru import Record
     from sentry_sdk.integrations import Integration
 
+    from aignostics_foundry_core.foundry import FoundryContext
+
 _boot_called = False
 
 
-def boot(  # noqa: PLR0913, PLR0917
-    project_name: str,
-    version: str,
+def boot(
+    context: FoundryContext,
     sentry_integrations: list[Integration] | None,
     is_library_mode: bool = False,
     log_filter: Callable[[Record], bool] | None = None,
@@ -64,10 +65,9 @@ def boot(  # noqa: PLR0913, PLR0917
     6. Register an atexit shutdown message.
 
     Args:
-        project_name: Project identifier (e.g. ``"bridge"``).  Used as the
-            env-var prefix for ``--env`` injection and as the logging /
-            Sentry release name.
-        version: Full version string (e.g. ``"1.2.3"``).
+        context: :class:`~aignostics_foundry_core.foundry.FoundryContext` providing
+            project name, version, and environment for logging, Sentry, and
+            ``--env`` argument injection.
         sentry_integrations: List of Sentry SDK integrations to register, or
             ``None`` to skip Sentry initialisation.
         is_library_mode: When ``True`` the boot message includes
@@ -82,24 +82,23 @@ def boot(  # noqa: PLR0913, PLR0917
         return
     _boot_called = True
 
-    _parse_env_args(project_name)
-    logging_initialize(project_name=project_name, version=version, filter_func=log_filter)
+    _parse_env_args(context.name)
+    logging_initialize(filter_func=log_filter, context=context)
     _amend_ssl_trust_chain()
-    environment = os.environ.get(f"{project_name.upper()}_ENVIRONMENT", "production")
     sentry_initialize(
-        project_name=project_name,
-        version=version,
-        environment=environment,
+        project_name=context.name,
+        version=context.version_full,
+        environment=context.environment,
         integrations=sentry_integrations,
         is_library=is_library_mode,
     )
     _log_boot_message(
-        project_name=project_name,
-        version=version,
+        project_name=context.name,
+        version=context.version,
         is_library_mode=is_library_mode,
         show_cmdline=show_cmdline,
     )
-    _register_shutdown_message(project_name=project_name, version=version)
+    _register_shutdown_message(project_name=context.name, version=context.version)
     logger.trace("Boot sequence completed successfully.")
 
 

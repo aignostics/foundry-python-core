@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from aignostics_foundry_core.log import InterceptHandler, LogSettings, logging_initialize
+from tests.conftest import make_context
 
 _PROJECT = "testfoundry"
 _VERSION = "0.0.1"
@@ -26,7 +27,7 @@ class TestLoggingInitialize:
 
     def test_logging_initialize_adds_stderr_handler(self, capsys: pytest.CaptureFixture[str]) -> None:
         """After initialization with defaults, a log message appears on stderr."""
-        logging_initialize(_PROJECT, _VERSION)
+        logging_initialize(context=make_context(_PROJECT))
         from loguru import logger
 
         logger.info(_MARKER_MESSAGE)
@@ -38,7 +39,7 @@ class TestLoggingInitialize:
     ) -> None:
         """When stderr is disabled via env var, no output is written to stderr."""
         monkeypatch.setenv(f"{_PROJECT.upper()}_LOG_STDERR_ENABLED", "false")
-        logging_initialize(_PROJECT, _VERSION)
+        logging_initialize(context=make_context(_PROJECT))
         from loguru import logger
 
         logger.info(_MARKER_MESSAGE)
@@ -47,7 +48,7 @@ class TestLoggingInitialize:
 
     def test_intercept_handler_redirects_stdlib_log(self, capsys: pytest.CaptureFixture[str]) -> None:
         """After initialization, stdlib logging messages are forwarded to loguru (and thus stderr)."""
-        logging_initialize(_PROJECT, _VERSION)
+        logging_initialize(context=make_context(_PROJECT))
         stdlib_logging.getLogger("test.intercept").warning(_STDLIB_MESSAGE)
         captured = capsys.readouterr()
         assert _STDLIB_MESSAGE in captured.err
@@ -59,7 +60,7 @@ class TestLoggingInitialize:
         log_file = tmp_path / "test.log"
         monkeypatch.setenv(f"{_PROJECT.upper()}_LOG_FILE_ENABLED", "true")
         monkeypatch.setenv(f"{_PROJECT.upper()}_LOG_FILE_NAME", str(log_file))
-        logging_initialize(_PROJECT, _VERSION)
+        logging_initialize(context=make_context(_PROJECT))
         from loguru import logger
 
         logger.info(_FILE_HANDLER_MARKER)
@@ -68,7 +69,7 @@ class TestLoggingInitialize:
 
     def test_logging_initialize_filter_func_is_applied(self, capsys: pytest.CaptureFixture[str]) -> None:
         """A filter_func returning False suppresses all output from the handler."""
-        logging_initialize(_PROJECT, _VERSION, filter_func=lambda _: False)
+        logging_initialize(filter_func=lambda _: False, context=make_context(_PROJECT))
         from loguru import logger
 
         logger.info(_FILTER_MARKER)
@@ -76,8 +77,8 @@ class TestLoggingInitialize:
 
     def test_logging_initialize_replaces_handlers_on_repeated_calls(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Repeated calls replace existing handlers rather than accumulating them."""
-        logging_initialize(_PROJECT, _VERSION)
-        logging_initialize(_PROJECT, _VERSION)
+        logging_initialize(context=make_context(_PROJECT))
+        logging_initialize(context=make_context(_PROJECT))
         capsys.readouterr()  # Drain any buffered output from initialization
         from loguru import logger
 
@@ -86,15 +87,26 @@ class TestLoggingInitialize:
 
     def test_intercept_handler_drops_sentry_messages(self, capsys: pytest.CaptureFixture[str]) -> None:
         """InterceptHandler silently drops stdlib log messages containing 'sentry.io'."""
-        logging_initialize(_PROJECT, _VERSION)
+        logging_initialize(context=make_context(_PROJECT))
         stdlib_logging.getLogger("test.sentry").warning(_SENTRY_MARKER)
         assert _SENTRY_MARKER not in capsys.readouterr().err
 
     def test_logging_initialize_suppresses_psycopg_loggers(self) -> None:
         """After logging_initialize(), psycopg loggers are set to WARNING to suppress noise."""
-        logging_initialize(_PROJECT, _VERSION)
+        logging_initialize(context=make_context(_PROJECT))
         assert stdlib_logging.getLogger("psycopg").level == stdlib_logging.WARNING
         assert stdlib_logging.getLogger("psycopg.pool").level == stdlib_logging.WARNING
+
+    def test_logging_initialize_uses_context_project_name(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """logging_initialize reads env-var prefix from context.name."""
+        monkeypatch.setenv(f"{_PROJECT.upper()}_LOG_LEVEL", "DEBUG")
+        logging_initialize(context=make_context(_PROJECT))
+        from loguru import logger
+
+        logger.debug(_MARKER_MESSAGE)
+        assert _MARKER_MESSAGE in capsys.readouterr().err
 
 
 @pytest.mark.unit

@@ -21,10 +21,14 @@ from loguru import logger
 from pydantic import Field, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from aignostics_foundry_core.foundry import get_context
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from loguru import Record
+
+    from aignostics_foundry_core.foundry import FoundryContext
 
 _DEFAULT_PROJECT = "foundry"
 
@@ -159,10 +163,9 @@ class LogSettings(BaseSettings):
 
 
 def logging_initialize(
-    project_name: str = _DEFAULT_PROJECT,
-    version: str = "dev",
-    env_file: str | None = None,
     filter_func: "Callable[[Record], bool] | None" = None,
+    *,
+    context: "FoundryContext | None" = None,
 ) -> None:
     """Initialize logging configuration.
 
@@ -171,15 +174,17 @@ def logging_initialize(
     ``{project_name.upper()}_LOG_`` prefix.
 
     Args:
-        project_name: Application / project name used as the env-var prefix
-            (e.g. ``"bridge"`` → ``BRIDGE_LOG_*``) and embedded in log
-            record extras.
-        version: Application version string embedded in log record extras.
-        env_file: Optional path to an ``.env`` file for settings overrides.
         filter_func: Optional loguru filter callable; receives a ``Record``
             and returns ``True`` to keep the message, ``False`` to drop it.
+        context: Optional :class:`~aignostics_foundry_core.foundry.FoundryContext`
+            providing the project name and version.  Falls back to the
+            process-level context installed via
+            :func:`~aignostics_foundry_core.foundry.set_context`.
     """
-    settings = LogSettings(_env_prefix=f"{project_name.upper()}_LOG_", _env_file=env_file)  # pyright: ignore[reportCallIssue]
+    ctx = context or get_context()
+    project_name = ctx.name
+    version = ctx.version
+    settings = LogSettings(_env_prefix=f"{project_name.upper()}_LOG_", _env_file=ctx.env_file)  # pyright: ignore[reportCallIssue]
 
     logger.remove()  # Remove all default loggers
 

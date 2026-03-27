@@ -14,12 +14,12 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 | **api.auth** | Auth0 authentication FastAPI dependencies | `AuthSettings` (env-prefix configurable), `UnauthenticatedError`, `ForbiddenError` (403); `get_auth_client`, `get_user`, `require_authenticated`, `require_admin`, `require_internal`, `require_internal_admin` FastAPI dependencies; Auth0 cookie security schemes |
 | **api.core** | Versioned API router and FastAPI factory | `VersionedAPIRouter` (tracks all created instances), `API_TAG_*` constants, `create_public/authenticated/admin/internal/internal_admin_router` factories, `build_api_metadata`, `build_versioned_api_tags`, `build_root_api_tags`, `get_versioned_api_instances(versions, build_metadata=None, *, context=None)`, `init_api()` |
 | **api** | Consolidated API sub-package | Re-exports all public symbols from `api.exceptions`, `api.auth`, and `api.core`; import any API symbol directly from `aignostics_foundry_core.api` |
-| **log** | Configurable loguru logging initialisation | `logging_initialize(project_name, version, env_file, filter_func)`, `LogSettings` (env-prefix configurable), `InterceptHandler` for stdlib-to-loguru bridging |
+| **log** | Configurable loguru logging initialisation | `logging_initialize(filter_func=None, *, context=None)`, `LogSettings` (env-prefix configurable), `InterceptHandler` for stdlib-to-loguru bridging |
 | **sentry** | Configurable Sentry integration | `sentry_initialize(project_name, version, environment, integrations, …)`, `SentrySettings` (env-prefix configurable), `set_sentry_user(user, role_claim)` for Auth0 user context |
 | **service** | FastAPI-injectable base service | `BaseService` ABC with `get_service()` (cached per-class FastAPI `Depends` factory), `key()`, and abstract `health()` / `info()` methods; concrete subclasses implement health checks and module info |
 | **database** | Async SQLAlchemy session management | `init_engine(db_url, pool_size, max_overflow, pool_timeout)`, `dispose_engine()`, `get_db_session()` (FastAPI dependency), `execute_with_session(func, …)`, `cli_run_with_db(func, …, db_url)`, `cli_run_with_engine(func, …, db_url)`, `with_engine(db_url)` decorator factory; auto-resets engine after `fork()` |
 | **cli** | Typer CLI preparation utilities | `prepare_cli(cli, epilog, *, context=None)` — discovers and registers subcommands via `locate_implementations`, sets epilog recursively, installs `no_args_is_help` workaround; `no_args_is_help_workaround(ctx)` — raises `typer.Exit` when no subcommand is invoked |
-| **boot** | Application / library boot sequence | `boot(project_name, version, sentry_integrations, is_library_mode, log_filter, show_cmdline)` — runs once per process: parses `--env` CLI args, initialises logging and Sentry, amends the SSL trust chain via *truststore* and *certifi*, and logs boot/shutdown messages |
+| **boot** | Application / library boot sequence | `boot(context, sentry_integrations, is_library_mode, log_filter, show_cmdline)` — runs once per process: parses `--env` CLI args, initialises logging and Sentry, amends the SSL trust chain via *truststore* and *certifi*, and logs boot/shutdown messages |
 | **user_agent** | Parameterised HTTP user-agent string builder | `user_agent(project_name, version, repository_url)` — builds `{project_name}-python-sdk/{version} (…)` string including platform info, current test, and GitHub Actions run URL |
 | **gui** | NiceGUI page helpers, auth decorators, and nav builder | `GUINamespace` (configurable page decorator namespace), `gui` (default singleton), `page_public/authenticated/admin/internal/internal_admin` decorators, `get_gui_user`, `require_gui_user`, `BaseNavBuilder`, `NavItem`, `NavGroup`, `gui_get_nav_groups(*, context=None)`, `BasePageBuilder`, `gui_register_pages(*, context=None)`, `gui_run(*, context=None, …)`; constants `WINDOW_SIZE`, `BROWSER_RECONNECT_TIMEOUT`, `RESPONSE_TIMEOUT` |
 | **console** | Themed terminal output | Module-level `console` object (Rich `Console`) with colour theme and `_get_console()` factory |
@@ -136,7 +136,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 
 - **Purpose**: Provides a single, idempotent `boot()` entry-point that initialises the full observability and SSL stack in the correct order. All project-specific metadata is injected as parameters so the function is reusable across any project.
 - **Key Features**:
-  - `boot(project_name, version, sentry_integrations, is_library_mode, log_filter, show_cmdline)` — runs once per process; subsequent calls are silent no-ops
+  - `boot(context, sentry_integrations, is_library_mode, log_filter, show_cmdline)` — runs once per process; subsequent calls are silent no-ops
   - Parses `--env`/`-e KEY=VALUE` CLI arguments: vars matching `{PROJECT_NAME_UPPER}_*` are injected into `os.environ` and removed from `sys.argv`
   - Calls `logging_initialize` with project metadata
   - Calls `_amend_ssl_trust_chain`: injects *truststore* into the SSL context (if available) and sets `SSL_CERT_FILE` to the *certifi* bundle path when no system CA bundle is detected
@@ -155,7 +155,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 - **Key Features**:
   - `InterceptHandler(logging.Handler)` — redirects stdlib log records to loguru, preserving original module/function/line metadata
   - `LogSettings(BaseSettings)` — reads from `FOUNDRY_LOG_*` env vars by default; override prefix and env file via constructor kwargs (e.g. `LogSettings(_env_prefix="BRIDGE_LOG_", _env_file=".env")`). Fields: `level`, `stderr_enabled`, `file_enabled`, `file_name`, `redirect_logging`
-  - `logging_initialize(project_name, version, env_file, filter_func)` — removes all existing loguru handlers, then adds stderr/file handlers per settings; embeds `project_name` and `version` in loguru `extra`; installs `InterceptHandler` for stdlib redirect; suppresses psycopg pool noise
+  - `logging_initialize(filter_func, *, context)` — removes all existing loguru handlers, then adds stderr/file handlers per settings; reads project name, version, and env file list from `context` (falls back to process-level context); embeds `project_name` and `version` in loguru `extra`; installs `InterceptHandler` for stdlib redirect; suppresses psycopg pool noise
 - **Location**: `aignostics_foundry_core/log.py`
 - **Dependencies**: `loguru>=0.7,<1`, `platformdirs>=4,<5` (mandatory)
 - **Import**: `from aignostics_foundry_core.log import logging_initialize, LogSettings, InterceptHandler`

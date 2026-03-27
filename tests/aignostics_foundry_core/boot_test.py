@@ -11,9 +11,9 @@ from unittest.mock import MagicMock
 import pytest
 
 import aignostics_foundry_core.boot as boot_mod
+from tests.conftest import make_context
 
 _PROJECT = "testapp"
-_VERSION = "1.0.0"
 
 
 @pytest.mark.unit
@@ -25,7 +25,7 @@ def test_boot_can_be_called(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(boot_mod, "truststore", None)
     monkeypatch.setattr(boot_mod, "certifi", None)
 
-    boot_mod.boot(_PROJECT, _VERSION, sentry_integrations=None)  # must not raise
+    boot_mod.boot(make_context(_PROJECT), sentry_integrations=None)  # must not raise
 
 
 @pytest.mark.unit
@@ -39,8 +39,8 @@ def test_boot_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(boot_mod, "truststore", None)
     monkeypatch.setattr(boot_mod, "certifi", None)
 
-    boot_mod.boot(_PROJECT, _VERSION, sentry_integrations=None)
-    boot_mod.boot(_PROJECT, _VERSION, sentry_integrations=None)
+    boot_mod.boot(make_context(_PROJECT), sentry_integrations=None)
+    boot_mod.boot(make_context(_PROJECT), sentry_integrations=None)
 
     assert mock_logging.call_count == 1
 
@@ -56,7 +56,7 @@ def test_parse_env_args_injects_matching_vars(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.delitem(os.environ, "TESTAPP_FOO", raising=False)
     monkeypatch.setattr(sys, "argv", ["script.py", "--env", "TESTAPP_FOO=bar"])
 
-    boot_mod.boot(_PROJECT, _VERSION, sentry_integrations=None)
+    boot_mod.boot(make_context(_PROJECT), sentry_integrations=None)
 
     assert os.environ.get("TESTAPP_FOO") == "bar"
     assert "--env" not in sys.argv
@@ -77,6 +77,6 @@ def test_boot_amends_ssl_trust_chain(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_paths = types.SimpleNamespace(cafile=None)
     monkeypatch.setattr(ssl, "get_default_verify_paths", lambda: mock_paths)
 
-    boot_mod.boot(_PROJECT, _VERSION, sentry_integrations=None)
+    boot_mod.boot(make_context(_PROJECT), sentry_integrations=None)
 
     assert "SSL_CERT_FILE" in os.environ
