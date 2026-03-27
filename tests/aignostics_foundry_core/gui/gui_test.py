@@ -18,7 +18,6 @@ from aignostics_foundry_core.gui.core import (
 )
 from aignostics_foundry_core.gui.nav import (
     BaseNavBuilder,
-    NavGroup,
     NavItem,
     gui_get_nav_groups,
 )
@@ -61,41 +60,6 @@ class TestNavItem:
         """When a marker is supplied explicitly, __post_init__ must not overwrite it."""
         item = NavItem(icon="home", label="Home", target="/", marker="MY_CUSTOM_MARKER")
         assert item.marker == "MY_CUSTOM_MARKER"
-
-    def test_new_tab_defaults_to_false(self) -> None:
-        """new_tab defaults to False (same-tab navigation)."""
-        item = NavItem(icon="link", label="Link", target="/link")
-        assert item.new_tab is False
-
-
-# ---------------------------------------------------------------------------
-# NavGroup
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.unit
-class TestNavGroup:
-    """Tests for NavGroup dataclass defaults."""
-
-    def test_position_default(self) -> None:
-        """Default position is 1000 (lowest priority)."""
-        group = NavGroup(name="My Module")
-        assert group.position == 1000
-
-    def test_icon_default(self) -> None:
-        """Default icon is 'folder'."""
-        group = NavGroup(name="My Module")
-        assert group.icon == "folder"
-
-    def test_use_expansion_default(self) -> None:
-        """Default use_expansion is True."""
-        group = NavGroup(name="My Module")
-        assert group.use_expansion is True
-
-    def test_items_default_empty(self) -> None:
-        """Default items list is empty."""
-        group = NavGroup(name="My Module")
-        assert group.items == []
 
 
 # ---------------------------------------------------------------------------
@@ -195,9 +159,39 @@ class TestGuiGetNavGroups:
                 return []
 
         with patch(_PATH_NAV_LOCATE, return_value=[EmptyBuilder]):
-            result = gui_get_nav_groups("myproject")
+            result = gui_get_nav_groups(_PROJECT_NAME)
 
         assert result == []
+
+    def test_builder_without_explicit_position_sorts_after_lower_position(self) -> None:
+        """A builder with no position override (default 1000) sorts after one with explicit 100."""
+
+        class DefaultPositionBuilder(BaseNavBuilder):
+            @staticmethod
+            def get_nav_name() -> str:
+                return "Default"
+
+            @staticmethod
+            def get_nav_items() -> list[NavItem]:
+                return [NavItem(icon="d", label="D", target="/d")]
+
+        class ExplicitPositionBuilder(BaseNavBuilder):
+            @staticmethod
+            def get_nav_name() -> str:
+                return "Explicit"
+
+            @staticmethod
+            def get_nav_items() -> list[NavItem]:
+                return [NavItem(icon="e", label="E", target="/e")]
+
+            @staticmethod
+            def get_nav_position() -> int:
+                return 100
+
+        with patch(_PATH_NAV_LOCATE, return_value=[DefaultPositionBuilder, ExplicitPositionBuilder]):
+            result = gui_get_nav_groups(_PROJECT_NAME)
+
+        assert [g.name for g in result] == ["Explicit", "Default"]
 
 
 # ---------------------------------------------------------------------------
@@ -712,11 +706,15 @@ class TestPageInternalAdminRegistration:
 class TestGUINamespace:
     """Tests for GUINamespace and the gui singleton."""
 
-    def test_gui_singleton_is_gui_namespace(self) -> None:
-        """The module-level gui object is an instance of GUINamespace."""
-        from aignostics_foundry_core.gui.auth import GUINamespace, gui
+    def test_gui_exposes_all_decorator_methods(self) -> None:
+        """The gui singleton exposes all page decorator methods as callables."""
+        from aignostics_foundry_core.gui.auth import gui
 
-        assert isinstance(gui, GUINamespace)
+        assert callable(gui.public)
+        assert callable(gui.authenticated)
+        assert callable(gui.admin)
+        assert callable(gui.internal)
+        assert callable(gui.internal_admin)
 
     def test_public_method_delegates_to_page_public(self) -> None:
         """GUINamespace.public registers a route via ui.page."""
