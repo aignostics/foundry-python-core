@@ -1,3 +1,14 @@
+## v0.4.0 (2026-03-30)
+
+### Feat
+
+- **api**: add versions param to init_api() ([e80ca06](https://github.com/aignostics/foundry-python-core/commit/e80ca06c77a7fb77604a728103d535dfca47c4ec))
+- **foundry**: add python_version to FoundryContext ([0878ae7](https://github.com/aignostics/foundry-python-core/commit/0878ae7713502f4565ddde769413d9a49ab923a9))
+
+### Fix
+
+- **sentry**: derive env_prefix from FoundryContext ([4c4b748](https://github.com/aignostics/foundry-python-core/commit/4c4b748f154c9f4fc9f345861122e28649e99626))
+
 ## v0.3.0 (2026-03-30)
 
 ### Feat
