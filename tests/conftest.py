@@ -55,6 +55,28 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         session.exitstatus = 0
 
 
-def make_context(name: str, env_prefix: str = "") -> FoundryContext:
-    """Create a minimal FoundryContext for testing."""
-    return FoundryContext(name=name, version="0.0.0", version_full="0.0.0", environment="test", env_prefix=env_prefix)
+def make_context(
+    name: str,
+    env_prefix: str = "",
+    version: str = "0.0.0",
+    environment: str = "test",
+    **kwargs: bool,
+) -> FoundryContext:
+    """Create a minimal FoundryContext for testing.
+
+    Args:
+        name: The project name.
+        env_prefix: The environment variable prefix (e.g. ``"MYPROJECT_"``).
+        version: The version string (defaults to ``"0.0.0"``).
+        environment: The deployment environment (defaults to ``"test"``).
+        **kwargs: Optional boolean flags forwarded to :class:`FoundryContext`
+            (``is_test``, ``is_cli``, ``is_container``, ``is_library``).
+    """
+    return FoundryContext(
+        name=name,
+        version=version,
+        version_full=version,
+        environment=environment,
+        env_prefix=env_prefix,
+        **kwargs,  # type: ignore[arg-type]
+    )

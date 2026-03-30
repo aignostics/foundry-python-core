@@ -274,6 +274,17 @@ def set_context(ctx: FoundryContext) -> None:
     _context = ctx
 
 
+def reset_context() -> None:
+    """Reset the process-level context singleton.
+
+    Clears the context set by :func:`set_context`, making :func:`get_context`
+    raise :exc:`RuntimeError` again until :func:`set_context` is called.
+    Intended for use in test teardown to prevent state leaking between tests.
+    """
+    global _context  # noqa: PLW0603
+    _context = None
+
+
 def get_context() -> FoundryContext:
     """Return the global project context.
 
