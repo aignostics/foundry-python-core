@@ -26,9 +26,6 @@ from aignostics_foundry_core.gui.nav import (
 from tests.conftest import make_context
 
 _PATCH_GET_GUI_USER = "aignostics_foundry_core.gui.auth.get_gui_user"
-_PATCH_GET_AUTH_CLIENT = "aignostics_foundry_core.gui.auth.get_auth_client"
-_PATCH_SET_SENTRY_USER = "aignostics_foundry_core.sentry.set_sentry_user"
-_PATCH_LOAD_SETTINGS = "aignostics_foundry_core.gui.auth.load_settings"
 _PATH_NAV_LOCATE = "aignostics_foundry_core.gui.nav.locate_subclasses"
 _PATH_CORE_LOCATE = "aignostics_foundry_core.gui.core.locate_subclasses"
 
@@ -449,7 +446,7 @@ class TestGuiRun:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 class TestGetGuiUser:
     """Tests for get_gui_user behaviour."""
 
@@ -465,8 +462,9 @@ class TestGetGuiUser:
         from aignostics_foundry_core.gui.auth import get_gui_user
 
         request = MagicMock()
-        with patch(_PATCH_GET_AUTH_CLIENT, side_effect=RuntimeError("no auth")):
-            result = await get_gui_user(request)
+        request.app.state = MagicMock(spec=[])  # no auth_client → get_auth_client raises naturally
+
+        result = await get_gui_user(request)
 
         assert result is None
 
@@ -478,12 +476,9 @@ class TestGetGuiUser:
         expired_user = {"sub": _USER_SUB, "exp": int(time.time()) - 3600}
         fake_client = MagicMock()
         fake_client.require_session = AsyncMock(return_value={"user": expired_user})
+        request.app.state.auth_client = fake_client
 
-        with (
-            patch(_PATCH_GET_AUTH_CLIENT, return_value=fake_client),
-            patch(_PATCH_SET_SENTRY_USER),
-        ):
-            result = await get_gui_user(request)
+        result = await get_gui_user(request)
 
         assert result is None
 
@@ -494,12 +489,9 @@ class TestGetGuiUser:
         request = MagicMock()
         fake_client = MagicMock()
         fake_client.require_session = AsyncMock(return_value={"user": {"sub": _USER_SUB}})
+        request.app.state.auth_client = fake_client
 
-        with (
-            patch(_PATCH_GET_AUTH_CLIENT, return_value=fake_client),
-            patch(_PATCH_SET_SENTRY_USER),
-        ):
-            result = await get_gui_user(request)
+        result = await get_gui_user(request)
 
         assert result is None
 
@@ -511,12 +503,9 @@ class TestGetGuiUser:
         user = {"sub": _USER_SUB, "email": "x@x.com", "exp": int(time.time()) + 3600}
         fake_client = MagicMock()
         fake_client.require_session = AsyncMock(return_value={"user": user})
+        request.app.state.auth_client = fake_client
 
-        with (
-            patch(_PATCH_GET_AUTH_CLIENT, return_value=fake_client),
-            patch(_PATCH_SET_SENTRY_USER),
-        ):
-            result = await get_gui_user(request)
+        result = await get_gui_user(request)
 
         assert result == user
 
@@ -527,9 +516,9 @@ class TestGetGuiUser:
         request = MagicMock()
         fake_client = MagicMock()
         fake_client.require_session = AsyncMock(return_value={})
+        request.app.state.auth_client = fake_client
 
-        with patch(_PATCH_GET_AUTH_CLIENT, return_value=fake_client):
-            result = await get_gui_user(request)
+        result = await get_gui_user(request)
 
         assert result is None
 
@@ -539,9 +528,16 @@ class TestGetGuiUser:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 class TestRequireGuiUser:
     """Tests for require_gui_user behaviour."""
+
+    @pytest.fixture(autouse=True)
+    def _gui_context(self) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
+        """Install a minimal context so AuthSettings can be loaded."""
+        set_context(make_context(_PROJECT_NAME, "MYPROJECT_"))
+        yield
+        reset_context()
 
     async def test_redirects_to_login_when_no_user(self) -> None:
         """Redirects to /auth/login when get_gui_user returns None."""
@@ -549,15 +545,13 @@ class TestRequireGuiUser:
 
         request = MagicMock()
         request.url.path = "/protected"
+        request.app.state = MagicMock(spec=[])  # no auth_client → get_gui_user returns None
 
         navigate_mock = MagicMock()
         nicegui_mock = MagicMock()
         nicegui_mock.ui.navigate.to = navigate_mock
 
-        with (
-            patch(_PATCH_GET_GUI_USER, new=AsyncMock(return_value=None)),
-            patch.dict(sys.modules, {"nicegui": nicegui_mock}),
-        ):
+        with patch.dict(sys.modules, {"nicegui": nicegui_mock}):
             result = await require_gui_user(request)
 
         assert result is None
@@ -571,9 +565,11 @@ class TestRequireGuiUser:
 
         request = MagicMock()
         user = {"sub": _USER_SUB, "exp": int(time.time()) + 3600}
+        fake_client = MagicMock()
+        fake_client.require_session = AsyncMock(return_value={"user": user})
+        request.app.state.auth_client = fake_client
 
-        with patch(_PATCH_GET_GUI_USER, new=AsyncMock(return_value=user)):
-            result = await require_gui_user(request)
+        result = await require_gui_user(request)
 
         assert result == user
 
@@ -583,15 +579,13 @@ class TestRequireGuiUser:
 
         request = MagicMock()
         request.url.path = "/original"
+        request.app.state = MagicMock(spec=[])  # no auth_client → get_gui_user returns None
 
         navigate_mock = MagicMock()
         nicegui_mock = MagicMock()
         nicegui_mock.ui.navigate.to = navigate_mock
 
-        with (
-            patch(_PATCH_GET_GUI_USER, new=AsyncMock(return_value=None)),
-            patch.dict(sys.modules, {"nicegui": nicegui_mock}),
-        ):
+        with patch.dict(sys.modules, {"nicegui": nicegui_mock}):
             await require_gui_user(request, return_to="/custom-return")
 
         call_url: str = navigate_mock.call_args[0][0]
