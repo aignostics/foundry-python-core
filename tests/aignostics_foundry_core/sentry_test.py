@@ -41,10 +41,14 @@ def _mk_ctx(
 class TestSentryInitialize:
     """Behavioural tests for sentry_initialize()."""
 
+    @pytest.fixture(autouse=True)
+    def _stub_get_context(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("aignostics_foundry_core.sentry.get_context", _mk_ctx)
+
     def test_sentry_initialize_returns_false_when_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Returns False when TESTPROJECT_SENTRY_ENABLED is not set (default False)."""
         monkeypatch.delenv(f"{_SENTRY_PREFIX}ENABLED", raising=False)
-        result = sentry_initialize(integrations=None, context=_mk_ctx())
+        result = sentry_initialize(integrations=None)
         assert result is False
 
     def test_sentry_initialize_returns_false_when_sdk_absent(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -52,7 +56,7 @@ class TestSentryInitialize:
         monkeypatch.setenv(f"{_SENTRY_PREFIX}ENABLED", "true")
         monkeypatch.setenv(f"{_SENTRY_PREFIX}DSN", _VALID_DSN)
         with patch("aignostics_foundry_core.sentry.find_spec", return_value=None):
-            result = sentry_initialize(integrations=None, context=_mk_ctx())
+            result = sentry_initialize(integrations=None)
         assert result is False
 
     def test_sentry_initialize_returns_true_and_calls_init_when_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -64,7 +68,7 @@ class TestSentryInitialize:
             patch(_SENTRY_SDK_SET_CONTEXT),
             patch(_SENTRY_SDK_IGNORE_LOGGER),
         ):
-            result = sentry_initialize(integrations=None, context=_mk_ctx())
+            result = sentry_initialize(integrations=None)
         assert result is True
         mock_init.assert_called_once()
         assert mock_init.call_args.kwargs["release"] == f"{_PROJECT}@{_VERSION}"
@@ -73,7 +77,7 @@ class TestSentryInitialize:
         """Returns False when enabled but no DSN is configured."""
         monkeypatch.setenv(f"{_SENTRY_PREFIX}ENABLED", "true")
         monkeypatch.delenv(f"{_SENTRY_PREFIX}DSN", raising=False)
-        result = sentry_initialize(integrations=None, context=_mk_ctx())
+        result = sentry_initialize(integrations=None)
         assert result is False
 
     def test_sentry_initialize_uses_context_project_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -122,6 +126,10 @@ class TestSentryInitialize:
 class TestSentrySettingsDsnValidation:
     """Tests for SentrySettings DSN edge-case validation paths."""
 
+    @pytest.fixture(autouse=True)
+    def _stub_get_context(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("aignostics_foundry_core.sentry.get_context", _mk_ctx)
+
     def test_dsn_missing_scheme_raises(self) -> None:
         """DSN without a URL scheme raises ValidationError."""
         with pytest.raises(ValidationError):
@@ -141,6 +149,10 @@ class TestSentrySettingsDsnValidation:
 @pytest.mark.unit
 class TestSentrySettings:
     """Behavioural tests for SentrySettings validation."""
+
+    @pytest.fixture(autouse=True)
+    def _stub_get_context(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("aignostics_foundry_core.sentry.get_context", _mk_ctx)
 
     def test_sentry_settings_rejects_invalid_dsn_http_scheme(self) -> None:
         """DSN with http:// scheme raises ValidationError."""
@@ -169,6 +181,16 @@ class TestSentrySettings:
         """Sentry is disabled by default (no env vars set)."""
         settings = SentrySettings()  # pyright: ignore[reportCallIssue]
         assert settings.enabled is False
+
+    def test_sentry_settings_uses_context_env_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """SentrySettings reads env vars from the prefix supplied by FoundryContext."""
+        monkeypatch.setattr(
+            "aignostics_foundry_core.sentry.get_context",
+            lambda: _mk_ctx(env_prefix="PROJ_"),
+        )
+        monkeypatch.setenv("PROJ_SENTRY_ENABLED", "true")
+        settings = SentrySettings()  # pyright: ignore[reportCallIssue]
+        assert settings.enabled is True
 
 
 @pytest.mark.unit
