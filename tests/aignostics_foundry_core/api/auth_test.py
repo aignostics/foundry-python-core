@@ -18,15 +18,23 @@ from aignostics_foundry_core.api.auth import (
     require_internal,
     require_internal_admin,
 )
+from tests.conftest import make_context
 
 _PATCH_GET_USER = "aignostics_foundry_core.api.auth.get_user"
 _PATCH_GET_AUTH_CLIENT = "aignostics_foundry_core.api.auth.get_auth_client"
 _PATCH_SET_SENTRY_USER = "aignostics_foundry_core.sentry.set_sentry_user"
+_PATCH_GET_CONTEXT = "aignostics_foundry_core.api.auth.get_context"
 _INTERNAL_ORG_ID = "org_internal_123"
 _OTHER_ORG_ID = "org_other_456"
 _USER_NOT_AUTHENTICATED = "User is not authenticated"
 _USER_SUB = "auth0|x"
 _USER_EMAIL = "x@x.com"
+
+
+@pytest.fixture(autouse=True)
+def _stub_auth_get_context(monkeypatch: pytest.MonkeyPatch) -> None:  # pyright: ignore[reportUnusedFunction]
+    """Stub get_context for all auth tests to preserve FOUNDRY_AUTH_* env var names."""
+    monkeypatch.setattr(_PATCH_GET_CONTEXT, lambda: make_context("foundry", "FOUNDRY_"))
 
 
 @pytest.mark.unit
@@ -90,6 +98,13 @@ class TestAuthSettings:
     def test_auth_settings_role_claim_value(self) -> None:
         """The default role claim is the Aignostics platform bridge claim URL."""
         assert DEFAULT_AUTH0_ROLE_CLAIM == "https://aignostics-platform-bridge/role"
+
+    def test_auth_settings_uses_context_env_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """AuthSettings reads env vars from the prefix supplied by FoundryContext."""
+        monkeypatch.setattr(_PATCH_GET_CONTEXT, lambda: make_context("proj", "PROJ_"))
+        monkeypatch.setenv("PROJ_AUTH_AUTH0_ROLE_CLAIM", "https://custom/role")
+        settings = AuthSettings()
+        assert settings.auth0_role_claim == "https://custom/role"
 
 
 @pytest.mark.unit

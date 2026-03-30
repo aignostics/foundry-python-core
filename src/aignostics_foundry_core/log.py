@@ -14,7 +14,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import platformdirs
 from loguru import logger
@@ -120,18 +120,19 @@ class InterceptHandler(logging.Handler):
 class LogSettings(BaseSettings):
     """Settings for configuring logging behaviour.
 
-    Reads from environment variables with the ``FOUNDRY_LOG_`` prefix by
-    default.  Callers can supply a project-specific prefix or env file at
-    instantiation time using Pydantic Settings v2 constructor kwargs::
-
-        settings = LogSettings(_env_prefix="BRIDGE_LOG_", _env_file=".env")
+    Reads environment variables using the prefix derived from the active
+    :class:`~aignostics_foundry_core.foundry.FoundryContext` (e.g.
+    ``MYPROJECT_LOG_`` when the context's ``env_prefix`` is ``MYPROJECT_``).
     """
 
     model_config = SettingsConfigDict(
-        env_prefix="FOUNDRY_LOG_",
         extra="ignore",
         env_file_encoding="utf-8",
     )
+
+    def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
+        """Initialise settings, deriving env_prefix from the active FoundryContext."""
+        super().__init__(_env_prefix=f"{get_context().env_prefix}LOG_", **kwargs)  # pyright: ignore[reportCallIssue]
 
     level: Literal["CRITICAL", "ERROR", "WARNING", "SUCCESS", "INFO", "DEBUG", "TRACE"] = Field(
         default="INFO",
@@ -182,7 +183,7 @@ def logging_initialize(
             :func:`~aignostics_foundry_core.foundry.set_context`.
     """
     ctx = context or get_context()
-    settings = LogSettings(_env_prefix=f"{ctx.env_prefix}LOG_", _env_file=ctx.env_file)  # pyright: ignore[reportCallIssue]
+    settings = LogSettings(_env_file=ctx.env_file)  # pyright: ignore[reportCallIssue]
 
     logger.remove()  # Remove all default loggers
 

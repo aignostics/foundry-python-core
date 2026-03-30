@@ -118,18 +118,19 @@ def _validate_https_dsn(value: SecretStr | None) -> SecretStr | None:
 class SentrySettings(OpaqueSettings):
     """Configuration settings for Sentry integration.
 
-    Reads from environment variables with the ``FOUNDRY_SENTRY_`` prefix by
-    default. Callers can supply a project-specific prefix or env file at
-    instantiation time using Pydantic Settings v2 constructor kwargs::
-
-        settings = SentrySettings(_env_prefix="BRIDGE_SENTRY_", _env_file=".env")
+    Reads environment variables using the prefix derived from the active
+    :class:`~aignostics_foundry_core.foundry.FoundryContext` (e.g.
+    ``MYPROJECT_SENTRY_`` when the context's ``env_prefix`` is ``MYPROJECT_``).
     """
 
     model_config = SettingsConfigDict(
-        env_prefix="FOUNDRY_SENTRY_",
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
+        """Initialise settings, deriving env_prefix from the active FoundryContext."""
+        super().__init__(_env_prefix=f"{get_context().env_prefix}SENTRY_", **kwargs)  # pyright: ignore[reportCallIssue]
 
     enabled: Annotated[
         bool,
@@ -245,7 +246,6 @@ def sentry_initialize(
     ctx = context or get_context()
 
     settings = SentrySettings(
-        _env_prefix=f"{ctx.env_prefix}SENTRY_",  # pyright: ignore[reportCallIssue]
         _env_file=ctx.env_file,  # pyright: ignore[reportCallIssue]
     )
 

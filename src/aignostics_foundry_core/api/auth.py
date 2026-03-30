@@ -5,7 +5,7 @@ This module provides:
 - Authentication dependencies (require_authenticated, require_admin, etc.)
 - get_user: Get authenticated user from session
 - get_auth_client: Get Auth0 client from app state
-- AuthSettings: Configurable auth settings (env prefix overridable via constructor kwargs)
+- AuthSettings: Auth settings whose env prefix is derived from the active FoundryContext
 """
 
 import time
@@ -17,6 +17,7 @@ from fastapi.security import APIKeyCookie
 from loguru import logger
 from pydantic_settings import SettingsConfigDict
 
+from aignostics_foundry_core.foundry import get_context
 from aignostics_foundry_core.settings import OpaqueSettings, load_settings
 
 from .exceptions import ApiException
@@ -31,16 +32,20 @@ DEFAULT_AUTH0_ROLE_CLAIM = "https://aignostics-platform-bridge/role"
 
 
 class AuthSettings(OpaqueSettings):
-    """Auth settings with configurable env prefix.
+    """Auth settings whose env prefix is derived from the active FoundryContext.
 
-    Override prefix at instantiation:
-        ``AuthSettings(_env_prefix="BRIDGE_AUTH_", _env_file=".env")``
+    The effective prefix is ``{FoundryContext.env_prefix}AUTH_``, resolved at
+    instantiation time via :func:`aignostics_foundry_core.foundry.get_context`.
     """
 
-    model_config = SettingsConfigDict(env_prefix="FOUNDRY_AUTH_", extra="ignore")
+    model_config = SettingsConfigDict(extra="ignore")
 
     internal_org_id: str | None = None
     auth0_role_claim: str = DEFAULT_AUTH0_ROLE_CLAIM
+
+    def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
+        """Initialise settings, deriving env_prefix from the active FoundryContext."""
+        super().__init__(_env_prefix=f"{get_context().env_prefix}AUTH_", **kwargs)  # pyright: ignore[reportCallIssue]
 
 
 class UnauthenticatedError(Exception):

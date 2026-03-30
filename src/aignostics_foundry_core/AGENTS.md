@@ -97,7 +97,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 
 - **Purpose**: Provides Auth0 cookie-based session authentication dependencies for FastAPI routes. All project-specific settings (org ID, role claim) are loaded from `AuthSettings` whose env prefix is configurable at instantiation.
 - **Key Features**:
-  - `AuthSettings(OpaqueSettings)` — reads from `FOUNDRY_AUTH_*` env vars by default; override prefix via constructor kwargs (e.g. `AuthSettings(_env_prefix="BRIDGE_AUTH_", _env_file=".env")`). Fields: `internal_org_id` (for internal org check), `auth0_role_claim` (JWT claim name for role)
+  - `AuthSettings(OpaqueSettings)` — uses the active FoundryContext.env_prefix to derive the env prefix (`{ctx.env_prefix}AUTH_`). Fields: `internal_org_id` (for internal org check), `auth0_role_claim` (JWT claim name for role)
   - `UnauthenticatedError(Exception)` — raised when a user session is missing or invalid
   - `ForbiddenError(ApiException)` — `status_code = 403`; raised when user lacks required role or org membership
   - `get_auth_client(request)` — retrieves `AuthClient` from `request.app.state.auth_client`; raises `RuntimeError` if not configured
@@ -154,7 +154,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 - **Purpose**: Bootstraps loguru as the primary logging framework, optionally redirecting stdlib `logging` via `InterceptHandler`. All project-specific constants are passed as parameters rather than hard-coded.
 - **Key Features**:
   - `InterceptHandler(logging.Handler)` — redirects stdlib log records to loguru, preserving original module/function/line metadata
-  - `LogSettings(BaseSettings)` — reads from `FOUNDRY_LOG_*` env vars by default; override prefix and env file via constructor kwargs (e.g. `LogSettings(_env_prefix="BRIDGE_LOG_", _env_file=".env")`). Fields: `level`, `stderr_enabled`, `file_enabled`, `file_name`, `redirect_logging`
+  - `LogSettings(BaseSettings)` — uses the active FoundryContext.env_prefix to derive the env prefix (`{ctx.env_prefix}LOG_`). Fields: `level`, `stderr_enabled`, `file_enabled`, `file_name`, `redirect_logging`
   - `logging_initialize(filter_func, *, context)` — removes all existing loguru handlers, then adds stderr/file handlers per settings; reads project name, version, and env file list from `context` (falls back to process-level context); embeds `project_name` and `version` in loguru `extra`; installs `InterceptHandler` for stdlib redirect; suppresses psycopg pool noise
 - **Location**: `aignostics_foundry_core/log.py`
 - **Dependencies**: `loguru>=0.7,<1`, `platformdirs>=4,<5` (mandatory)
@@ -166,7 +166,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 
 - **Purpose**: Bootstraps Sentry SDK with all project-specific metadata supplied as explicit parameters, making the initialisation reusable across any project without hard-coded constants.
 - **Key Features**:
-  - `SentrySettings(OpaqueSettings)` — reads from `FOUNDRY_SENTRY_*` env vars by default; override prefix and env file via constructor kwargs (e.g. `SentrySettings(_env_prefix="BRIDGE_SENTRY_", _env_file=".env")`). Fields: `enabled`, `dsn` (validated HTTPS Sentry URL), `debug`, `send_default_pii`, `max_breadcrumbs`, `sample_rate`, `traces_sample_rate`, `profiles_sample_rate`, `profile_session_sample_rate`, `profile_lifecycle`, `enable_logs`
+  - `SentrySettings(OpaqueSettings)` — uses the active FoundryContext.env_prefix to derive the env prefix (`{ctx.env_prefix}SENTRY_`). Fields: `enabled`, `dsn` (validated HTTPS Sentry URL), `debug`, `send_default_pii`, `max_breadcrumbs`, `sample_rate`, `traces_sample_rate`, `profiles_sample_rate`, `profile_session_sample_rate`, `profile_lifecycle`, `enable_logs`
   - `sentry_initialize(integrations, *, context=None)` — derives all project-specific values (name, version, environment, URLs, runtime flags) from *context* (or the global context); env prefix and env file are read from `ctx.env_prefix` and `ctx.env_file`; initialises Sentry SDK when enabled and DSN present; sets `aignx/base` context; suppresses noisy loggers; returns `True` on success, `False` otherwise
   - `set_sentry_user(user, role_claim)` — maps Auth0 user claims (`sub` → `id`, `email`, `name`, …) into Sentry scope; pass `None` to clear context; no-op when `sentry_sdk` is absent
 - **Location**: `aignostics_foundry_core/sentry.py`
