@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from aignostics_foundry_core.foundry import get_context
 from aignostics_foundry_core.log import logging_initialize
 from aignostics_foundry_core.process import get_process_info
 from aignostics_foundry_core.sentry import sentry_initialize
@@ -38,14 +39,14 @@ if TYPE_CHECKING:
     from loguru import Record
     from sentry_sdk.integrations import Integration
 
+    from aignostics_foundry_core.foundry import FoundryContext
+
 _boot_called = False
 
 
-def boot(  # noqa: PLR0913, PLR0917
-    project_name: str,
-    version: str,
-    sentry_integrations: list[Integration] | None,
-    is_library_mode: bool = False,
+def boot(
+    context: FoundryContext | None = None,
+    sentry_integrations: list[Integration] | None = None,
     log_filter: Callable[[Record], bool] | None = None,
     show_cmdline: bool = True,
 ) -> None:
@@ -64,14 +65,13 @@ def boot(  # noqa: PLR0913, PLR0917
     6. Register an atexit shutdown message.
 
     Args:
-        project_name: Project identifier (e.g. ``"bridge"``).  Used as the
-            env-var prefix for ``--env`` injection and as the logging /
-            Sentry release name.
-        version: Full version string (e.g. ``"1.2.3"``).
+        context: :class:`~aignostics_foundry_core.foundry.FoundryContext` providing
+            project name, version, environment, and runtime mode flags for logging,
+            Sentry, and ``--env`` argument injection.  When ``None``, the process-level
+            context registered via :func:`~aignostics_foundry_core.foundry.set_context`
+            is used.
         sentry_integrations: List of Sentry SDK integrations to register, or
             ``None`` to skip Sentry initialisation.
-        is_library_mode: When ``True`` the boot message includes
-            ``", library-mode"`` to distinguish library from app boots.
         log_filter: Optional loguru filter callable forwarded to
             :func:`~aignostics_foundry_core.log.logging_initialize`.
         show_cmdline: Whether to include the process command line in the
@@ -82,24 +82,16 @@ def boot(  # noqa: PLR0913, PLR0917
         return
     _boot_called = True
 
-    _parse_env_args(project_name)
-    logging_initialize(project_name=project_name, version=version, filter_func=log_filter)
+    ctx = context or get_context()
+    _parse_env_args(ctx.name)
+    logging_initialize(filter_func=log_filter, context=ctx)
     _amend_ssl_trust_chain()
-    environment = os.environ.get(f"{project_name.upper()}_ENVIRONMENT", "production")
     sentry_initialize(
-        project_name=project_name,
-        version=version,
-        environment=environment,
         integrations=sentry_integrations,
-        is_library=is_library_mode,
+        context=ctx,
     )
-    _log_boot_message(
-        project_name=project_name,
-        version=version,
-        is_library_mode=is_library_mode,
-        show_cmdline=show_cmdline,
-    )
-    _register_shutdown_message(project_name=project_name, version=version)
+    _log_boot_message(context=ctx, show_cmdline=show_cmdline)
+    _register_shutdown_message(project_name=ctx.name, version=ctx.version)
     logger.trace("Boot sequence completed successfully.")
 
 
@@ -164,23 +156,20 @@ def _amend_ssl_trust_chain() -> None:
 
 
 def _log_boot_message(
-    project_name: str,
-    version: str,
-    is_library_mode: bool,
+    context: FoundryContext,
     show_cmdline: bool = True,
 ) -> None:
     """Log a boot message including version, PID, and parent process info.
 
     Args:
-        project_name: Project name for the boot message.
-        version: Version string for the boot message.
-        is_library_mode: Whether to append ``", library-mode"`` to the message.
+        context: Project context supplying name, version, library mode flag, and
+            project root path.
         show_cmdline: Whether to append the process command line.
     """
-    process_info = get_process_info()
-    mode_suffix = ", library-mode" if is_library_mode else ""
+    process_info = get_process_info(context=context)
+    mode_suffix = ", library-mode" if context.is_library else ""
     message = (
-        f"⭐ Booting {project_name} v{version} "
+        f"⭐ Booting {context.name} v{context.version} "
         f"(project root {process_info.project_root}, pid {process_info.pid}), "
         f"parent '{process_info.parent.name}' (pid {process_info.parent.pid}){mode_suffix}"
     )

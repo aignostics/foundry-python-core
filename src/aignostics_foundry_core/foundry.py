@@ -1,7 +1,7 @@
 """Project context injection for Foundry components.
 
 Provides :class:`FoundryContext` — a frozen Pydantic model that derives all
-project-specific values (name, version, environment, env files, URLs, Sentry
+project-specific values (name, version, environment, env files, URLs, runtime
 mode flags) from package metadata and environment variables at call time.
 
 Typical usage::
@@ -19,7 +19,9 @@ References:
 
 from __future__ import annotations
 
+import importlib.util
 import os
+import string
 import sys
 from importlib import metadata
 from pathlib import Path
@@ -29,21 +31,6 @@ from pydantic import BaseModel, Field
 
 def _empty_path_list() -> list[Path]:
     return []
-
-
-class SentryContext(BaseModel):
-    """Sentry mode flags derived from the runtime environment.
-
-    All flags default to ``False`` so that a plain ``SentryContext()`` is safe to
-    use as a default value.
-    """
-
-    model_config = {"frozen": True}
-
-    is_container: bool = False
-    is_cli: bool = False
-    is_test: bool = False
-    is_library: bool = False
 
 
 class FoundryContext(BaseModel):
@@ -61,11 +48,29 @@ class FoundryContext(BaseModel):
     name: str
     version: str
     version_full: str
+    """Version string with optional build metadata suffix.
+
+    Derived from :attr:`version` with ``+<metadata>`` appended when build
+    environment variables (``VCS_REF``, ``COMMIT_SHA``, etc.) are present.
+    Falls back to reading the current branch or commit SHA from ``.git/HEAD``
+    when ``VCS_REF`` is absent and :attr:`project_path` is set.
+    """
     environment: str
     env_file: list[Path] = Field(default_factory=_empty_path_list)
+    env_prefix: str = ""
     repository_url: str = ""
     documentation_url: str = ""
-    sentry: SentryContext = Field(default_factory=SentryContext)
+    is_container: bool = False
+    is_cli: bool = False
+    is_test: bool = False
+    is_library: bool = False
+    project_path: Path | None = None
+    """Absolute path to the project/repo root (directory containing ``.git``).
+
+    Populated by walking up from the installed package location to find the git
+    root.  ``None`` when the package is installed into site-packages without a
+    source checkout (i.e. no ``.git`` directory is found in any ancestor).
+    """
 
     @classmethod
     def from_package(cls, package_name: str) -> FoundryContext:
@@ -80,9 +85,8 @@ class FoundryContext(BaseModel):
           — deployment environment.
         * ``{NAME}_ENV_FILE`` — optional extra env-file path inserted at index 2 of
           :attr:`env_file`.
-        * ``{NAME}_RUNNING_IN_CONTAINER`` — sets :attr:`SentryContext.is_container`.
-        * ``PYTEST_RUNNING_{NAME}`` — controls :attr:`SentryContext.is_test` /
-          :attr:`SentryContext.is_library`.
+        * ``{NAME}_RUNNING_IN_CONTAINER`` — sets :attr:`is_container`.
+        * ``PYTEST_RUNNING_{NAME}`` — controls :attr:`is_test` / :attr:`is_library`.
 
         Args:
             package_name: The importable package name (e.g. ``"bridge"``).
@@ -95,26 +99,74 @@ class FoundryContext(BaseModel):
         version = metadata.version(package_name)
         environment = _detect_environment(name_upper)
         repository_url, documentation_url = _extract_urls(package_name)
-
+        project_path = _find_project_path(package_name)
+        vcs_ref = os.environ.get("VCS_REF") or (project_path and _get_vcs_ref_from_git(project_path)) or "unknown"
         return cls(
             name=name,
             version=version,
-            version_full=_build_version_full(version),
+            version_full=_build_version_full(version, vcs_ref),
             environment=environment,
             env_file=_build_env_file_list(name, name_upper, environment),
+            env_prefix=f"{name_upper}_",
             repository_url=repository_url,
             documentation_url=documentation_url,
-            sentry=_build_sentry_context(name, name_upper),
+            project_path=project_path,
+            **_build_runtime_flags(name, name_upper),
         )
 
 
-def _build_version_full(version: str) -> str:
+def _find_project_path(package_name: str) -> Path | None:
+    """Walk up from the installed package location to find the git root.
+
+    Args:
+        package_name: The importable package name (e.g. ``"aignostics_foundry_core"``).
+
+    Returns:
+        The directory containing ``.git``, or ``None`` if not found (e.g. the
+        package is installed into site-packages without a source checkout).
+    """
+    spec = importlib.util.find_spec(package_name)
+    if spec is None or spec.origin is None:
+        return None
+    current = Path(spec.origin).parent
+    for directory in [current, *current.parents]:
+        if (directory / ".git").exists():
+            return directory
+    return None
+
+
+def _get_vcs_ref_from_git(project_path: Path) -> str:
+    """Read the current VCS ref from ``.git/HEAD``.
+
+    Args:
+        project_path: The repository root (directory containing ``.git``).
+
+    Returns:
+        Branch name if on a branch, short SHA (7 chars) if in detached HEAD
+        state, or ``"unknown"`` if the file is missing, unreadable, or in an
+        unexpected format.
+    """
+    try:
+        content = (project_path / ".git" / "HEAD").read_text().strip()
+    except OSError:
+        return "unknown"
+    if content.startswith("ref: refs/heads/"):
+        return content[len("ref: refs/heads/") :]
+    if len(content) == 40 and all(c in string.hexdigits for c in content):  # noqa: PLR2004
+        return content[:7]
+    return "unknown"
+
+
+def _build_version_full(version: str, vcs_ref: str) -> str:
     """Append build metadata to *version* from environment variables.
+
+    Args:
+        version: The base version string (e.g. ``"1.2.3"``).
+        vcs_ref: The VCS ref string (branch name, short SHA, or ``"unknown"``).
 
     Returns:
         The version string with optional ``+<metadata>`` suffix.
     """
-    vcs_ref = os.getenv("VCS_REF", "unknown")
     commit_sha = os.getenv("COMMIT_SHA", "unknown")
     builder = os.getenv("BUILDER", "uv")
     build_date = os.getenv("BUILD_DATE", "unknown")
@@ -182,21 +234,21 @@ def _extract_urls(package_name: str) -> tuple[str, str]:
     return repository_url, documentation_url
 
 
-def _build_sentry_context(name: str, name_upper: str) -> SentryContext:
-    """Build :class:`SentryContext` flags from environment and process state.
+def _build_runtime_flags(name: str, name_upper: str) -> dict[str, bool]:
+    """Compute runtime mode flags from environment and process state.
 
     Returns:
-        A populated, frozen :class:`SentryContext`.
+        A dict with ``is_container``, ``is_cli``, ``is_test``, and ``is_library`` keys.
     """
     is_container = bool(os.getenv(f"{name_upper}_RUNNING_IN_CONTAINER"))
     is_cli = sys.argv[0].endswith(name) or (len(sys.argv) > 1 and sys.argv[1] == name)
     pytest_running = bool(os.getenv(f"PYTEST_RUNNING_{name_upper}"))
-    return SentryContext(
-        is_container=is_container,
-        is_cli=is_cli,
-        is_test="pytest" in sys.modules and pytest_running,
-        is_library=not is_cli and not pytest_running,
-    )
+    return {
+        "is_container": is_container,
+        "is_cli": is_cli,
+        "is_test": "pytest" in sys.modules and pytest_running,
+        "is_library": not is_cli and not pytest_running,
+    }
 
 
 # Module-level context singleton — set via set_context(), read via get_context().

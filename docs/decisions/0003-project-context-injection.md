@@ -118,22 +118,12 @@ The central type is named `FoundryContext` (not `ProjectConfig` or `ProjectConte
 
 - "Config" was rejected because it implies values loaded from env vars or files; this object is derived at startup from `importlib.metadata`, `sys.argv`, and env vars — it is computed context, not configuration input. The existing `SentrySettings` type already uses the "settings/config" pattern for env-based values.
 - "Project" prefix was considered but doesn't communicate which library owns the type. Since `FoundryContext` is specifically the library's handle on a project, naming it after the library makes the dependency explicit and aids discoverability.
-- The name is consistent with `SentryContext` (also runtime-computed, also nested within the same design).
 
 ### Structure
 
-`FoundryContext` is a frozen Pydantic model, making all instances immutable after construction. Runtime mode flags (`is_container`, `is_cli`, `is_test`, `is_library`) are only consumed by `sentry_initialize()`, so they live in a nested `SentryContext` rather than on `FoundryContext` directly:
+`FoundryContext` is a frozen Pydantic model, making all instances immutable after construction. Runtime mode flags (`is_container`, `is_cli`, `is_test`, `is_library`) live directly on `FoundryContext`. They describe process runtime mode — not Sentry internals — and are consumed by `boot()`, `sentry_initialize()`, and any other code that needs to know how the process is running. `SentrySettings` (env-based SDK configuration) remains separate.
 
 ```python
-class SentryContext(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    is_container: bool
-    is_cli: bool
-    is_test: bool
-    is_library: bool
-
-
 class FoundryContext(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -144,7 +134,10 @@ class FoundryContext(BaseModel):
     env_file: list[Path]
     repository_url: str = ""
     documentation_url: str = ""
-    sentry: SentryContext = Field(default_factory=SentryContext)
+    is_container: bool = False
+    is_cli: bool = False
+    is_test: bool = False
+    is_library: bool = False
 ```
 
 Each project calls `set_context()` once at startup. This single line replaces `_constants.py` entirely:
@@ -177,7 +170,7 @@ def locate_subclasses(_class: type, context: FoundryContext | None = None) -> li
     ...
 ```
 
-`SentryContext` is kept separate from `SentrySettings` (which holds SDK configuration loaded from env vars). `SentryContext` is runtime-computed; `SentrySettings` is env-based.
+The four runtime mode flags are kept separate from `SentrySettings` (which holds SDK configuration loaded from env vars). The flags are runtime-computed; `SentrySettings` is env-based.
 
 ### Extending FoundryContext
 
@@ -225,5 +218,5 @@ This avoids module-level generics (which are awkward in Python) while keeping bo
 - New projects (API servers and CLI tools alike) require a single `set_context()` call and no boilerplate.
 - Production call sites are clean — no context threading.
 - Tests can pass a `FoundryContext` directly without touching or resetting global state.
-- `SentryContext` nesting makes it clear that the mode flags are Sentry-specific and not general-purpose project metadata.
+- Runtime mode flags live directly on `FoundryContext`, making them accessible to any code that cares about how the process is running — not just Sentry. `boot()` uses `context.is_library` directly without a separate parameter.
 - Projects that need additional fields subclass `FoundryContext` and pass their subclass to `set_context()`; they hold their own typed reference for project-specific access.

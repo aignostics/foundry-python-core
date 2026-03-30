@@ -9,10 +9,13 @@ from loguru import logger
 from pydantic import AfterValidator, BeforeValidator, Field, PlainSerializer, SecretStr
 from pydantic_settings import SettingsConfigDict
 
+from aignostics_foundry_core.foundry import get_context
 from aignostics_foundry_core.settings import OpaqueSettings, strip_to_none_before_validator
 
 if TYPE_CHECKING:
     from sentry_sdk.integrations import Integration
+
+    from aignostics_foundry_core.foundry import FoundryContext
 
 _ERR_MSG_MISSING_SCHEME = "Sentry DSN is missing URL scheme (protocol)"
 _ERR_MSG_MISSING_NETLOC = "Sentry DSN is missing network location (domain)"
@@ -219,45 +222,32 @@ class SentrySettings(OpaqueSettings):
     ]
 
 
-def sentry_initialize(  # noqa: PLR0913, PLR0917
-    project_name: str,
-    version: str,
-    environment: str,
+def sentry_initialize(
     integrations: "list[Integration] | None",
-    repository_url: str = "",
-    documentation_url: str = "",
-    is_container: bool = False,
-    is_test: bool = False,
-    is_cli: bool = False,
-    is_library: bool = False,
-    env_prefix: str = "FOUNDRY_SENTRY_",
-    env_file: str | None = None,
+    *,
+    context: "FoundryContext | None" = None,
 ) -> bool:
     """Initialize Sentry integration.
 
-    All project-specific metadata is passed as explicit parameters rather than
-    read from project-level constants, making this function reusable across
-    any project.
+    All project-specific metadata is derived from *context* (or the global
+    context installed via :func:`~aignostics_foundry_core.foundry.set_context`).
 
     Args:
-        project_name: Project name used in the Sentry release tag and context.
-        version: Full version string (e.g. ``"1.2.3+abc1234"``).
-        environment: Deployment environment string (e.g. ``"production"``).
         integrations: List of Sentry SDK integrations to register, or ``None``.
-        repository_url: URL of the source repository (optional context field).
-        documentation_url: URL of the project documentation (optional context field).
-        is_container: Whether the application runs inside a container.
-        is_test: Whether the application is running in test mode.
-        is_cli: Whether the application is running as a CLI.
-        is_library: Whether the application is running in library mode.
-        env_prefix: Environment variable prefix for ``SentrySettings``
-            (default ``"FOUNDRY_SENTRY_"``).
-        env_file: Optional path to an ``.env`` file for settings overrides.
+        context: :class:`~aignostics_foundry_core.foundry.FoundryContext` providing
+            project name, version, environment, URLs, and runtime mode flags.
+            Falls back to the global context set via
+            :func:`~aignostics_foundry_core.foundry.set_context`.
 
     Returns:
         bool: ``True`` if Sentry was initialised successfully, ``False`` otherwise.
     """
-    settings = SentrySettings(_env_prefix=env_prefix, _env_file=env_file)  # pyright: ignore[reportCallIssue]
+    ctx = context or get_context()
+
+    settings = SentrySettings(
+        _env_prefix=f"{ctx.env_prefix}SENTRY_",  # pyright: ignore[reportCallIssue]
+        _env_file=ctx.env_file,  # pyright: ignore[reportCallIssue]
+    )
 
     if not find_spec("sentry_sdk") or not settings.enabled or settings.dsn is None:
         logger.trace("Sentry integration is disabled or sentry_sdk not found, initialization skipped.")
@@ -267,8 +257,8 @@ def sentry_initialize(  # noqa: PLR0913, PLR0917
     from sentry_sdk.integrations.logging import ignore_logger  # noqa: PLC0415
 
     sentry_sdk.init(
-        release=f"{project_name}@{version}",
-        environment=environment,
+        release=f"{ctx.name}@{ctx.version_full}",
+        environment=ctx.environment,
         dsn=settings.dsn.get_secret_value().strip(),
         max_breadcrumbs=settings.max_breadcrumbs,
         debug=settings.debug,
@@ -284,14 +274,14 @@ def sentry_initialize(  # noqa: PLR0913, PLR0917
     sentry_sdk.set_context(
         "aignx/base",
         {
-            "project_name": project_name,
-            "repository_url": repository_url,
-            "documentation_url": documentation_url,
-            "version_full": version,
-            "in_container": is_container,
-            "test_mode": is_test,
-            "cli_mode": is_cli,
-            "library_mode": is_library,
+            "project_name": ctx.name,
+            "repository_url": ctx.repository_url,
+            "documentation_url": ctx.documentation_url,
+            "version_full": ctx.version_full,
+            "in_container": ctx.is_container,
+            "test_mode": ctx.is_test,
+            "cli_mode": ctx.is_cli,
+            "library_mode": ctx.is_library,
         },
     )
 

@@ -1,25 +1,31 @@
-"""Tests for the foundry module — FoundryContext, SentryContext, set_context, get_context."""
+"""Tests for the foundry module — FoundryContext, set_context, get_context."""
 
 import importlib.metadata
+import importlib.util
 import sys
 from collections.abc import Generator
+from importlib.machinery import ModuleSpec
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
-from aignostics_foundry_core.foundry import FoundryContext, SentryContext, get_context, set_context
+from aignostics_foundry_core.foundry import FoundryContext, get_context, set_context
 
 # Constants (SonarQube S1192)
 PACKAGE_NAME = "aignostics_foundry_core"
 STAGING = "staging"
 ERROR_MSG_FRAGMENT = "set_context"
 VCS_REF_VALUE = "abc123"
+VCS_REF_OVERRIDE = "ci-override-ref"
 COMMIT_SHA_VALUE = "deadbeef"
 CI_RUN_ID_VALUE = "99"
 CI_RUN_NUMBER_VALUE = "42"
 BUILD_DATE_VALUE = "2024-01-15"
 BUILDER_UNKNOWN = "unknown"
+GIT_BRANCH = "main"
+GIT_SHA_FULL = "a" * 40
+GIT_SHA_SHORT = "a" * 7
 
 
 @pytest.fixture(autouse=True)
@@ -86,7 +92,14 @@ def test_from_package_version_full_equals_version_when_no_build_metadata(monkeyp
 
     BUILDER defaults to 'uv', so it must be explicitly set to 'unknown' to
     make the any() guard False and skip the version_full enrichment block.
+    find_spec is stubbed to None so that project_path is None and no git
+    fallback is attempted.
     """
+
+    def _find_spec_none(name: str, package: str | None = None) -> None:
+        return None
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_none)
     monkeypatch.setenv("BUILDER", BUILDER_UNKNOWN)
     for var in ["VCS_REF", "COMMIT_SHA", "BUILD_DATE", "CI_RUN_ID", "CI_RUN_NUMBER"]:
         monkeypatch.delenv(var, raising=False)
@@ -162,6 +175,139 @@ def test_from_package_version_full_omits_builder_and_extra_when_all_unknown(
 
 
 # ---------------------------------------------------------------------------
+# from_package — project_path
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_from_package_project_path_is_none_when_package_not_importable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """from_package() sets project_path=None when importlib cannot locate the package spec."""
+
+    def _find_spec_none(name: str, package: str | None = None) -> None:
+        return None
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_none)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.project_path is None
+
+
+@pytest.mark.unit
+def test_from_package_project_path_is_none_when_no_git_ancestor(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """from_package() sets project_path=None when no .git directory exists in any ancestor."""
+    fake_spec = ModuleSpec(PACKAGE_NAME, None, origin=str(tmp_path / PACKAGE_NAME / "__init__.py"))
+
+    def _find_spec_no_git(name: str, package: str | None = None) -> ModuleSpec:
+        return fake_spec
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_no_git)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.project_path is None
+
+
+@pytest.mark.unit
+def test_from_package_project_path_resolves_git_root() -> None:
+    """from_package() resolves project_path to a directory containing .git."""
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.project_path is not None
+    assert (ctx.project_path / ".git").exists()
+
+
+# ---------------------------------------------------------------------------
+# from_package — vcs_ref resolution (git fallback)
+# ---------------------------------------------------------------------------
+
+
+def _fake_spec_for(tmp_path: Path) -> ModuleSpec:
+    """Return a ModuleSpec whose origin sits inside *tmp_path*."""
+    return ModuleSpec(PACKAGE_NAME, None, origin=str(tmp_path / PACKAGE_NAME / "__init__.py"))
+
+
+def _make_git_head(tmp_path: Path, content: str) -> None:
+    """Write *content* to ``tmp_path/.git/HEAD``."""
+    git_dir = tmp_path / ".git"
+    git_dir.mkdir()
+    (git_dir / "HEAD").write_text(content)
+
+
+@pytest.mark.unit
+def test_from_package_vcs_ref_from_env_var_takes_precedence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """VCS_REF env var wins over the local .git/HEAD branch name."""
+    _make_git_head(tmp_path, f"ref: refs/heads/{GIT_BRANCH}")
+
+    def _find_spec_tmp(name: str, package: str | None = None) -> ModuleSpec:
+        return _fake_spec_for(tmp_path)
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_tmp)
+    monkeypatch.setenv("VCS_REF", VCS_REF_OVERRIDE)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert VCS_REF_OVERRIDE in ctx.version_full
+    assert GIT_BRANCH not in ctx.version_full
+
+
+@pytest.mark.unit
+def test_from_package_vcs_ref_reads_branch_from_git_head(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """When VCS_REF is absent, the branch name from .git/HEAD appears in version_full."""
+    _make_git_head(tmp_path, f"ref: refs/heads/{GIT_BRANCH}")
+
+    def _find_spec_tmp(name: str, package: str | None = None) -> ModuleSpec:
+        return _fake_spec_for(tmp_path)
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_tmp)
+    monkeypatch.delenv("VCS_REF", raising=False)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert GIT_BRANCH in ctx.version_full
+
+
+@pytest.mark.unit
+def test_from_package_vcs_ref_reads_short_sha_from_detached_head(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """When HEAD contains a 40-char SHA, the first 7 chars appear in version_full."""
+    _make_git_head(tmp_path, GIT_SHA_FULL)
+
+    def _find_spec_tmp(name: str, package: str | None = None) -> ModuleSpec:
+        return _fake_spec_for(tmp_path)
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_tmp)
+    monkeypatch.delenv("VCS_REF", raising=False)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert GIT_SHA_SHORT in ctx.version_full
+
+
+@pytest.mark.unit
+def test_from_package_vcs_ref_defaults_to_unknown_when_no_git(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When project_path is None (no git root found), vcs_ref falls back to 'unknown'."""
+
+    def _find_spec_none(name: str, package: str | None = None) -> None:
+        return None
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_none)
+    monkeypatch.delenv("VCS_REF", raising=False)
+    monkeypatch.setenv("BUILDER", BUILDER_UNKNOWN)
+    for var in ["COMMIT_SHA", "BUILD_DATE", "CI_RUN_ID", "CI_RUN_NUMBER"]:
+        monkeypatch.delenv(var, raising=False)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    # All metadata fields resolve to "unknown" → version_full equals base version
+    assert ctx.version_full == ctx.version
+
+
+# ---------------------------------------------------------------------------
+# from_package — env_prefix
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_from_package_env_prefix_is_upper_name() -> None:
+    """from_package() sets env_prefix to '{PACKAGE_NAME.upper()}_'."""
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.env_prefix == f"{PACKAGE_NAME.upper()}_"
+
+
+# ---------------------------------------------------------------------------
 # from_package — env_file
 # ---------------------------------------------------------------------------
 
@@ -184,18 +330,28 @@ def test_from_package_custom_env_file_inserted_at_index_two(monkeypatch: pytest.
 
 
 # ---------------------------------------------------------------------------
-# from_package — SentryContext flags
+# from_package — runtime mode flags
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
-def test_from_package_sentry_is_test_when_pytest_running_env_set(monkeypatch: pytest.MonkeyPatch) -> None:
-    """sentry.is_test is True when pytest is in sys.modules and PYTEST_RUNNING_{NAME} is set."""
+def test_from_package_is_test_when_pytest_running_env_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    """is_test is True when pytest is in sys.modules and PYTEST_RUNNING_{NAME} is set."""
     monkeypatch.setenv(f"PYTEST_RUNNING_{PACKAGE_NAME.upper()}", "1")
     # pytest is already in sys.modules when tests run
     assert "pytest" in sys.modules
     ctx = FoundryContext.from_package(PACKAGE_NAME)
-    assert ctx.sentry.is_test is True
+    assert ctx.is_test is True
+
+
+@pytest.mark.unit
+def test_foundry_context_mode_flags_default_to_false() -> None:
+    """FoundryContext constructed directly has all four mode flags as False."""
+    ctx = FoundryContext(name="test", version="0.0.0", version_full="0.0.0", environment="test")
+    assert ctx.is_container is False
+    assert ctx.is_cli is False
+    assert ctx.is_test is False
+    assert ctx.is_library is False
 
 
 # ---------------------------------------------------------------------------
@@ -209,16 +365,6 @@ def test_foundry_context_is_frozen() -> None:
     ctx = FoundryContext.from_package(PACKAGE_NAME)
     with pytest.raises(ValidationError):
         ctx.name = "mutated"  # type: ignore[misc]
-
-
-@pytest.mark.unit
-def test_sentry_context_defaults_all_false() -> None:
-    """SentryContext() has all mode flags set to False by default."""
-    sentry = SentryContext()
-    assert sentry.is_container is False
-    assert sentry.is_cli is False
-    assert sentry.is_test is False
-    assert sentry.is_library is False
 
 
 # ---------------------------------------------------------------------------

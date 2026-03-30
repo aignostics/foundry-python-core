@@ -55,6 +55,6 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         session.exitstatus = 0
 
 
-def make_context(name: str) -> FoundryContext:
+def make_context(name: str, env_prefix: str = "") -> FoundryContext:
     """Create a minimal FoundryContext for testing."""
-    return FoundryContext(name=name, version="0.0.0", version_full="0.0.0", environment="test")
+    return FoundryContext(name=name, version="0.0.0", version_full="0.0.0", environment="test", env_prefix=env_prefix)

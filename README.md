@@ -14,12 +14,6 @@
 [![Pyright](https://microsoft.github.io/pyright/img/pyright_badge.svg)](https://microsoft.github.io/pyright/)
 [![Copier](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/copier-org/copier/master/img/badge/badge-grayscale-inverted-border-orange.json)](https://github.com/aignostics/foundry-python)
 
-> [!NOTE]
-> This is your project README - please feel free to update as you see fit.
-> For first steps after scaffolding, check out [FOUNDRY_README.md](FOUNDRY_README.md).
-
----
-
 Foundational infrastructure for Foundry components.
 
 ## Prerequisites
@@ -33,6 +27,61 @@ brew install mise
 Or follow the [installation guide](https://mise.jdx.dev/getting-started.html) for other methods. Then [activate mise](https://mise.jdx.dev/getting-started.html#activate-mise) in your shell profile.
 
 ## Usage
+
+### Initialise the context at application startup
+
+Call `set_context()` once, before any library code runs, then call `boot()` to
+initialise logging, the SSL trust chain, and optional Sentry integration:
+
+```python
+# main.py
+from aignostics_foundry_core.foundry import FoundryContext, set_context
+from aignostics_foundry_core.boot import boot
+
+set_context(FoundryContext.from_package("myproject"))
+boot()
+```
+
+`FoundryContext.from_package()` derives everything from package metadata and
+environment variables:
+
+- `name`, `version`, `version_full` — from `importlib.metadata`
+- `environment` — from `MYPROJECT_ENVIRONMENT` → `ENV` → `VERCEL_ENV` →
+  `RAILWAY_ENVIRONMENT` → `"local"`
+- `is_container`, `is_cli`, `is_test`, `is_library` — detected automatically
+- `env_prefix` (`"MYPROJECT_"`) — used by every settings class in the library
+
+### Access the context from any module
+
+```python
+from aignostics_foundry_core.foundry import get_context
+
+ctx = get_context()
+print(f"Running {ctx.name} v{ctx.version_full} in {ctx.environment}")
+# → Running myproject v1.2.3+main---run.12345 in staging
+```
+
+`get_context()` raises `RuntimeError` with a clear message if `set_context()`
+was never called.
+
+### Pass context explicitly in tests
+
+Never call `set_context()` in tests. Pass a `FoundryContext` directly to each
+function via its optional `context` parameter instead:
+
+```python
+from aignostics_foundry_core.foundry import FoundryContext
+from aignostics_foundry_core.log import logging_initialize
+
+ctx = FoundryContext(name="myproject", version="0.0.0", version_full="0.0.0", environment="test")
+logging_initialize(context=ctx)
+```
+
+All public library functions (`logging_initialize`, `sentry_initialize`, `boot`,
+`load_modules`, etc.) accept an optional `context` keyword argument and fall
+back to `get_context()` when it is `None`.
+
+### Health API
 
 ```python
 from aignostics_foundry_core.health import Health, HealthStatus
