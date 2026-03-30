@@ -394,20 +394,30 @@ def init_api(
     root_path: str = "",
     lifespan: Any | None = None,  # noqa: ANN401
     exception_handler_registrations: list[tuple[type[Exception], Any]] | None = None,
+    versions: list[str] | None = None,
+    version_exception_handler_registrations: list[tuple[type[Exception], Any]] | None = None,
     **fastapi_kwargs: Any,  # noqa: ANN401
 ) -> FastAPI:
     """Initialise a FastAPI application with standard exception handlers.
 
     This is a generic factory that creates a ``FastAPI`` instance and registers
-    the standard Foundry exception handlers.  Versioned sub-application mounting
-    (Bridge-specific) is left to the caller; use ``get_versioned_api_instances``
-    and ``FastAPI.mount`` for that pattern.
+    the standard Foundry exception handlers.  When *versions* is supplied the
+    function also creates versioned sub-applications via
+    ``get_versioned_api_instances``, optionally applies per-version exception
+    handlers, and mounts each sub-app at ``/{version}`` on the root app.
 
     Args:
         root_path: ASGI root path (useful for reverse-proxy setups).
         lifespan: Optional async context manager for application lifespan.
         exception_handler_registrations: Additional ``(exc_class, handler)`` pairs
             to register before the standard handlers.
+        versions: Optional list of API version names (e.g. ``["v1", "v2"]``).
+            When provided, ``get_versioned_api_instances`` is called internally
+            and each resulting sub-app is mounted at ``/{version}`` on the root
+            app.
+        version_exception_handler_registrations: ``(exc_class, handler)`` pairs
+            to register on *every* versioned sub-app before mounting.  Only used
+            when *versions* is also provided.
         **fastapi_kwargs: Extra keyword arguments forwarded to ``FastAPI()``.
 
     Returns:
@@ -428,5 +438,12 @@ def init_api(
     api.add_exception_handler(exc_class_or_status_code=RequestValidationError, handler=validation_exception_handler)
     api.add_exception_handler(exc_class_or_status_code=ValidationError, handler=validation_exception_handler)
     api.add_exception_handler(exc_class_or_status_code=Exception, handler=unhandled_exception_handler)
+
+    if versions:
+        versioned_apps = get_versioned_api_instances(versions)
+        for version_name, version_app in versioned_apps.items():
+            for exc_class, handler in version_exception_handler_registrations or []:
+                version_app.add_exception_handler(exc_class_or_status_code=exc_class, handler=handler)
+            api.mount(f"/{version_name}", version_app)
 
     return api
