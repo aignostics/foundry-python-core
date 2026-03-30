@@ -30,15 +30,15 @@ GIT_SHA_SHORT = "a" * 7
 
 
 @pytest.fixture(autouse=True)
-def _clear_context(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
+def _reset_context() -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
     """Reset global _context to None before and after every test.
 
     Yields:
         None
     """
-    monkeypatch.setattr("aignostics_foundry_core.foundry._context", None)
+    reset_context()
     yield
-    monkeypatch.setattr("aignostics_foundry_core.foundry._context", None)
+    reset_context()
 
 
 # ---------------------------------------------------------------------------
