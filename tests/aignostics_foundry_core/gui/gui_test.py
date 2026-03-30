@@ -2,12 +2,14 @@
 
 import sys
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from aignostics_foundry_core.foundry import reset_context, set_context
 from aignostics_foundry_core.gui.core import (
     BROWSER_RECONNECT_TIMEOUT,
     RESPONSE_TIMEOUT,
@@ -450,6 +452,13 @@ class TestGuiRun:
 @pytest.mark.unit
 class TestGetGuiUser:
     """Tests for get_gui_user behaviour."""
+
+    @pytest.fixture(autouse=True)
+    def _gui_context(self) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
+        """Install a minimal context so AuthSettings can be loaded."""
+        set_context(make_context(_PROJECT_NAME, "MYPROJECT_"))
+        yield
+        reset_context()
 
     async def test_returns_none_when_auth_client_raises(self) -> None:
         """Returns None when get_auth_client raises (no auth configured)."""

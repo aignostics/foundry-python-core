@@ -8,7 +8,7 @@ import pytest
 from rich.console import Console
 
 from aignostics_foundry_core.console import console
-from aignostics_foundry_core.foundry import FoundryContext, set_context
+from aignostics_foundry_core.foundry import FoundryContext, reset_context, set_context
 
 EXPECTED_THEME_KEYS = ["success", "info", "warning", "error", "debug", "logging.level.info"]
 CUSTOM_ENV_PREFIX = "TESTPROJ_"
@@ -18,11 +18,15 @@ CONSOLE_MODULE = "aignostics_foundry_core.console"
 
 
 @pytest.fixture(autouse=True)
-def reset_context(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
-    """Reset global _context to None before and after every test."""
-    monkeypatch.setattr("aignostics_foundry_core.foundry._context", None)
+def _reset_context() -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
+    """Reset global _context to None before and after every test.
+
+    Yields:
+        None
+    """
+    reset_context()
     yield
-    monkeypatch.setattr("aignostics_foundry_core.foundry._context", None)
+    reset_context()
 
 
 class TestConsole:
