@@ -2,13 +2,26 @@
 
 import importlib
 import sys
+from collections.abc import Generator
 
 import pytest
 from rich.console import Console
 
 from aignostics_foundry_core.console import console
+from aignostics_foundry_core.foundry import FoundryContext, set_context
 
 EXPECTED_THEME_KEYS = ["success", "info", "warning", "error", "debug", "logging.level.info"]
+CUSTOM_ENV_PREFIX = "TESTPROJ_"
+CUSTOM_WIDTH = "120"
+EXPECTED_CUSTOM_WIDTH = 120
+
+
+@pytest.fixture(autouse=True)
+def reset_context(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+    """Reset global _context to None before and after every test."""
+    monkeypatch.setattr("aignostics_foundry_core.foundry._context", None)
+    yield
+    monkeypatch.setattr("aignostics_foundry_core.foundry._context", None)
 
 
 class TestConsole:
@@ -22,18 +35,32 @@ class TestConsole:
     @pytest.mark.unit
     @pytest.mark.sequential
     def test_console_default_width(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Module-level console has Rich's default width (80) when env var is not set."""
-        monkeypatch.delenv("AIGNOSTICS_CONSOLE_WIDTH", raising=False)
+        """Module-level console has Rich's default width (80) when no context is set."""
         reloaded = importlib.reload(sys.modules["aignostics_foundry_core.console"])
         assert reloaded.console.width == 80
 
     @pytest.mark.unit
     @pytest.mark.sequential
-    def test_console_custom_width(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Module-level console uses width from AIGNOSTICS_CONSOLE_WIDTH env var."""
-        monkeypatch.setenv("AIGNOSTICS_CONSOLE_WIDTH", "100")
+    def test_console_width_uses_env_prefix_from_context(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Console width is read from {env_prefix}CONSOLE_WIDTH when a context is set."""
+        ctx = FoundryContext(
+            name="testproj",
+            version="0.0.0",
+            version_full="0.0.0",
+            environment="test",
+            env_prefix=CUSTOM_ENV_PREFIX,
+        )
+        set_context(ctx)
+        monkeypatch.setenv(f"{CUSTOM_ENV_PREFIX}CONSOLE_WIDTH", CUSTOM_WIDTH)
         reloaded = importlib.reload(sys.modules["aignostics_foundry_core.console"])
-        assert reloaded.console.width == 100
+        assert reloaded.console.width == EXPECTED_CUSTOM_WIDTH
+
+    @pytest.mark.unit
+    @pytest.mark.sequential
+    def test_console_width_is_auto_when_no_context(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Console width defaults to Rich's auto-detection (80 in non-TTY) when no context is set."""
+        reloaded = importlib.reload(sys.modules["aignostics_foundry_core.console"])
+        assert reloaded.console.width == 80
 
     @pytest.mark.unit
     def test_console_theme_contains_expected_keys(self) -> None:

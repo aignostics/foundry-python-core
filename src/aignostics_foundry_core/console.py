@@ -9,11 +9,21 @@ from rich.theme import Theme
 def _get_console() -> Console:
     """Get a themed rich console.
 
-    The console width can be set via the AIGNOSTICS_CONSOLE_WIDTH environment variable.
+    The console width is controlled by ``{env_prefix}CONSOLE_WIDTH`` when a
+    ``FoundryContext`` is available (e.g. ``MYPROJECT_CONSOLE_WIDTH``).
+    If no context has been set the width defaults to Rich's auto-detection.
 
     Returns:
         Console: The themed rich console.
     """
+    try:
+        from aignostics_foundry_core.foundry import get_context  # noqa: PLC0415
+
+        env_var = f"{get_context().env_prefix}CONSOLE_WIDTH"
+        width: int | None = int(os.environ.get(env_var, "0")) or None
+    except RuntimeError:
+        width = None
+
     return Console(
         theme=Theme({
             "logging.level.info": "purple4",
@@ -23,7 +33,7 @@ def _get_console() -> Console:
             "warning": "yellow1",
             "error": "red1",
         }),
-        width=int(os.environ.get("AIGNOSTICS_CONSOLE_WIDTH", "0")) or None,  # TODO(oliverm): use ctx.env_prefix
+        width=width,
         legacy_windows=False,  # Modern Windows (10+) doesn't need width adjustment
     )
 
