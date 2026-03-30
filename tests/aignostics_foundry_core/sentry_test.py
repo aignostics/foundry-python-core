@@ -15,6 +15,9 @@ _ENVIRONMENT = "test"
 _SENTRY_SET_USER = "sentry_sdk.set_user"
 _AUTH0_USER = "auth0|x"
 _SENTRY_PREFIX = "TESTPROJECT_SENTRY_"
+_SENTRY_SDK_INIT = "sentry_sdk.init"
+_SENTRY_SDK_SET_CONTEXT = "sentry_sdk.set_context"
+_SENTRY_SDK_IGNORE_LOGGER = "sentry_sdk.integrations.logging.ignore_logger"
 
 
 def _mk_ctx(
@@ -57,9 +60,9 @@ class TestSentryInitialize:
         monkeypatch.setenv(f"{_SENTRY_PREFIX}ENABLED", "true")
         monkeypatch.setenv(f"{_SENTRY_PREFIX}DSN", _VALID_DSN)
         with (
-            patch("sentry_sdk.init") as mock_init,
-            patch("sentry_sdk.set_context"),
-            patch("sentry_sdk.integrations.logging.ignore_logger"),
+            patch(_SENTRY_SDK_INIT) as mock_init,
+            patch(_SENTRY_SDK_SET_CONTEXT),
+            patch(_SENTRY_SDK_IGNORE_LOGGER),
         ):
             result = sentry_initialize(integrations=None, context=_mk_ctx())
         assert result is True
@@ -79,9 +82,9 @@ class TestSentryInitialize:
         monkeypatch.setenv(f"{_SENTRY_PREFIX}DSN", _VALID_DSN)
         ctx = _mk_ctx(name="ctxproject")
         with (
-            patch("sentry_sdk.init") as mock_init,
-            patch("sentry_sdk.set_context"),
-            patch("sentry_sdk.integrations.logging.ignore_logger"),
+            patch(_SENTRY_SDK_INIT) as mock_init,
+            patch(_SENTRY_SDK_SET_CONTEXT),
+            patch(_SENTRY_SDK_IGNORE_LOGGER),
         ):
             result = sentry_initialize(integrations=None, context=ctx)
         assert result is True
@@ -93,9 +96,9 @@ class TestSentryInitialize:
         monkeypatch.setenv(f"{_SENTRY_PREFIX}DSN", _VALID_DSN)
         ctx = _mk_ctx(environment="staging")
         with (
-            patch("sentry_sdk.init") as mock_init,
-            patch("sentry_sdk.set_context"),
-            patch("sentry_sdk.integrations.logging.ignore_logger"),
+            patch(_SENTRY_SDK_INIT) as mock_init,
+            patch(_SENTRY_SDK_SET_CONTEXT),
+            patch(_SENTRY_SDK_IGNORE_LOGGER),
         ):
             sentry_initialize(integrations=None, context=ctx)
         assert mock_init.call_args.kwargs["environment"] == "staging"
@@ -106,9 +109,9 @@ class TestSentryInitialize:
         monkeypatch.setenv(f"{_SENTRY_PREFIX}DSN", _VALID_DSN)
         ctx = _mk_ctx(is_test=True)
         with (
-            patch("sentry_sdk.init"),
-            patch("sentry_sdk.set_context") as mock_set_ctx,
-            patch("sentry_sdk.integrations.logging.ignore_logger"),
+            patch(_SENTRY_SDK_INIT),
+            patch(_SENTRY_SDK_SET_CONTEXT) as mock_set_ctx,
+            patch(_SENTRY_SDK_IGNORE_LOGGER),
         ):
             sentry_initialize(integrations=None, context=ctx)
         ctx_data: dict[str, object] = mock_set_ctx.call_args.args[1]  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
