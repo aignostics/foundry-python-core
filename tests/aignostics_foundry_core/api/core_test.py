@@ -244,3 +244,73 @@ def test_init_api_with_custom_exception_handler_registrations() -> None:
 
     assert isinstance(app, FastAPI)
     assert ValueError in app.exception_handlers
+
+
+VERSION_V1 = "v1"
+VERSION_V2 = "v2"
+MOUNT_PATH_V1 = "/v1"
+MOUNT_PATH_V2 = "/v2"
+
+
+@pytest.mark.unit
+def test_init_api_mounts_versioned_apps(monkeypatch: pytest.MonkeyPatch) -> None:
+    """init_api mounts each versioned sub-app at /{version} on the root app."""
+    from typing import Any
+
+    from fastapi import FastAPI
+    from starlette.routing import Mount
+
+    import aignostics_foundry_core.api.core as core_module
+    from aignostics_foundry_core.api.core import init_api
+
+    stub_v1 = FastAPI()
+    stub_v2 = FastAPI()
+
+    def fake_get_versioned(versions: list[str], **_: Any) -> dict[str, FastAPI]:  # noqa: ANN401
+        return {VERSION_V1: stub_v1, VERSION_V2: stub_v2}
+
+    monkeypatch.setattr(core_module, "get_versioned_api_instances", fake_get_versioned)
+
+    app = init_api(versions=[VERSION_V1, VERSION_V2])
+
+    mount_paths = [r.path for r in app.routes if isinstance(r, Mount)]
+    assert MOUNT_PATH_V1 in mount_paths
+    assert MOUNT_PATH_V2 in mount_paths
+
+
+@pytest.mark.unit
+def test_init_api_applies_version_exception_handlers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """init_api applies version_exception_handler_registrations to each versioned sub-app."""
+    from typing import Any
+    from unittest.mock import MagicMock
+
+    import aignostics_foundry_core.api.core as core_module
+    from aignostics_foundry_core.api.core import init_api
+
+    stub_v1 = MagicMock()
+    stub_v2 = MagicMock()
+
+    def fake_get_versioned(versions: list[str], **_: Any) -> dict[str, MagicMock]:  # noqa: ANN401
+        return {VERSION_V1: stub_v1, VERSION_V2: stub_v2}
+
+    monkeypatch.setattr(core_module, "get_versioned_api_instances", fake_get_versioned)
+
+    def my_handler(request: object, exc: Exception) -> None: ...
+
+    init_api(versions=[VERSION_V1, VERSION_V2], version_exception_handler_registrations=[(ValueError, my_handler)])
+
+    stub_v1.add_exception_handler.assert_called_once_with(exc_class_or_status_code=ValueError, handler=my_handler)
+    stub_v2.add_exception_handler.assert_called_once_with(exc_class_or_status_code=ValueError, handler=my_handler)
+
+
+@pytest.mark.unit
+def test_init_api_without_versions_unchanged() -> None:
+    """init_api without versions adds no Mount routes (backward compatibility)."""
+    from starlette.routing import Mount
+
+    from aignostics_foundry_core.api.core import init_api
+
+    app = init_api()
+
+    mount_routes = [r for r in app.routes if isinstance(r, Mount)]
+    assert mount_routes == []

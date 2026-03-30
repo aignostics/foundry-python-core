@@ -125,7 +125,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
   - `build_versioned_api_tags(version_name, repository_url)` — OpenAPI tags for a single versioned sub-app
   - `build_root_api_tags(base_url, versions)` — OpenAPI tags for the root app linking to each version's docs
   - `get_versioned_api_instances(versions, build_metadata=None, *, context=None)` — loads project modules (resolved via context), creates one `FastAPI` per version, routes registered `VersionedAPIRouter` instances to the matching version
-  - `init_api(root_path, lifespan, exception_handler_registrations, **fastapi_kwargs)` — creates a `FastAPI` with the standard Foundry exception handlers (`ApiException`, `RequestValidationError`, `ValidationError`, `Exception`) pre-registered
+  - `init_api(root_path, lifespan, exception_handler_registrations, versions=None, version_exception_handler_registrations=None, **fastapi_kwargs)` — creates a `FastAPI` with the standard Foundry exception handlers (`ApiException`, `RequestValidationError`, `ValidationError`, `Exception`) pre-registered; when *versions* is supplied, calls `get_versioned_api_instances` internally, optionally applies *version_exception_handler_registrations* to each sub-app, and mounts them at `/{version}` on the root app
 - **Location**: `aignostics_foundry_core/api/core.py`
 - **Dependencies**: `fastapi>=0.110,<1` (mandatory); `aignostics_foundry_core.di` (`load_modules`)
 - **Import**: `from aignostics_foundry_core.api.core import VersionedAPIRouter, init_api, build_api_metadata, …` or `from aignostics_foundry_core.api import …`
