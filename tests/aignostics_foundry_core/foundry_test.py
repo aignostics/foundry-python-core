@@ -2,6 +2,7 @@
 
 import importlib.metadata
 import importlib.util
+import platform
 import sys
 from collections.abc import Generator
 from importlib.machinery import ModuleSpec
@@ -43,6 +44,13 @@ def reset_context(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None
 # ---------------------------------------------------------------------------
 # from_package — name and version
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_from_package_python_version_matches_platform() -> None:
+    """from_package() sets .python_version to platform.python_version()."""
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.python_version == platform.python_version()
 
 
 @pytest.mark.unit

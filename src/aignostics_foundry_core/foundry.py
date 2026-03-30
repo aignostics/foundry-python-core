@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import platform
 import string
 import sys
 from importlib import metadata
@@ -64,6 +65,7 @@ class FoundryContext(BaseModel):
     is_cli: bool = False
     is_test: bool = False
     is_library: bool = False
+    python_version: str = ""
     project_path: Path | None = None
     """Absolute path to the project/repo root (directory containing ``.git``).
 
@@ -110,6 +112,7 @@ class FoundryContext(BaseModel):
             env_prefix=f"{name_upper}_",
             repository_url=repository_url,
             documentation_url=documentation_url,
+            python_version=platform.python_version(),
             project_path=project_path,
             **_build_runtime_flags(name, name_upper),
         )
