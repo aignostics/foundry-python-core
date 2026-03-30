@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from aignostics_foundry_core import di
+from aignostics_foundry_core.foundry import reset_context, set_context
 from tests.conftest import make_context
 
 # Constants to avoid duplication (SonarQube S1192)
@@ -19,6 +20,7 @@ MAIN_PKG_MYMODULE = f"{MAIN_PKG}.{MYMODULE}"
 PLUGIN_ONE = "plugin_one"
 PLUGIN_TWO = "plugin_two"
 CACHED_PLUGIN = "cached_plugin"
+DI_ENTRY_POINTS = "aignostics_foundry_core.di.entry_points"
 
 
 class _DummyBase:
@@ -30,6 +32,13 @@ def _mock_package() -> MagicMock:
     pkg = MagicMock()
     pkg.__path__ = ["/fake/path"]
     return pkg
+
+
+def _mock_ep(value: str) -> MagicMock:
+    """Return a MagicMock that looks like an entry_point with the given value."""
+    ep = MagicMock()
+    ep.value = value
+    return ep
 
 
 def _make_import_side_effect(
@@ -76,7 +85,7 @@ def _broken_plugin_package_patches(
         main_mod: Module to return for the main ``MYMODULE`` import.
     """
     with (
-        patch.object(di, "discover_plugin_packages", return_value=(PLUGIN,)),
+        patch(DI_ENTRY_POINTS, return_value=[_mock_ep(PLUGIN)]),
         patch.object(
             di.importlib,
             "import_module",
@@ -109,7 +118,7 @@ def _no_match_plugin_patches(
         main_mod: Module to return for the main ``MYMODULE`` import.
     """
     with (
-        patch.object(di, "discover_plugin_packages", return_value=(PLUGIN,)),
+        patch(DI_ENTRY_POINTS, return_value=[_mock_ep(PLUGIN)]),
         patch.object(
             di.importlib,
             "import_module",
@@ -138,7 +147,7 @@ def clear_caches() -> Generator[None, None, None]:
 
 
 @pytest.mark.unit
-@patch("aignostics_foundry_core.di.entry_points")
+@patch(DI_ENTRY_POINTS)
 def test_discover_plugin_packages_extracts_values_from_entry_points(
     mock_entry_points: Mock, clear_caches: None
 ) -> None:
@@ -155,7 +164,7 @@ def test_discover_plugin_packages_extracts_values_from_entry_points(
 
 
 @pytest.mark.unit
-@patch("aignostics_foundry_core.di.entry_points")
+@patch(DI_ENTRY_POINTS)
 def test_discover_plugin_packages_returns_empty_tuple_when_no_plugins(
     mock_entry_points: Mock, clear_caches: None
 ) -> None:
@@ -165,7 +174,7 @@ def test_discover_plugin_packages_returns_empty_tuple_when_no_plugins(
 
 
 @pytest.mark.unit
-@patch("aignostics_foundry_core.di.entry_points")
+@patch(DI_ENTRY_POINTS)
 def test_discover_plugin_packages_is_cached(mock_entry_points: Mock, clear_caches: None) -> None:
     """Test that discover_plugin_packages caches results (entry_points called once)."""
     mock_ep = MagicMock()
@@ -223,7 +232,7 @@ def test_load_modules_imports_each_top_level_submodule() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_implementations_searches_plugins(clear_caches: None) -> None:
     """Test that locate_implementations finds instances exported by a plugin's top-level __init__.py."""
     plugin_instance = _DummyBase()
@@ -231,7 +240,7 @@ def test_locate_implementations_searches_plugins(clear_caches: None) -> None:
     plugin_pkg.plugin_instance = plugin_instance  # type: ignore[attr-defined]
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=(PLUGIN,)),
+        patch(DI_ENTRY_POINTS, return_value=[_mock_ep(PLUGIN)]),
         patch.object(
             di.importlib,
             "import_module",
@@ -244,7 +253,7 @@ def test_locate_implementations_searches_plugins(clear_caches: None) -> None:
     assert plugin_instance in result
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_implementations_only_finds_plugin_top_level_exports(clear_caches: None) -> None:
     """Plugin submodule instances are not discovered; only top-level __init__.py exports are found."""
     top_instance = _DummyBase()
@@ -257,7 +266,7 @@ def test_locate_implementations_only_finds_plugin_top_level_exports(clear_caches
     plugin_submod.sub_instance = sub_instance  # type: ignore[attr-defined]
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=(PLUGIN,)),
+        patch(DI_ENTRY_POINTS, return_value=[_mock_ep(PLUGIN)]),
         patch.object(
             di.importlib,
             "import_module",
@@ -274,7 +283,7 @@ def test_locate_implementations_only_finds_plugin_top_level_exports(clear_caches
     assert sub_instance not in result
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_implementations_handles_broken_plugin_package(clear_caches: None) -> None:
     """Test that a plugin package raising ImportError on import is skipped; main package still searched."""
     main_instance = _DummyBase()
@@ -288,7 +297,7 @@ def test_locate_implementations_handles_broken_plugin_package(clear_caches: None
     assert main_instance in result
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_implementations_handles_plugin_with_no_matching_top_level_members(clear_caches: None) -> None:
     """Test that a plugin with no matching top-level exports is skipped; main package still searched."""
     main_instance = _DummyBase()
@@ -303,7 +312,7 @@ def test_locate_implementations_handles_plugin_with_no_matching_top_level_member
     assert main_instance in result
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_implementations_deep_scans_main_package(clear_caches: None) -> None:
     """Main package submodule instances are found via deep scan even when a plugin is present."""
     main_instance = _DummyBase()
@@ -312,7 +321,7 @@ def test_locate_implementations_deep_scans_main_package(clear_caches: None) -> N
     main_mod.main_instance = main_instance  # type: ignore[attr-defined]
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=()),
+        patch(DI_ENTRY_POINTS, return_value=[]),
         patch.object(
             di.importlib,
             "import_module",
@@ -333,7 +342,7 @@ def test_locate_implementations_deep_scans_main_package(clear_caches: None) -> N
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_subclasses_searches_plugins(clear_caches: None) -> None:
     """Test that locate_subclasses finds subclasses exported by a plugin's top-level __init__.py."""
 
@@ -344,7 +353,7 @@ def test_locate_subclasses_searches_plugins(clear_caches: None) -> None:
     plugin_pkg.PluginSub = PluginSub  # type: ignore[attr-defined]
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=(PLUGIN,)),
+        patch(DI_ENTRY_POINTS, return_value=[_mock_ep(PLUGIN)]),
         patch.object(
             di.importlib,
             "import_module",
@@ -357,7 +366,7 @@ def test_locate_subclasses_searches_plugins(clear_caches: None) -> None:
     assert PluginSub in result
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_subclasses_only_finds_plugin_top_level_exports(clear_caches: None) -> None:
     """Plugin subclasses only in submodules are not discovered; only top-level __init__.py exports are found."""
 
@@ -374,7 +383,7 @@ def test_locate_subclasses_only_finds_plugin_top_level_exports(clear_caches: Non
     plugin_submod.SubSub = SubSub  # type: ignore[attr-defined]
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=(PLUGIN,)),
+        patch(DI_ENTRY_POINTS, return_value=[_mock_ep(PLUGIN)]),
         patch.object(
             di.importlib,
             "import_module",
@@ -391,7 +400,7 @@ def test_locate_subclasses_only_finds_plugin_top_level_exports(clear_caches: Non
     assert SubSub not in result
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_subclasses_handles_broken_plugin_package(clear_caches: None) -> None:
     """Test that a plugin package raising ImportError on import is skipped; main package still searched."""
 
@@ -408,7 +417,7 @@ def test_locate_subclasses_handles_broken_plugin_package(clear_caches: None) -> 
     assert MainSub in result
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_subclasses_handles_plugin_with_no_matching_top_level_members(clear_caches: None) -> None:
     """Test that a plugin with no matching top-level exports is skipped; main package still searched."""
 
@@ -426,7 +435,7 @@ def test_locate_subclasses_handles_plugin_with_no_matching_top_level_members(cle
     assert MainSub in result
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_subclasses_deep_scans_main_package(clear_caches: None) -> None:
     """Main package subclasses in submodules are found via deep scan."""
 
@@ -438,7 +447,7 @@ def test_locate_subclasses_deep_scans_main_package(clear_caches: None) -> None:
     main_mod.MainSub = MainSub  # type: ignore[attr-defined]
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=()),
+        patch(DI_ENTRY_POINTS, return_value=[]),
         patch.object(
             di.importlib,
             "import_module",
@@ -459,7 +468,7 @@ def test_locate_subclasses_deep_scans_main_package(clear_caches: None) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_implementations_no_plugins_detects_main_package(clear_caches: None) -> None:
     """With no plugins, locate_implementations finds instances in the main package."""
     instance = _DummyBase()
@@ -468,7 +477,7 @@ def test_locate_implementations_no_plugins_detects_main_package(clear_caches: No
     main_mod.instance = instance  # type: ignore[attr-defined]
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=()),
+        patch(DI_ENTRY_POINTS, return_value=[]),
         patch.object(
             di.importlib,
             "import_module",
@@ -484,7 +493,7 @@ def test_locate_implementations_no_plugins_detects_main_package(clear_caches: No
     assert instance in result
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_subclasses_no_plugins_detects_main_package(clear_caches: None) -> None:
     """With no plugins, locate_subclasses finds subclasses in the main package."""
 
@@ -496,7 +505,7 @@ def test_locate_subclasses_no_plugins_detects_main_package(clear_caches: None) -
     main_mod.LocalSub = LocalSub  # type: ignore[attr-defined]
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=()),
+        patch(DI_ENTRY_POINTS, return_value=[]),
         patch.object(
             di.importlib,
             "import_module",
@@ -517,8 +526,8 @@ def test_locate_subclasses_no_plugins_detects_main_package(clear_caches: None) -
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
-def test_clear_caches_resets_implementation_cache() -> None:
+@pytest.mark.integration
+def test_clear_caches_resets_implementation_cache(clear_caches: None) -> None:
     """Calling clear_caches() causes locate_implementations to re-run discovery."""
     main_pkg = _mock_package()
     main_mod_v1 = ModuleType(MAIN_PKG_MYMODULE)
@@ -527,7 +536,7 @@ def test_clear_caches_resets_implementation_cache() -> None:
 
     # First call — populates cache
     with (
-        patch.object(di, "discover_plugin_packages", return_value=()),
+        patch(DI_ENTRY_POINTS, return_value=[]),
         patch.object(
             di.importlib,
             "import_module",
@@ -546,7 +555,7 @@ def test_clear_caches_resets_implementation_cache() -> None:
     main_mod_v2.instance = instance_v2  # type: ignore[attr-defined]
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=()),
+        patch(DI_ENTRY_POINTS, return_value=[]),
         patch.object(
             di.importlib,
             "import_module",
@@ -560,8 +569,8 @@ def test_clear_caches_resets_implementation_cache() -> None:
     assert instance_v1 not in result_after
 
 
-@pytest.mark.unit
-def test_clear_caches_resets_subclass_cache() -> None:
+@pytest.mark.integration
+def test_clear_caches_resets_subclass_cache(clear_caches: None) -> None:
     """Calling clear_caches() causes locate_subclasses to re-run discovery."""
 
     class SubV1(_DummyBase):
@@ -573,7 +582,7 @@ def test_clear_caches_resets_subclass_cache() -> None:
 
     # First call — populates cache
     with (
-        patch.object(di, "discover_plugin_packages", return_value=()),
+        patch(DI_ENTRY_POINTS, return_value=[]),
         patch.object(
             di.importlib,
             "import_module",
@@ -593,7 +602,7 @@ def test_clear_caches_resets_subclass_cache() -> None:
     main_mod_v2.SubV2 = SubV2  # type: ignore[attr-defined]
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=()),
+        patch(DI_ENTRY_POINTS, return_value=[]),
         patch.object(
             di.importlib,
             "import_module",
@@ -612,7 +621,7 @@ def test_clear_caches_resets_subclass_cache() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_implementations_caches_result_on_second_call(clear_caches: None) -> None:
     """locate_implementations returns cached result on second call without re-scanning."""
     instance = _DummyBase()
@@ -621,7 +630,7 @@ def test_locate_implementations_caches_result_on_second_call(clear_caches: None)
     main_mod.instance = instance  # type: ignore[attr-defined]
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=()),
+        patch(DI_ENTRY_POINTS, return_value=[]),
         patch.object(
             di.importlib,
             "import_module",
@@ -638,7 +647,7 @@ def test_locate_implementations_caches_result_on_second_call(clear_caches: None)
     assert mock_iter.call_count == 1
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_subclasses_caches_result_on_second_call(clear_caches: None) -> None:
     """locate_subclasses returns cached result on second call without re-scanning."""
 
@@ -650,7 +659,7 @@ def test_locate_subclasses_caches_result_on_second_call(clear_caches: None) -> N
     main_mod.LocalSub = LocalSub  # type: ignore[attr-defined]
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=()),
+        patch(DI_ENTRY_POINTS, return_value=[]),
         patch.object(
             di.importlib,
             "import_module",
@@ -668,7 +677,7 @@ def test_locate_subclasses_caches_result_on_second_call(clear_caches: None) -> N
 
 
 @pytest.mark.unit
-@patch("aignostics_foundry_core.di.entry_points")
+@patch(DI_ENTRY_POINTS)
 def test_clear_caches_resets_discover_plugin_packages_cache(mock_entry_points: Mock) -> None:
     """Calling clear_caches() causes discover_plugin_packages to call entry_points again."""
     mock_ep = MagicMock()
@@ -694,7 +703,7 @@ PROJ_A = "proj_a"
 PROJ_B = "proj_b"
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_subclasses_excludes_base_class_from_results(clear_caches: None) -> None:
     """locate_subclasses never includes the base class itself in results."""
 
@@ -707,7 +716,7 @@ def test_locate_subclasses_excludes_base_class_from_results(clear_caches: None) 
     main_mod.LocalSub = LocalSub  # type: ignore[attr-defined]
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=()),
+        patch(DI_ENTRY_POINTS, return_value=[]),
         patch.object(
             di.importlib,
             "import_module",
@@ -724,13 +733,13 @@ def test_locate_subclasses_excludes_base_class_from_results(clear_caches: None) 
     assert _DummyBase not in result
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_implementations_handles_broken_main_package_submodule(clear_caches: None) -> None:
     """locate_implementations succeeds when a main-package submodule raises ImportError."""
     main_pkg = _mock_package()
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=()),
+        patch(DI_ENTRY_POINTS, return_value=[]),
         patch.object(
             di.importlib,
             "import_module",
@@ -746,13 +755,13 @@ def test_locate_implementations_handles_broken_main_package_submodule(clear_cach
     assert result == []
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_subclasses_handles_broken_main_package_submodule(clear_caches: None) -> None:
     """locate_subclasses succeeds when a main-package submodule raises ImportError."""
     main_pkg = _mock_package()
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=()),
+        patch(DI_ENTRY_POINTS, return_value=[]),
         patch.object(
             di.importlib,
             "import_module",
@@ -768,7 +777,7 @@ def test_locate_subclasses_handles_broken_main_package_submodule(clear_caches: N
     assert result == []
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_implementations_combines_plugin_and_main_package_results(clear_caches: None) -> None:
     """locate_implementations returns instances from both plugin and main package."""
     plugin_instance = _DummyBase()
@@ -782,7 +791,7 @@ def test_locate_implementations_combines_plugin_and_main_package_results(clear_c
     main_mod.main_instance = main_instance  # type: ignore[attr-defined]
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=(PLUGIN,)),
+        patch(DI_ENTRY_POINTS, return_value=[_mock_ep(PLUGIN)]),
         patch.object(
             di.importlib,
             "import_module",
@@ -800,7 +809,7 @@ def test_locate_implementations_combines_plugin_and_main_package_results(clear_c
     assert main_instance in result
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_subclasses_combines_plugin_and_main_package_results(clear_caches: None) -> None:
     """locate_subclasses returns subclasses from both plugin and main package."""
 
@@ -818,7 +827,7 @@ def test_locate_subclasses_combines_plugin_and_main_package_results(clear_caches
     main_mod.MainSub = MainSub  # type: ignore[attr-defined]
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=(PLUGIN,)),
+        patch(DI_ENTRY_POINTS, return_value=[_mock_ep(PLUGIN)]),
         patch.object(
             di.importlib,
             "import_module",
@@ -836,7 +845,7 @@ def test_locate_subclasses_combines_plugin_and_main_package_results(clear_caches
     assert MainSub in result
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_implementations_cache_isolated_by_project_name(clear_caches: None) -> None:
     """locate_implementations uses independent cache entries per project_name."""
     instance_a = _DummyBase()
@@ -851,7 +860,7 @@ def test_locate_implementations_cache_isolated_by_project_name(clear_caches: Non
     mod_b.instance_b = instance_b  # type: ignore[attr-defined]
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=()),
+        patch(DI_ENTRY_POINTS, return_value=[]),
         patch.object(
             di.importlib,
             "import_module",
@@ -873,7 +882,7 @@ def test_locate_implementations_cache_isolated_by_project_name(clear_caches: Non
     assert instance_a not in result_b
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_locate_subclasses_cache_isolated_by_project_name(clear_caches: None) -> None:
     """locate_subclasses uses independent cache entries per project_name."""
 
@@ -892,7 +901,7 @@ def test_locate_subclasses_cache_isolated_by_project_name(clear_caches: None) ->
     mod_b.SubB = SubB  # type: ignore[attr-defined]
 
     with (
-        patch.object(di, "discover_plugin_packages", return_value=()),
+        patch(DI_ENTRY_POINTS, return_value=[]),
         patch.object(
             di.importlib,
             "import_module",
@@ -920,27 +929,23 @@ def test_locate_subclasses_cache_isolated_by_project_name(clear_caches: None) ->
 
 
 @pytest.mark.unit
-def test_locate_subclasses_raises_without_context(clear_caches: None, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_locate_subclasses_raises_without_context(clear_caches: None) -> None:
     """locate_subclasses raises RuntimeError when no context arg and no global context."""
-    import aignostics_foundry_core.foundry as _foundry_mod
-
-    monkeypatch.setattr(_foundry_mod, "_context", None)
+    reset_context()
     with pytest.raises(RuntimeError, match="get_context\\(\\) called before set_context"):
         di.locate_subclasses(_DummyBase)
 
 
 @pytest.mark.unit
-def test_locate_implementations_raises_without_context(clear_caches: None, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_locate_implementations_raises_without_context(clear_caches: None) -> None:
     """locate_implementations raises RuntimeError when no context arg and no global context."""
-    import aignostics_foundry_core.foundry as _foundry_mod
-
-    monkeypatch.setattr(_foundry_mod, "_context", None)
+    reset_context()
     with pytest.raises(RuntimeError, match="get_context\\(\\) called before set_context"):
         di.locate_implementations(_DummyBase)
 
 
-@pytest.mark.unit
-def test_locate_subclasses_uses_global_context(clear_caches: None, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.integration
+def test_locate_subclasses_uses_global_context(clear_caches: None) -> None:
     """locate_subclasses uses the global context when no explicit context is passed."""
 
     class GlobalSub(_DummyBase):
@@ -950,22 +955,22 @@ def test_locate_subclasses_uses_global_context(clear_caches: None, monkeypatch: 
     main_mod = ModuleType(MAIN_PKG_MYMODULE)
     main_mod.GlobalSub = GlobalSub  # type: ignore[attr-defined]
 
-    import aignostics_foundry_core.foundry as _foundry_mod
-
-    monkeypatch.setattr(_foundry_mod, "_context", make_context(MAIN_PKG))
-
-    with (
-        patch.object(di, "discover_plugin_packages", return_value=()),
-        patch.object(
-            di.importlib,
-            "import_module",
-            side_effect=_make_import_side_effect({
-                MAIN_PKG: main_pkg,
-                MAIN_PKG_MYMODULE: main_mod,
-            }),
-        ),
-        patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
-    ):
-        result = di.locate_subclasses(_DummyBase)  # no explicit context
+    set_context(make_context(MAIN_PKG))
+    try:
+        with (
+            patch(DI_ENTRY_POINTS, return_value=[]),
+            patch.object(
+                di.importlib,
+                "import_module",
+                side_effect=_make_import_side_effect({
+                    MAIN_PKG: main_pkg,
+                    MAIN_PKG_MYMODULE: main_mod,
+                }),
+            ),
+            patch.object(di.pkgutil, "iter_modules", return_value=[("", MYMODULE, False)]),
+        ):
+            result = di.locate_subclasses(_DummyBase)  # no explicit context
+    finally:
+        reset_context()
 
     assert GlobalSub in result

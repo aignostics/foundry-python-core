@@ -63,6 +63,12 @@ def test_service_initialization(mock_client):
     mock_client.assert_called_once()
 ```
 
+> **Critical rule**: `@patch` is only acceptable for **external libraries and stdlib** (e.g.
+> `sentry_sdk`, `importlib.metadata.entry_points`, `sys.exit`).  Never patch symbols that live
+> inside `aignostics_foundry_core` itself — instead set up the real environment so the code runs
+> for real (use `set_context()` / `reset_context()`, set `request.app.state`, etc.) and mark
+> those tests `@pytest.mark.integration`.
+
 **Run locally**:
 
 ```bash
