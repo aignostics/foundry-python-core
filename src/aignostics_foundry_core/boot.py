@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from aignostics_foundry_core.foundry import get_context
 from aignostics_foundry_core.log import logging_initialize
 from aignostics_foundry_core.process import get_process_info
 from aignostics_foundry_core.sentry import sentry_initialize
@@ -44,8 +45,8 @@ _boot_called = False
 
 
 def boot(
-    context: FoundryContext,
-    sentry_integrations: list[Integration] | None,
+    context: FoundryContext | None = None,
+    sentry_integrations: list[Integration] | None = None,
     log_filter: Callable[[Record], bool] | None = None,
     show_cmdline: bool = True,
 ) -> None:
@@ -66,7 +67,9 @@ def boot(
     Args:
         context: :class:`~aignostics_foundry_core.foundry.FoundryContext` providing
             project name, version, environment, and runtime mode flags for logging,
-            Sentry, and ``--env`` argument injection.
+            Sentry, and ``--env`` argument injection.  When ``None``, the process-level
+            context registered via :func:`~aignostics_foundry_core.foundry.set_context`
+            is used.
         sentry_integrations: List of Sentry SDK integrations to register, or
             ``None`` to skip Sentry initialisation.
         log_filter: Optional loguru filter callable forwarded to
@@ -79,21 +82,16 @@ def boot(
         return
     _boot_called = True
 
-    _parse_env_args(context.name)
-    logging_initialize(filter_func=log_filter, context=context)
+    ctx = context or get_context()
+    _parse_env_args(ctx.name)
+    logging_initialize(filter_func=log_filter, context=ctx)
     _amend_ssl_trust_chain()
     sentry_initialize(
         integrations=sentry_integrations,
-        context=context,
+        context=ctx,
     )
-    _log_boot_message(
-        project_name=context.name,
-        version=context.version,
-        is_library_mode=context.is_library,
-        show_cmdline=show_cmdline,
-        context=context,
-    )
-    _register_shutdown_message(project_name=context.name, version=context.version)
+    _log_boot_message(context=ctx, show_cmdline=show_cmdline)
+    _register_shutdown_message(project_name=ctx.name, version=ctx.version)
     logger.trace("Boot sequence completed successfully.")
 
 
@@ -158,25 +156,20 @@ def _amend_ssl_trust_chain() -> None:
 
 
 def _log_boot_message(
-    project_name: str,
-    version: str,
-    is_library_mode: bool,
+    context: FoundryContext,
     show_cmdline: bool = True,
-    context: FoundryContext | None = None,
 ) -> None:
     """Log a boot message including version, PID, and parent process info.
 
     Args:
-        project_name: Project name for the boot message.
-        version: Version string for the boot message.
-        is_library_mode: Whether to append ``", library-mode"`` to the message.
+        context: Project context supplying name, version, library mode flag, and
+            project root path.
         show_cmdline: Whether to append the process command line.
-        context: Project context for resolving the project root path.
     """
     process_info = get_process_info(context=context)
-    mode_suffix = ", library-mode" if is_library_mode else ""
+    mode_suffix = ", library-mode" if context.is_library else ""
     message = (
-        f"⭐ Booting {project_name} v{version} "
+        f"⭐ Booting {context.name} v{context.version} "
         f"(project root {process_info.project_root}, pid {process_info.pid}), "
         f"parent '{process_info.parent.name}' (pid {process_info.parent.pid}){mode_suffix}"
     )

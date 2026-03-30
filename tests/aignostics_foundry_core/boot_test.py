@@ -11,9 +11,11 @@ from unittest.mock import MagicMock
 import pytest
 
 import aignostics_foundry_core.boot as boot_mod
+from aignostics_foundry_core.foundry import set_context
 from tests.conftest import make_context
 
 _PROJECT = "testapp"
+_OTHER_PROJECT = "otherapp"
 
 
 @pytest.mark.unit
@@ -25,7 +27,7 @@ def test_boot_can_be_called(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(boot_mod, "truststore", None)
     monkeypatch.setattr(boot_mod, "certifi", None)
 
-    boot_mod.boot(make_context(_PROJECT), sentry_integrations=None)  # must not raise
+    boot_mod.boot(context=make_context(_PROJECT), sentry_integrations=None)  # must not raise
 
 
 @pytest.mark.unit
@@ -39,8 +41,8 @@ def test_boot_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(boot_mod, "truststore", None)
     monkeypatch.setattr(boot_mod, "certifi", None)
 
-    boot_mod.boot(make_context(_PROJECT), sentry_integrations=None)
-    boot_mod.boot(make_context(_PROJECT), sentry_integrations=None)
+    boot_mod.boot(context=make_context(_PROJECT), sentry_integrations=None)
+    boot_mod.boot(context=make_context(_PROJECT), sentry_integrations=None)
 
     assert mock_logging.call_count == 1
 
@@ -56,7 +58,7 @@ def test_parse_env_args_injects_matching_vars(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.delitem(os.environ, "TESTAPP_FOO", raising=False)
     monkeypatch.setattr(sys, "argv", ["script.py", "--env", "TESTAPP_FOO=bar"])
 
-    boot_mod.boot(make_context(_PROJECT), sentry_integrations=None)
+    boot_mod.boot(context=make_context(_PROJECT), sentry_integrations=None)
 
     assert os.environ.get("TESTAPP_FOO") == "bar"
     assert "--env" not in sys.argv
@@ -77,6 +79,41 @@ def test_boot_amends_ssl_trust_chain(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_paths = types.SimpleNamespace(cafile=None)
     monkeypatch.setattr(ssl, "get_default_verify_paths", lambda: mock_paths)
 
-    boot_mod.boot(make_context(_PROJECT), sentry_integrations=None)
+    boot_mod.boot(context=make_context(_PROJECT), sentry_integrations=None)
 
     assert "SSL_CERT_FILE" in os.environ
+
+
+@pytest.mark.unit
+def test_boot_uses_global_context_when_none_provided(monkeypatch: pytest.MonkeyPatch) -> None:
+    """boot() falls back to the process-level context when no context argument is given."""
+    monkeypatch.setattr(boot_mod, "_boot_called", False)
+    mock_logging = MagicMock()
+    monkeypatch.setattr(boot_mod, "logging_initialize", mock_logging)
+    monkeypatch.setattr(boot_mod, "sentry_initialize", MagicMock(return_value=False))
+    monkeypatch.setattr(boot_mod, "truststore", None)
+    monkeypatch.setattr(boot_mod, "certifi", None)
+
+    set_context(make_context(_PROJECT))
+    boot_mod.boot(sentry_integrations=None)
+
+    call_ctx = mock_logging.call_args.kwargs["context"]
+    assert call_ctx.name == _PROJECT
+
+
+@pytest.mark.unit
+def test_boot_explicit_context_overrides_global(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An explicit context passed to boot() takes precedence over the global context."""
+    monkeypatch.setattr(boot_mod, "_boot_called", False)
+    mock_sentry = MagicMock(return_value=False)
+    monkeypatch.setattr(boot_mod, "logging_initialize", MagicMock())
+    monkeypatch.setattr(boot_mod, "sentry_initialize", mock_sentry)
+    monkeypatch.setattr(boot_mod, "truststore", None)
+    monkeypatch.setattr(boot_mod, "certifi", None)
+
+    set_context(make_context(_OTHER_PROJECT))
+    explicit_ctx = make_context(_PROJECT)
+    boot_mod.boot(context=explicit_ctx, sentry_integrations=None)
+
+    call_ctx = mock_sentry.call_args.kwargs["context"]
+    assert call_ctx.name == _PROJECT
