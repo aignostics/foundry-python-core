@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from aignostics_foundry_core.foundry import FoundryContext, get_context, set_context
+from aignostics_foundry_core.foundry import FoundryContext, get_context, reset_context, set_context
 
 # Constants (SonarQube S1192)
 PACKAGE_NAME = "aignostics_foundry_core"
@@ -30,7 +30,7 @@ GIT_SHA_SHORT = "a" * 7
 
 
 @pytest.fixture(autouse=True)
-def reset_context(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+def _clear_context(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
     """Reset global _context to None before and after every test.
 
     Yields:
@@ -403,3 +403,19 @@ def test_set_context_replaces_previous_context() -> None:
     set_context(ctx1)
     set_context(ctx2)
     assert get_context() is ctx2
+
+
+@pytest.mark.unit
+def test_reset_context_causes_get_context_to_raise() -> None:
+    """After set_context(ctx) + reset_context(), get_context() raises RuntimeError."""
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    set_context(ctx)
+    reset_context()
+    with pytest.raises(RuntimeError, match=ERROR_MSG_FRAGMENT):
+        get_context()
+
+
+@pytest.mark.unit
+def test_reset_context_is_idempotent_when_no_context_set() -> None:
+    """reset_context() does not raise when no context has been installed."""
+    reset_context()  # no prior set_context() — must not raise
