@@ -1,17 +1,19 @@
 """Tests for aignostics_foundry_core.sentry."""
 
+from collections.abc import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
 
-from aignostics_foundry_core.foundry import FoundryContext
+from aignostics_foundry_core.foundry import FoundryContext, reset_context, set_context
 from aignostics_foundry_core.sentry import SentrySettings, sentry_initialize, set_sentry_user
 
 _VALID_DSN = "https://abc123def456@o99999.ingest.de.sentry.io/1234567"
 _PROJECT = "testproject"
 _VERSION = "1.0.0"
 _ENVIRONMENT = "test"
+_ENV_PREFIX = "TESTPROJECT_"
 _SENTRY_SET_USER = "sentry_sdk.set_user"
 _AUTH0_USER = "auth0|x"
 _SENTRY_PREFIX = "TESTPROJECT_SENTRY_"
@@ -20,30 +22,23 @@ _SENTRY_SDK_SET_CONTEXT = "sentry_sdk.set_context"
 _SENTRY_SDK_IGNORE_LOGGER = "sentry_sdk.integrations.logging.ignore_logger"
 
 
-def _mk_ctx(
-    name: str = _PROJECT,
-    version: str = _VERSION,
-    environment: str = _ENVIRONMENT,
-    env_prefix: str = "TESTPROJECT_",
-    **kwargs: bool,
-) -> FoundryContext:
-    return FoundryContext(
-        name=name,
-        version=version,
-        version_full=version,
-        environment=environment,
-        env_prefix=env_prefix,
-        **kwargs,  # type: ignore[arg-type]
-    )
-
-
-@pytest.mark.unit
+@pytest.mark.integration
 class TestSentryInitialize:
     """Behavioural tests for sentry_initialize()."""
 
     @pytest.fixture(autouse=True)
-    def _stub_get_context(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("aignostics_foundry_core.sentry.get_context", _mk_ctx)
+    def _context(self) -> Generator[None, None, None]:
+        set_context(
+            FoundryContext(
+                name=_PROJECT,
+                version=_VERSION,
+                version_full=_VERSION,
+                environment=_ENVIRONMENT,
+                env_prefix=_ENV_PREFIX,
+            )
+        )
+        yield
+        reset_context()
 
     def test_sentry_initialize_returns_false_when_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Returns False when TESTPROJECT_SENTRY_ENABLED is not set (default False)."""
@@ -84,7 +79,13 @@ class TestSentryInitialize:
         """sentry_sdk.init release tag uses the context project name."""
         monkeypatch.setenv(f"{_SENTRY_PREFIX}ENABLED", "true")
         monkeypatch.setenv(f"{_SENTRY_PREFIX}DSN", _VALID_DSN)
-        ctx = _mk_ctx(name="ctxproject")
+        ctx = FoundryContext(
+            name="ctxproject",
+            version=_VERSION,
+            version_full=_VERSION,
+            environment=_ENVIRONMENT,
+            env_prefix=_ENV_PREFIX,
+        )
         with (
             patch(_SENTRY_SDK_INIT) as mock_init,
             patch(_SENTRY_SDK_SET_CONTEXT),
@@ -98,7 +99,13 @@ class TestSentryInitialize:
         """sentry_sdk.init environment arg matches context.environment."""
         monkeypatch.setenv(f"{_SENTRY_PREFIX}ENABLED", "true")
         monkeypatch.setenv(f"{_SENTRY_PREFIX}DSN", _VALID_DSN)
-        ctx = _mk_ctx(environment="staging")
+        ctx = FoundryContext(
+            name=_PROJECT,
+            version=_VERSION,
+            version_full=_VERSION,
+            environment="staging",
+            env_prefix=_ENV_PREFIX,
+        )
         with (
             patch(_SENTRY_SDK_INIT) as mock_init,
             patch(_SENTRY_SDK_SET_CONTEXT),
@@ -111,7 +118,14 @@ class TestSentryInitialize:
         """sentry_sdk.set_context receives runtime mode flags from the context."""
         monkeypatch.setenv(f"{_SENTRY_PREFIX}ENABLED", "true")
         monkeypatch.setenv(f"{_SENTRY_PREFIX}DSN", _VALID_DSN)
-        ctx = _mk_ctx(is_test=True)
+        ctx = FoundryContext(
+            name=_PROJECT,
+            version=_VERSION,
+            version_full=_VERSION,
+            environment=_ENVIRONMENT,
+            env_prefix=_ENV_PREFIX,
+            is_test=True,
+        )
         with (
             patch(_SENTRY_SDK_INIT),
             patch(_SENTRY_SDK_SET_CONTEXT) as mock_set_ctx,
@@ -122,13 +136,23 @@ class TestSentryInitialize:
         assert ctx_data["test_mode"] is True
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 class TestSentrySettingsDsnValidation:
     """Tests for SentrySettings DSN edge-case validation paths."""
 
     @pytest.fixture(autouse=True)
-    def _stub_get_context(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("aignostics_foundry_core.sentry.get_context", _mk_ctx)
+    def _context(self) -> Generator[None, None, None]:
+        set_context(
+            FoundryContext(
+                name=_PROJECT,
+                version=_VERSION,
+                version_full=_VERSION,
+                environment=_ENVIRONMENT,
+                env_prefix=_ENV_PREFIX,
+            )
+        )
+        yield
+        reset_context()
 
     def test_dsn_missing_scheme_raises(self) -> None:
         """DSN without a URL scheme raises ValidationError."""
@@ -146,13 +170,23 @@ class TestSentrySettingsDsnValidation:
             SentrySettings(dsn="https://o1.ingest.de.sentry.io/1")  # pyright: ignore[reportCallIssue]
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 class TestSentrySettings:
     """Behavioural tests for SentrySettings validation."""
 
     @pytest.fixture(autouse=True)
-    def _stub_get_context(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("aignostics_foundry_core.sentry.get_context", _mk_ctx)
+    def _context(self) -> Generator[None, None, None]:
+        set_context(
+            FoundryContext(
+                name=_PROJECT,
+                version=_VERSION,
+                version_full=_VERSION,
+                environment=_ENVIRONMENT,
+                env_prefix=_ENV_PREFIX,
+            )
+        )
+        yield
+        reset_context()
 
     def test_sentry_settings_rejects_invalid_dsn_http_scheme(self) -> None:
         """DSN with http:// scheme raises ValidationError."""
@@ -184,9 +218,14 @@ class TestSentrySettings:
 
     def test_sentry_settings_uses_context_env_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """SentrySettings reads env vars from the prefix supplied by FoundryContext."""
-        monkeypatch.setattr(
-            "aignostics_foundry_core.sentry.get_context",
-            lambda: _mk_ctx(env_prefix="PROJ_"),
+        set_context(
+            FoundryContext(
+                name=_PROJECT,
+                version=_VERSION,
+                version_full=_VERSION,
+                environment=_ENVIRONMENT,
+                env_prefix="PROJ_",
+            )
         )
         monkeypatch.setenv("PROJ_SENTRY_ENABLED", "true")
         settings = SentrySettings()  # pyright: ignore[reportCallIssue]
