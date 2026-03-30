@@ -91,6 +91,7 @@ def boot(
         version=context.version,
         is_library_mode=context.is_library,
         show_cmdline=show_cmdline,
+        context=context,
     )
     _register_shutdown_message(project_name=context.name, version=context.version)
     logger.trace("Boot sequence completed successfully.")
@@ -161,6 +162,7 @@ def _log_boot_message(
     version: str,
     is_library_mode: bool,
     show_cmdline: bool = True,
+    context: FoundryContext | None = None,
 ) -> None:
     """Log a boot message including version, PID, and parent process info.
 
@@ -169,8 +171,9 @@ def _log_boot_message(
         version: Version string for the boot message.
         is_library_mode: Whether to append ``", library-mode"`` to the message.
         show_cmdline: Whether to append the process command line.
+        context: Project context for resolving the project root path.
     """
-    process_info = get_process_info()
+    process_info = get_process_info(context=context)
     mode_suffix = ", library-mode" if is_library_mode else ""
     message = (
         f"⭐ Booting {project_name} v{version} "
