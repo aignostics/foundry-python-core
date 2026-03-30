@@ -7,7 +7,7 @@ overrides = [{ name = "pytest", specifier = ">=9.0.2" }]
 
 [[package]]
 name = "aignostics-foundry-core"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "asyncpg" },

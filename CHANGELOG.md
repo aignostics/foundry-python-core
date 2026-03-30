@@ -1,3 +1,24 @@
+## v0.3.0 (2026-03-30)
+
+### Feat
+
+- use FoundryContext in all modules (#18) ([a99873c](https://github.com/aignostics/foundry-python-core/commit/a99873c99ff0c7bd68e9f8f9dd5301766709a731))
+- **di**: drop project_name, use context only ([4959a59](https://github.com/aignostics/foundry-python-core/commit/4959a59510af03b000cf6cde7dae14e0111a1e56))
+- **foundry**: add FoundryContext and set_context() ([3cf6f69](https://github.com/aignostics/foundry-python-core/commit/3cf6f6959654f9f0e76bcef5a0707cff0a7e6cc0))
+- **gui**: add NiceGUI page helpers and nav builder ([49e28f6](https://github.com/aignostics/foundry-python-core/commit/49e28f6f3f5ae6c6a1fbdcb7a4260af5c4e97990))
+- **boot**: add parameterised boot() sequence ([cb63a75](https://github.com/aignostics/foundry-python-core/commit/cb63a75824aa9f9fccba76a165113f22af563893))
+- **api**: add VersionedAPIRouter, init_api, and api package ([b003c21](https://github.com/aignostics/foundry-python-core/commit/b003c2118ca88805218656a738c97207b7210a14))
+- **api**: add Auth0 authentication dependencies ([47dbd6f](https://github.com/aignostics/foundry-python-core/commit/47dbd6fbcac06f911cbdab51e335202ced8f1195))
+
+### Fix
+
+- **tests**: extract constants, document empty stubs ([784af4f](https://github.com/aignostics/foundry-python-core/commit/784af4f9df2a0dc9ed6e0056c8c144ff2b053e26))
+- **gui**: render page content inside frame context ([e524978](https://github.com/aignostics/foundry-python-core/commit/e524978384dc396fbbe7c193331616bcca697fe6))
+
+### Refactor
+
+- **gui**: extract helpers to reduce gui_run complexity ([5beeaf3](https://github.com/aignostics/foundry-python-core/commit/5beeaf3e424eb7396a7a4edd7addfb3a05d79e21))
+
 ## v0.2.0 (2026-03-26)
 
 ### Feat
