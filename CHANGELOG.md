@@ -1,3 +1,9 @@
+## v0.6.2 (2026-03-31)
+
+### Fix
+
+- **database**: env var for db_name is NAME not DB_NAME ([e1418ab](https://github.com/aignostics/foundry-python-core/commit/e1418ab27ca1ac154d6a61f9142ad6e346c4f1e8))
+
 ## v0.6.1 (2026-03-31)
 
 ### Fix
