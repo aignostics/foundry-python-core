@@ -6,17 +6,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from aignostics_foundry_core.foundry import FoundryContext, reset_context, set_context
+from aignostics_foundry_core.foundry import reset_context, set_context
 from aignostics_foundry_core.sentry import SentrySettings, sentry_initialize, set_sentry_user
+from tests.conftest import TEST_PROJECT_NAME, TEST_PROJECT_PREFIX, make_context
 
 _VALID_DSN = "https://abc123def456@o99999.ingest.de.sentry.io/1234567"
-_PROJECT = "testproject"
-_VERSION = "1.0.0"
-_ENVIRONMENT = "test"
-_ENV_PREFIX = "TESTPROJECT_"
 _SENTRY_SET_USER = "sentry_sdk.set_user"
 _AUTH0_USER = "auth0|x"
-_SENTRY_PREFIX = "TESTPROJECT_SENTRY_"
+_SENTRY_PREFIX = f"{TEST_PROJECT_PREFIX}SENTRY_"
 _SENTRY_SDK_INIT = "sentry_sdk.init"
 _SENTRY_SDK_SET_CONTEXT = "sentry_sdk.set_context"
 _SENTRY_SDK_IGNORE_LOGGER = "sentry_sdk.integrations.logging.ignore_logger"
@@ -28,15 +25,7 @@ class TestSentryInitialize:
 
     @pytest.fixture(autouse=True)
     def _context(self) -> Generator[None, None, None]:
-        set_context(
-            FoundryContext(
-                name=_PROJECT,
-                version=_VERSION,
-                version_full=_VERSION,
-                environment=_ENVIRONMENT,
-                env_prefix=_ENV_PREFIX,
-            )
-        )
+        set_context(make_context())
         yield
         reset_context()
 
@@ -66,7 +55,7 @@ class TestSentryInitialize:
             result = sentry_initialize(integrations=None)
         assert result is True
         mock_init.assert_called_once()
-        assert mock_init.call_args.kwargs["release"] == f"{_PROJECT}@{_VERSION}"
+        assert mock_init.call_args.kwargs["release"] == f"{TEST_PROJECT_NAME}@0.0.0"
 
     def test_sentry_initialize_returns_false_when_enabled_but_dsn_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Returns False when enabled but no DSN is configured."""
@@ -79,13 +68,7 @@ class TestSentryInitialize:
         """sentry_sdk.init release tag uses the context project name."""
         monkeypatch.setenv(f"{_SENTRY_PREFIX}ENABLED", "true")
         monkeypatch.setenv(f"{_SENTRY_PREFIX}DSN", _VALID_DSN)
-        ctx = FoundryContext(
-            name="ctxproject",
-            version=_VERSION,
-            version_full=_VERSION,
-            environment=_ENVIRONMENT,
-            env_prefix=_ENV_PREFIX,
-        )
+        ctx = make_context()
         with (
             patch(_SENTRY_SDK_INIT) as mock_init,
             patch(_SENTRY_SDK_SET_CONTEXT),
@@ -93,19 +76,13 @@ class TestSentryInitialize:
         ):
             result = sentry_initialize(integrations=None, context=ctx)
         assert result is True
-        assert mock_init.call_args.kwargs["release"].startswith("ctxproject@")
+        assert mock_init.call_args.kwargs["release"].startswith(f"{TEST_PROJECT_NAME}@")
 
     def test_sentry_initialize_uses_context_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """sentry_sdk.init environment arg matches context.environment."""
         monkeypatch.setenv(f"{_SENTRY_PREFIX}ENABLED", "true")
         monkeypatch.setenv(f"{_SENTRY_PREFIX}DSN", _VALID_DSN)
-        ctx = FoundryContext(
-            name=_PROJECT,
-            version=_VERSION,
-            version_full=_VERSION,
-            environment="staging",
-            env_prefix=_ENV_PREFIX,
-        )
+        ctx = make_context(environment="staging")
         with (
             patch(_SENTRY_SDK_INIT) as mock_init,
             patch(_SENTRY_SDK_SET_CONTEXT),
@@ -118,14 +95,7 @@ class TestSentryInitialize:
         """sentry_sdk.set_context receives runtime mode flags from the context."""
         monkeypatch.setenv(f"{_SENTRY_PREFIX}ENABLED", "true")
         monkeypatch.setenv(f"{_SENTRY_PREFIX}DSN", _VALID_DSN)
-        ctx = FoundryContext(
-            name=_PROJECT,
-            version=_VERSION,
-            version_full=_VERSION,
-            environment=_ENVIRONMENT,
-            env_prefix=_ENV_PREFIX,
-            is_test=True,
-        )
+        ctx = make_context(is_test=True)
         with (
             patch(_SENTRY_SDK_INIT),
             patch(_SENTRY_SDK_SET_CONTEXT) as mock_set_ctx,
@@ -142,15 +112,7 @@ class TestSentrySettingsDsnValidation:
 
     @pytest.fixture(autouse=True)
     def _context(self) -> Generator[None, None, None]:
-        set_context(
-            FoundryContext(
-                name=_PROJECT,
-                version=_VERSION,
-                version_full=_VERSION,
-                environment=_ENVIRONMENT,
-                env_prefix=_ENV_PREFIX,
-            )
-        )
+        set_context(make_context())
         yield
         reset_context()
 
@@ -176,15 +138,7 @@ class TestSentrySettings:
 
     @pytest.fixture(autouse=True)
     def _context(self) -> Generator[None, None, None]:
-        set_context(
-            FoundryContext(
-                name=_PROJECT,
-                version=_VERSION,
-                version_full=_VERSION,
-                environment=_ENVIRONMENT,
-                env_prefix=_ENV_PREFIX,
-            )
-        )
+        set_context(make_context())
         yield
         reset_context()
 
@@ -218,16 +172,8 @@ class TestSentrySettings:
 
     def test_sentry_settings_uses_context_env_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """SentrySettings reads env vars from the prefix supplied by FoundryContext."""
-        set_context(
-            FoundryContext(
-                name=_PROJECT,
-                version=_VERSION,
-                version_full=_VERSION,
-                environment=_ENVIRONMENT,
-                env_prefix="PROJ_",
-            )
-        )
-        monkeypatch.setenv("PROJ_SENTRY_ENABLED", "true")
+        set_context(make_context())
+        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}SENTRY_ENABLED", "true")
         settings = SentrySettings()  # pyright: ignore[reportCallIssue]
         assert settings.enabled is True
 

@@ -2,6 +2,7 @@
 
 import logging
 import os
+from pathlib import Path
 
 import psutil
 import pytest
@@ -11,6 +12,10 @@ from aignostics_foundry_core.foundry import FoundryContext
 __all__ = ["make_context"]
 
 logger = logging.getLogger(__name__)
+
+
+TEST_PROJECT_NAME = "test_project"
+TEST_PROJECT_PREFIX = "TEST_PROJECT_"
 
 
 def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
@@ -56,10 +61,11 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
 
 def make_context(
-    name: str,
-    env_prefix: str = "",
+    name: str = TEST_PROJECT_NAME,
+    env_prefix: str = TEST_PROJECT_PREFIX,
     version: str = "0.0.0",
     environment: str = "test",
+    project_path: Path | None = None,
     **kwargs: bool,
 ) -> FoundryContext:
     """Create a minimal FoundryContext for testing.
@@ -69,6 +75,7 @@ def make_context(
         env_prefix: The environment variable prefix (e.g. ``"MYPROJECT_"``).
         version: The version string (defaults to ``"0.0.0"``).
         environment: The deployment environment (defaults to ``"test"``).
+        project_path: Optional path to the project root.
         **kwargs: Optional boolean flags forwarded to :class:`FoundryContext`
             (``is_test``, ``is_cli``, ``is_container``, ``is_library``).
     """
@@ -78,5 +85,6 @@ def make_context(
         version_full=version,
         environment=environment,
         env_prefix=env_prefix,
+        project_path=project_path,
         **kwargs,  # type: ignore[arg-type]
     )

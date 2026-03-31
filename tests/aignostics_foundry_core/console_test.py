@@ -8,10 +8,10 @@ import pytest
 from rich.console import Console
 
 from aignostics_foundry_core.console import console
-from aignostics_foundry_core.foundry import FoundryContext, reset_context, set_context
+from aignostics_foundry_core.foundry import reset_context, set_context
+from tests.conftest import make_context
 
 EXPECTED_THEME_KEYS = ["success", "info", "warning", "error", "debug", "logging.level.info"]
-CUSTOM_ENV_PREFIX = "TESTPROJ_"
 CUSTOM_WIDTH = "120"
 EXPECTED_CUSTOM_WIDTH = 120
 CONSOLE_MODULE = "aignostics_foundry_core.console"
@@ -48,15 +48,9 @@ class TestConsole:
     @pytest.mark.sequential
     def test_console_width_uses_env_prefix_from_context(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Console width is read from {env_prefix}CONSOLE_WIDTH when a context is set."""
-        ctx = FoundryContext(
-            name="testproj",
-            version="0.0.0",
-            version_full="0.0.0",
-            environment="test",
-            env_prefix=CUSTOM_ENV_PREFIX,
-        )
+        ctx = make_context()
         set_context(ctx)
-        monkeypatch.setenv(f"{CUSTOM_ENV_PREFIX}CONSOLE_WIDTH", CUSTOM_WIDTH)
+        monkeypatch.setenv(f"{ctx.env_prefix}CONSOLE_WIDTH", CUSTOM_WIDTH)
         reloaded = importlib.reload(sys.modules[CONSOLE_MODULE])
         assert reloaded.console.width == EXPECTED_CUSTOM_WIDTH
 

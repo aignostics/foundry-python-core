@@ -23,7 +23,7 @@ from aignostics_foundry_core.gui.nav import (
     NavItem,
     gui_get_nav_groups,
 )
-from tests.conftest import make_context
+from tests.conftest import TEST_PROJECT_NAME, make_context
 
 _PATCH_GET_GUI_USER = "aignostics_foundry_core.gui.auth.get_gui_user"
 _PATH_NAV_LOCATE = "aignostics_foundry_core.gui.nav.locate_subclasses"
@@ -33,7 +33,6 @@ _TEST_PATH = "/test-page"
 _INTERNAL_ORG = "org_internal"
 _OTHER_ORG = "org_other"
 _ROLE_CLAIM = "https://example.com/role"
-_PROJECT_NAME = "myproject"
 _FIXED_PORT = 9000
 _DOCS_PATH = "/docs"
 _USER_SUB = "auth0|x"
@@ -91,7 +90,7 @@ class TestGuiGetNavGroups:
     def test_returns_empty_list_when_no_builders(self) -> None:
         """gui_get_nav_groups returns [] when no NavBuilders are discovered."""
         with patch(_PATH_NAV_LOCATE, return_value=[]):
-            result = gui_get_nav_groups(context=make_context("myproject"))
+            result = gui_get_nav_groups(context=make_context())
         assert result == []
 
     def test_collects_group_from_single_builder(self) -> None:
@@ -108,7 +107,7 @@ class TestGuiGetNavGroups:
                 return items
 
         with patch(_PATH_NAV_LOCATE, return_value=[FakeBuilder]):
-            result = gui_get_nav_groups(context=make_context("myproject"))
+            result = gui_get_nav_groups(context=make_context())
 
         assert len(result) == 1
         assert result[0].name == "Fake"
@@ -144,7 +143,7 @@ class TestGuiGetNavGroups:
                 return 100
 
         with patch(_PATH_NAV_LOCATE, return_value=[LowPriority, HighPriority]):
-            result = gui_get_nav_groups(context=make_context("myproject"))
+            result = gui_get_nav_groups(context=make_context())
 
         assert [g.name for g in result] == ["High", "Low"]
 
@@ -161,7 +160,7 @@ class TestGuiGetNavGroups:
                 return []
 
         with patch(_PATH_NAV_LOCATE, return_value=[EmptyBuilder]):
-            result = gui_get_nav_groups(context=make_context(_PROJECT_NAME))
+            result = gui_get_nav_groups(context=make_context())
 
         assert result == []
 
@@ -191,7 +190,7 @@ class TestGuiGetNavGroups:
                 return 100
 
         with patch(_PATH_NAV_LOCATE, return_value=[DefaultPositionBuilder, ExplicitPositionBuilder]):
-            result = gui_get_nav_groups(context=make_context(_PROJECT_NAME))
+            result = gui_get_nav_groups(context=make_context())
 
         assert [g.name for g in result] == ["Explicit", "Default"]
 
@@ -250,7 +249,7 @@ class TestGuiRegisterPages:
         builder_b = MagicMock(spec=BasePageBuilder)
 
         with patch(_PATH_CORE_LOCATE, return_value=[builder_a, builder_b]):
-            gui_register_pages(context=make_context("myproject"))
+            gui_register_pages(context=make_context())
 
         builder_a.register_pages.assert_called_once()
         builder_b.register_pages.assert_called_once()
@@ -258,7 +257,7 @@ class TestGuiRegisterPages:
     def test_no_error_when_no_builders_found(self) -> None:
         """gui_register_pages silently succeeds when no builders are discovered."""
         with patch(_PATH_CORE_LOCATE, return_value=[]):
-            gui_register_pages(context=make_context(_PROJECT_NAME))  # must not raise
+            gui_register_pages(context=make_context())  # must not raise
 
 
 # ---------------------------------------------------------------------------
@@ -300,13 +299,13 @@ class TestGuiRun:
             patch.dict(sys.modules, {"nicegui": nicegui_mock, "starlette.responses": MagicMock()}),
             patch(_PATH_CORE_LOCATE, return_value=[]),
         ):
-            gui_run(context=make_context(_PROJECT_NAME), **kwargs)  # type: ignore[arg-type]
+            gui_run(context=make_context(), **kwargs)  # type: ignore[arg-type]
 
     def test_ui_run_called_with_project_name_as_title(self) -> None:
         """When title is empty, ui.run receives project_name as title."""
         nicegui_mock, _, ui_mock = _make_nicegui_app_mock()
         self._call_gui_run(nicegui_mock, title="")
-        assert ui_mock.run.call_args.kwargs["title"] == _PROJECT_NAME
+        assert ui_mock.run.call_args.kwargs["title"] == TEST_PROJECT_NAME
 
     def test_ui_run_called_with_explicit_title(self) -> None:
         """Explicit title is passed through to ui.run."""
@@ -432,7 +431,7 @@ class TestGuiRun:
     def test_gui_register_pages_called(self) -> None:
         """locate_subclasses is invoked with BasePageBuilder and the configured context."""
         nicegui_mock, _, _ = _make_nicegui_app_mock()
-        ctx = make_context(_PROJECT_NAME)
+        ctx = make_context()
         with (
             patch.dict(sys.modules, {"nicegui": nicegui_mock, "starlette.responses": MagicMock()}),
             patch(_PATH_CORE_LOCATE, return_value=[]) as locate_mock,
@@ -453,7 +452,7 @@ class TestGetGuiUser:
     @pytest.fixture(autouse=True)
     def _gui_context(self) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
         """Install a minimal context so AuthSettings can be loaded."""
-        set_context(make_context(_PROJECT_NAME, "MYPROJECT_"))
+        set_context(make_context())
         yield
         reset_context()
 
@@ -535,7 +534,7 @@ class TestRequireGuiUser:
     @pytest.fixture(autouse=True)
     def _gui_context(self) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
         """Install a minimal context so AuthSettings can be loaded."""
-        set_context(make_context(_PROJECT_NAME, "MYPROJECT_"))
+        set_context(make_context())
         yield
         reset_context()
 
