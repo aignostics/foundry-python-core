@@ -28,6 +28,7 @@ AUTH0_COOKIE_SCHEME_NAME = "Auth0Cookie"
 AUTH0_COOKIE_SCHEME_DESCRIPTION = "Auth0 session cookie authentication scheme."
 AUTH0_ROLE_ADMIN = "admin"
 USER_NOT_AUTHENTICATED = "User is not authenticated"
+# TODO(oliverm): remove the default; it should not reference Bridge
 DEFAULT_AUTH0_ROLE_CLAIM = "https://aignostics-platform-bridge/role"
 
 
@@ -40,8 +41,8 @@ class AuthSettings(OpaqueSettings):
 
     model_config = SettingsConfigDict(extra="ignore")
 
-    internal_org_id: str | None = None
-    auth0_role_claim: str = DEFAULT_AUTH0_ROLE_CLAIM
+    internal_org_id: str | None = None  # TODO(oliverm): make mandatory
+    auth0_role_claim: str = DEFAULT_AUTH0_ROLE_CLAIM  # TODO(oliverm): make mandatory and remove default
 
     def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
         """Initialise settings, deriving env_prefix from the active FoundryContext."""
