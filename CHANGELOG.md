@@ -1,3 +1,14 @@
+## v0.5.0 (2026-03-31)
+
+### Feat
+
+- **foundry**: add version_with_vcs_ref to FoundryContext ([424a1e4](https://github.com/aignostics/foundry-python-core/commit/424a1e4dfcccc157b208f03238b14c8d72e5918c))
+
+### Refactor
+
+- **user_agent**: replace explicit params with context ([d903eb2](https://github.com/aignostics/foundry-python-core/commit/d903eb22441858fabe4488809937aba89858124c))
+- **tests**: replace direct FoundryContext() calls with make_context() helper ([a44d9ad](https://github.com/aignostics/foundry-python-core/commit/a44d9adea4ba7a57dd278a62cfa7d43e60177217))
+
 ## v0.4.0 (2026-03-30)
 
 ### Feat
