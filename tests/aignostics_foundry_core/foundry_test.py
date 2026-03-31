@@ -423,6 +423,96 @@ def test_reset_context_is_idempotent_when_no_context_set() -> None:
 
 
 # ---------------------------------------------------------------------------
+# set_context — third_party sys.path injection
+# ---------------------------------------------------------------------------
+
+THIRD_PARTY = "third_party"
+
+
+@pytest.mark.unit
+def test_set_context_prepends_third_party_dir_to_sys_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """When third_party/ exists next to __init__.py, it is at sys.path[0] after set_context()."""
+    pkg_dir = tmp_path / PACKAGE_NAME
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").touch()
+    third_party_dir = pkg_dir / THIRD_PARTY
+    third_party_dir.mkdir()
+
+    def _find_spec_with_third_party(name: str, package: str | None = None) -> ModuleSpec:
+        return _fake_spec_for(tmp_path)
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_with_third_party)
+    monkeypatch.setattr(sys, "path", sys.path[:])
+
+    ctx = make_context()
+    set_context(ctx)
+
+    assert sys.path[0] == str(third_party_dir)
+
+
+@pytest.mark.unit
+def test_set_context_skips_missing_third_party_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """When no third_party/ dir exists, sys.path is unchanged after set_context()."""
+    pkg_dir = tmp_path / PACKAGE_NAME
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").touch()
+    # No third_party/ subdirectory created
+
+    def _find_spec_no_third_party(name: str, package: str | None = None) -> ModuleSpec:
+        return _fake_spec_for(tmp_path)
+
+    original_path = sys.path[:]
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_no_third_party)
+    monkeypatch.setattr(sys, "path", sys.path[:])
+
+    ctx = make_context()
+    set_context(ctx)
+
+    assert sys.path == original_path
+
+
+@pytest.mark.unit
+def test_set_context_is_idempotent_for_sys_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Calling set_context() twice leaves exactly one entry for third_party/ in sys.path."""
+    pkg_dir = tmp_path / PACKAGE_NAME
+    pkg_dir.mkdir()
+    (pkg_dir / "__init__.py").touch()
+    third_party_dir = pkg_dir / THIRD_PARTY
+    third_party_dir.mkdir()
+
+    def _find_spec_with_third_party(name: str, package: str | None = None) -> ModuleSpec:
+        return _fake_spec_for(tmp_path)
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_with_third_party)
+    monkeypatch.setattr(sys, "path", sys.path[:])
+
+    ctx = make_context()
+    set_context(ctx)
+    set_context(ctx)
+
+    assert sys.path.count(str(third_party_dir)) == 1
+
+
+@pytest.mark.unit
+def test_set_context_skips_injection_when_spec_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When find_spec returns None, sys.path is unchanged after set_context()."""
+
+    def _find_spec_none(name: str, package: str | None = None) -> None:
+        return None
+
+    original_path = sys.path[:]
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_none)
+    monkeypatch.setattr(sys, "path", sys.path[:])
+
+    ctx = make_context()
+    set_context(ctx)
+
+    assert sys.path == original_path
+
+
+# ---------------------------------------------------------------------------
 # from_package — version_with_vcs_ref
 # ---------------------------------------------------------------------------
 
