@@ -12,7 +12,6 @@ from .auth import (
     AUTH0_ROLE_ADMIN,
     AUTH0_SESSION_COOKIE_NAME,
     AUTH0_TRANSACTION_COOKIE_NAME,
-    DEFAULT_AUTH0_ROLE_CLAIM,
     AuthSettings,
     ForbiddenError,
     UnauthenticatedError,
@@ -67,7 +66,6 @@ __all__ = [
     "AUTH0_ROLE_ADMIN",
     "AUTH0_SESSION_COOKIE_NAME",
     "AUTH0_TRANSACTION_COOKIE_NAME",
-    "DEFAULT_AUTH0_ROLE_CLAIM",
     # exceptions
     "AccessDeniedException",
     "ApiException",

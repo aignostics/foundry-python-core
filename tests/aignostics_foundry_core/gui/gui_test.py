@@ -1,5 +1,6 @@
 """Tests for aignostics_foundry_core.gui.*."""
 
+import os
 import sys
 import time
 from collections.abc import Generator
@@ -23,6 +24,7 @@ from aignostics_foundry_core.gui.nav import (
     NavItem,
     gui_get_nav_groups,
 )
+from tests.aignostics_foundry_core.api import AUTH0_ROLE_CLAIM_VAR_NAME, INTERNAL_ORG_ID_VAR_NAME
 from tests.conftest import TEST_PROJECT_NAME, make_context
 
 _PATCH_GET_GUI_USER = "aignostics_foundry_core.gui.auth.get_gui_user"
@@ -451,9 +453,13 @@ class TestGetGuiUser:
 
     @pytest.fixture(autouse=True)
     def _gui_context(self) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
-        """Install a minimal context so AuthSettings can be loaded."""
+        """Install a minimal context and required AuthSettings env vars."""
         set_context(make_context())
+        os.environ[INTERNAL_ORG_ID_VAR_NAME] = _INTERNAL_ORG
+        os.environ[AUTH0_ROLE_CLAIM_VAR_NAME] = _ROLE_CLAIM
         yield
+        os.environ.pop(INTERNAL_ORG_ID_VAR_NAME, None)
+        os.environ.pop(AUTH0_ROLE_CLAIM_VAR_NAME, None)
         reset_context()
 
     async def test_returns_none_when_auth_client_raises(self) -> None:
@@ -533,9 +539,13 @@ class TestRequireGuiUser:
 
     @pytest.fixture(autouse=True)
     def _gui_context(self) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
-        """Install a minimal context so AuthSettings can be loaded."""
+        """Install a minimal context and required AuthSettings env vars."""
         set_context(make_context())
+        os.environ[INTERNAL_ORG_ID_VAR_NAME] = _INTERNAL_ORG
+        os.environ[AUTH0_ROLE_CLAIM_VAR_NAME] = _ROLE_CLAIM
         yield
+        os.environ.pop(INTERNAL_ORG_ID_VAR_NAME, None)
+        os.environ.pop(AUTH0_ROLE_CLAIM_VAR_NAME, None)
         reset_context()
 
     async def test_redirects_to_login_when_no_user(self) -> None:
