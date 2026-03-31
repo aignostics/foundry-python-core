@@ -32,7 +32,7 @@ jobs:
           claude_args: |
             --max-turns 15
             --model claude-sonnet-4-5-20250929
-            --allowedTools "Bash(git diff *)" "Bash(git log *)" "Bash(gh pr view *)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Read,Write,Edit,MultiEdit,Glob,Grep,LS,WebFetch,WebSearch,Bash(git:*),Bash(bun:*),Bash(npm:*),Bash(npx:*),Bash(gh:*),Bash(uv:*),Bash(make:*),Bash(export:*)"
           allowed_bots: "dependabot[bot],renovate[bot]"
           prompt: |
             # PR REVIEW
