@@ -102,7 +102,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 
 - **Purpose**: Provides Auth0 cookie-based session authentication dependencies for FastAPI routes. All project-specific settings (org ID, role claim) are loaded from `AuthSettings` whose env prefix is configurable at instantiation.
 - **Key Features**:
-  - `AuthSettings(OpaqueSettings)` — uses the active FoundryContext.env_prefix to derive the env prefix (`{ctx.env_prefix}AUTH_`). Fields: `internal_org_id` (for internal org check), `auth0_role_claim` (JWT claim name for role)
+  - `AuthSettings(OpaqueSettings)` — uses the active FoundryContext.env_prefix to derive the env prefix (`{ctx.env_prefix}AUTH_`). Fields: `internal_org_id` (required `str`; identifies the internal organization), `auth0_role_claim` (required `str`; JWT claim name for role). Both fields are mandatory — no defaults are provided.
   - `UnauthenticatedError(Exception)` — raised when a user session is missing or invalid
   - `ForbiddenError(ApiException)` — `status_code = 403`; raised when user lacks required role or org membership
   - `get_auth_client(request)` — retrieves `AuthClient` from `request.app.state.auth_client`; raises `RuntimeError` if not configured
@@ -111,7 +111,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
   - `require_admin` — dependency: requires admin role
   - `require_internal` — dependency: requires internal organization membership
   - `require_internal_admin` — dependency: requires internal org membership AND admin role
-  - Auth0 cookie security scheme constants: `AUTH0_SESSION_COOKIE_NAME`, `AUTH0_TRANSACTION_COOKIE_NAME`, `AUTH0_ROLE_ADMIN`, `DEFAULT_AUTH0_ROLE_CLAIM`
+  - Auth0 cookie security scheme constants: `AUTH0_SESSION_COOKIE_NAME`, `AUTH0_TRANSACTION_COOKIE_NAME`, `AUTH0_ROLE_ADMIN`
 - **Location**: `aignostics_foundry_core/api/auth.py`
 - **Dependencies**: `auth0-fastapi>=1.0.0b5,<2`, `fastapi>=0.110,<1`, `loguru>=0.7,<1` (all mandatory)
 - **Import**: `from aignostics_foundry_core.api.auth import AuthSettings, ForbiddenError, UnauthenticatedError, get_auth_client, get_user, require_authenticated, require_admin, require_internal, require_internal_admin`

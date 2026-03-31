@@ -1,5 +1,6 @@
 """Tests for aignostics_foundry_core.api.auth."""
 
+import os
 import time
 from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock
@@ -8,7 +9,6 @@ import pytest
 
 from aignostics_foundry_core.api.auth import (
     AUTH0_ROLE_ADMIN,
-    DEFAULT_AUTH0_ROLE_CLAIM,
     AuthSettings,
     ForbiddenError,
     UnauthenticatedError,
@@ -20,10 +20,12 @@ from aignostics_foundry_core.api.auth import (
     require_internal_admin,
 )
 from aignostics_foundry_core.foundry import reset_context, set_context
-from tests.conftest import TEST_PROJECT_PREFIX, make_context
+from tests.aignostics_foundry_core.api import AUTH0_ROLE_CLAIM_VAR_NAME, INTERNAL_ORG_ID_VAR_NAME
+from tests.conftest import make_context
 
 _INTERNAL_ORG_ID = "org_internal_123"
 _OTHER_ORG_ID = "org_other_456"
+_TEST_ROLE_CLAIM = "https://aignostics-platform-bridge/role"
 _USER_NOT_AUTHENTICATED = "User is not authenticated"
 _USER_SUB = "auth0|x"
 _USER_EMAIL = "x@x.com"
@@ -31,13 +33,17 @@ _USER_EMAIL = "x@x.com"
 
 @pytest.fixture(autouse=True)
 def _auth_context() -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
-    """Set a real FoundryContext for all auth tests to preserve FOUNDRY_AUTH_* env var names.
+    """Set a real FoundryContext and required AuthSettings env vars for all auth tests.
 
     Yields:
         None
     """
     set_context(make_context())
+    os.environ[INTERNAL_ORG_ID_VAR_NAME] = _INTERNAL_ORG_ID
+    os.environ[AUTH0_ROLE_CLAIM_VAR_NAME] = _TEST_ROLE_CLAIM
     yield
+    os.environ.pop(INTERNAL_ORG_ID_VAR_NAME, None)
+    os.environ.pop(AUTH0_ROLE_CLAIM_VAR_NAME, None)
     reset_context()
 
 
@@ -91,24 +97,23 @@ class TestGetAuthClient:
 
 @pytest.mark.unit
 class TestAuthSettings:
-    """Tests for AuthSettings defaults."""
-
-    def test_auth_settings_defaults(self) -> None:
-        """AuthSettings.auth0_role_claim has the expected default role claim URL."""
-        settings = AuthSettings()
-        assert settings.auth0_role_claim == DEFAULT_AUTH0_ROLE_CLAIM
-        assert settings.internal_org_id is None
-
-    def test_auth_settings_role_claim_value(self) -> None:
-        """The default role claim is the Aignostics platform bridge claim URL."""
-        assert DEFAULT_AUTH0_ROLE_CLAIM == "https://aignostics-platform-bridge/role"
+    """Tests for AuthSettings."""
 
     def test_auth_settings_uses_context_env_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """AuthSettings reads env vars from the prefix supplied by FoundryContext."""
-        set_context(make_context())
-        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}AUTH_AUTH0_ROLE_CLAIM", "https://custom/role")
+        """AuthSettings reads both required fields from env vars using the context's prefix."""
+        monkeypatch.setenv(AUTH0_ROLE_CLAIM_VAR_NAME, "https://custom/role")
         settings = AuthSettings()
         assert settings.auth0_role_claim == "https://custom/role"
+        assert settings.internal_org_id == _INTERNAL_ORG_ID
+
+    def test_auth_settings_raises_when_required_fields_absent(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """AuthSettings raises ValidationError when required env vars are absent."""
+        import pydantic
+
+        monkeypatch.delenv(INTERNAL_ORG_ID_VAR_NAME, raising=False)
+        monkeypatch.delenv(AUTH0_ROLE_CLAIM_VAR_NAME, raising=False)
+        with pytest.raises(pydantic.ValidationError):
+            AuthSettings()
 
 
 @pytest.mark.integration
@@ -207,7 +212,7 @@ class TestRequireAdmin:
 
     async def test_no_user_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_admin raises ForbiddenError when no session is available."""
-        monkeypatch.delenv("FOUNDRY_AUTH_AUTH0_ROLE_CLAIM", raising=False)
+        monkeypatch.setenv(AUTH0_ROLE_CLAIM_VAR_NAME, _TEST_ROLE_CLAIM)
         request = MagicMock()
         request.app.state = MagicMock(spec=[])  # no auth_client → get_user returns None
 
@@ -216,9 +221,9 @@ class TestRequireAdmin:
 
     async def test_wrong_role_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_admin raises ForbiddenError when user has a non-admin role."""
-        monkeypatch.delenv("FOUNDRY_AUTH_AUTH0_ROLE_CLAIM", raising=False)
+        monkeypatch.setenv(AUTH0_ROLE_CLAIM_VAR_NAME, _TEST_ROLE_CLAIM)
         request = MagicMock()
-        user = {"sub": _USER_SUB, DEFAULT_AUTH0_ROLE_CLAIM: "viewer", "exp": int(time.time()) + 3600}
+        user = {"sub": _USER_SUB, _TEST_ROLE_CLAIM: "viewer", "exp": int(time.time()) + 3600}
         fake_client = MagicMock()
         fake_client.require_session = AsyncMock(return_value={"user": user})
         request.app.state.auth_client = fake_client
@@ -228,9 +233,9 @@ class TestRequireAdmin:
 
     async def test_admin_role_passes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_admin returns None without raising when user has the admin role."""
-        monkeypatch.delenv("FOUNDRY_AUTH_AUTH0_ROLE_CLAIM", raising=False)
+        monkeypatch.setenv(AUTH0_ROLE_CLAIM_VAR_NAME, _TEST_ROLE_CLAIM)
         request = MagicMock()
-        user = {"sub": _USER_SUB, DEFAULT_AUTH0_ROLE_CLAIM: AUTH0_ROLE_ADMIN, "exp": int(time.time()) + 3600}
+        user = {"sub": _USER_SUB, _TEST_ROLE_CLAIM: AUTH0_ROLE_ADMIN, "exp": int(time.time()) + 3600}
         fake_client = MagicMock()
         fake_client.require_session = AsyncMock(return_value={"user": user})
         request.app.state.auth_client = fake_client
@@ -245,7 +250,6 @@ class TestRequireInternal:
 
     async def test_unauthenticated_user_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal raises ForbiddenError when no session is available."""
-        monkeypatch.setenv("FOUNDRY_AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
         request = MagicMock()
         request.app.state = MagicMock(spec=[])  # no auth_client → get_user returns None
 
@@ -254,7 +258,6 @@ class TestRequireInternal:
 
     async def test_wrong_org_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal raises ForbiddenError when user belongs to a different org."""
-        monkeypatch.setenv("FOUNDRY_AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
         request = MagicMock()
         user = {"sub": _USER_SUB, "org_id": _OTHER_ORG_ID, "exp": int(time.time()) + 3600}
         fake_client = MagicMock()
@@ -266,7 +269,7 @@ class TestRequireInternal:
 
     async def test_internal_org_member_passes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal returns None without raising when user is in the internal org."""
-        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
+        monkeypatch.setenv(INTERNAL_ORG_ID_VAR_NAME, _INTERNAL_ORG_ID)
         request = MagicMock()
         user = {"sub": _USER_SUB, "org_id": _INTERNAL_ORG_ID, "exp": int(time.time()) + 3600}
         fake_client = MagicMock()
@@ -283,7 +286,6 @@ class TestRequireInternalAdmin:
 
     async def test_unauthenticated_user_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal_admin raises ForbiddenError when no session is available."""
-        monkeypatch.setenv("FOUNDRY_AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
         request = MagicMock()
         request.app.state = MagicMock(spec=[])  # no auth_client → get_user returns None
 
@@ -292,7 +294,6 @@ class TestRequireInternalAdmin:
 
     async def test_wrong_org_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal_admin raises ForbiddenError when user belongs to a different org."""
-        monkeypatch.setenv("FOUNDRY_AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
         request = MagicMock()
         user = {"sub": _USER_SUB, "org_id": _OTHER_ORG_ID, "exp": int(time.time()) + 3600}
         fake_client = MagicMock()
@@ -304,13 +305,11 @@ class TestRequireInternalAdmin:
 
     async def test_correct_org_wrong_role_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal_admin raises ForbiddenError when user is in internal org but lacks admin role."""
-        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
-        monkeypatch.delenv(f"{TEST_PROJECT_PREFIX}AUTH_AUTH0_ROLE_CLAIM", raising=False)
         request = MagicMock()
         user = {
             "sub": _USER_SUB,
             "org_id": _INTERNAL_ORG_ID,
-            DEFAULT_AUTH0_ROLE_CLAIM: "viewer",
+            _TEST_ROLE_CLAIM: "viewer",
             "exp": int(time.time()) + 3600,
         }
         fake_client = MagicMock()
@@ -322,13 +321,11 @@ class TestRequireInternalAdmin:
 
     async def test_internal_admin_passes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal_admin returns None without raising when user is internal org admin."""
-        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
-        monkeypatch.delenv(f"{TEST_PROJECT_PREFIX}AUTH_AUTH0_ROLE_CLAIM", raising=False)
         request = MagicMock()
         user = {
             "sub": _USER_SUB,
             "org_id": _INTERNAL_ORG_ID,
-            DEFAULT_AUTH0_ROLE_CLAIM: AUTH0_ROLE_ADMIN,
+            _TEST_ROLE_CLAIM: AUTH0_ROLE_ADMIN,
             "exp": int(time.time()) + 3600,
         }
         fake_client = MagicMock()
