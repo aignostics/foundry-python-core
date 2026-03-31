@@ -37,7 +37,7 @@ class DatabaseSettings(OpaqueSettings):
 
     * ``{PREFIX}URL`` — required; the full database connection URL
     * ``{PREFIX}POOL_SIZE`` — optional; connection pool size (default ``10``)
-    * ``{PREFIX}MAX_OVERFLOW`` — optional; maximum pool overflow (default ``10``)
+    * ``{PREFIX}POOL_MAX_OVERFLOW`` — optional; maximum pool overflow (default ``10``)
     * ``{PREFIX}POOL_TIMEOUT`` — optional; pool checkout timeout in seconds (default ``30.0``)
     * ``{PREFIX}NAME`` — optional; override the database name in the URL path component
     """
@@ -46,7 +46,7 @@ class DatabaseSettings(OpaqueSettings):
 
     url: SecretStr
     pool_size: int = 10
-    max_overflow: int = 10
+    pool_max_overflow: int = 10
     pool_timeout: float = 30.0
     db_name: str | None = None
 
@@ -121,14 +121,14 @@ multiprocessing.util.register_after_fork(_module_sentinel, lambda _obj: _reset_e
 
 
 _DEFAULT_POOL_SIZE = 10
-_DEFAULT_MAX_OVERFLOW = 10
+_DEFAULT_POOL_MAX_OVERFLOW = 10
 _DEFAULT_POOL_TIMEOUT = 30.0
 
 
 def _resolve_db_params(
     db_url: str | None,
     pool_size: int | None,
-    max_overflow: int | None,
+    pool_max_overflow: int | None,
     pool_timeout: float | None,
 ) -> tuple[str, int, int, float]:
     """Resolve database connection parameters, falling back to the active context.
@@ -138,7 +138,7 @@ def _resolve_db_params(
     params are replaced by their module-level defaults.
 
     Returns:
-        A tuple of ``(db_url, pool_size, max_overflow, pool_timeout)``.
+        A tuple of ``(db_url, pool_size, pool_max_overflow, pool_timeout)``.
 
     Raises:
         RuntimeError: If ``db_url`` is ``None`` and no context is installed, or
@@ -154,13 +154,13 @@ def _resolve_db_params(
         return (
             ctx.database.get_url(),
             pool_size if pool_size is not None else ctx.database.pool_size,
-            max_overflow if max_overflow is not None else ctx.database.max_overflow,
+            pool_max_overflow if pool_max_overflow is not None else ctx.database.pool_max_overflow,
             pool_timeout if pool_timeout is not None else ctx.database.pool_timeout,
         )
     return (
         db_url,
         pool_size if pool_size is not None else _DEFAULT_POOL_SIZE,
-        max_overflow if max_overflow is not None else _DEFAULT_MAX_OVERFLOW,
+        pool_max_overflow if pool_max_overflow is not None else _DEFAULT_POOL_MAX_OVERFLOW,
         pool_timeout if pool_timeout is not None else _DEFAULT_POOL_TIMEOUT,
     )
 
@@ -168,7 +168,7 @@ def _resolve_db_params(
 def init_engine(
     db_url: str | None = None,
     pool_size: int | None = None,
-    max_overflow: int | None = None,
+    pool_max_overflow: int | None = None,
     pool_timeout: float | None = None,
 ) -> None:
     """Initialize the database engine singleton.
@@ -190,7 +190,7 @@ def init_engine(
             When ``None``, resolved from the active context's ``database`` settings.
         pool_size: Number of connections to keep in the pool. Ignored for dialects that
             do not support QueuePool (e.g. SQLite).  Defaults to the context value or 10.
-        max_overflow: Number of additional connections above pool_size. Ignored for
+        pool_max_overflow: Number of additional connections above pool_size. Ignored for
             dialects that do not support QueuePool.  Defaults to the context value or 10.
         pool_timeout: Seconds to wait for a connection from the pool. Ignored for
             dialects that do not support QueuePool.  Defaults to the context value or 30.
@@ -205,12 +205,14 @@ def init_engine(
         logger.trace("Database engine already initialized, reusing existing engine and connection pool.")
         return  # Already initialized
 
-    db_url, pool_size, max_overflow, pool_timeout = _resolve_db_params(db_url, pool_size, max_overflow, pool_timeout)
+    db_url, pool_size, pool_max_overflow, pool_timeout = _resolve_db_params(
+        db_url, pool_size, pool_max_overflow, pool_timeout
+    )
 
     logger.trace(
-        "Initializing global database engine with pool_size={}, max_overflow={}, pool_timeout={}",
+        "Initializing global database engine with pool_size={}, pool_max_overflow={}, pool_timeout={}",
         pool_size,
-        max_overflow,
+        pool_max_overflow,
         pool_timeout,
     )
 
@@ -222,7 +224,7 @@ def init_engine(
     }
     if not db_url.startswith("sqlite"):
         engine_kwargs["pool_size"] = pool_size
-        engine_kwargs["max_overflow"] = max_overflow
+        engine_kwargs["max_overflow"] = pool_max_overflow
         engine_kwargs["pool_timeout"] = pool_timeout
 
     _engine = create_async_engine(**engine_kwargs)
@@ -307,7 +309,7 @@ def cli_run_with_db(
     *args: Any,  # noqa: ANN401
     db_url: str | None = None,
     pool_size: int | None = None,
-    max_overflow: int | None = None,
+    pool_max_overflow: int | None = None,
     pool_timeout: float | None = None,
     **kwargs: Any,  # noqa: ANN401
 ) -> Any:  # noqa: ANN401
@@ -327,7 +329,7 @@ def cli_run_with_db(
         *args: Positional arguments forwarded to ``async_func``.
         db_url: Database connection URL.  When ``None``, resolved from the active context.
         pool_size: Connection pool size (ignored for SQLite).
-        max_overflow: Max overflow connections (ignored for SQLite).
+        pool_max_overflow: Max overflow connections (ignored for SQLite).
         pool_timeout: Pool wait timeout in seconds (ignored for SQLite).
         **kwargs: Keyword arguments forwarded to ``async_func``.
 
@@ -337,7 +339,7 @@ def cli_run_with_db(
     import asyncio  # noqa: PLC0415
 
     logger.trace("Initializing database engine for cli_run_with_db")
-    init_engine(db_url=db_url, pool_size=pool_size, max_overflow=max_overflow, pool_timeout=pool_timeout)
+    init_engine(db_url=db_url, pool_size=pool_size, pool_max_overflow=pool_max_overflow, pool_timeout=pool_timeout)
     logger.debug("Database engine initialized for cli_run_with_db")
 
     try:
@@ -354,7 +356,7 @@ def cli_run_with_engine(
     *args: Any,  # noqa: ANN401
     db_url: str | None = None,
     pool_size: int | None = None,
-    max_overflow: int | None = None,
+    pool_max_overflow: int | None = None,
     pool_timeout: float | None = None,
     **kwargs: Any,  # noqa: ANN401
 ) -> Any:  # noqa: ANN401
@@ -374,7 +376,7 @@ def cli_run_with_engine(
         *args: Positional arguments forwarded to ``async_func``.
         db_url: Database connection URL.  When ``None``, resolved from the active context.
         pool_size: Connection pool size (ignored for SQLite).
-        max_overflow: Max overflow connections (ignored for SQLite).
+        pool_max_overflow: Max overflow connections (ignored for SQLite).
         pool_timeout: Pool wait timeout in seconds (ignored for SQLite).
         **kwargs: Keyword arguments forwarded to ``async_func``.
 
@@ -384,7 +386,7 @@ def cli_run_with_engine(
     import asyncio  # noqa: PLC0415
 
     logger.trace("Initializing database engine for cli_run_with_engine")
-    init_engine(db_url=db_url, pool_size=pool_size, max_overflow=max_overflow, pool_timeout=pool_timeout)
+    init_engine(db_url=db_url, pool_size=pool_size, pool_max_overflow=pool_max_overflow, pool_timeout=pool_timeout)
     logger.debug("Database engine initialized for cli_run_with_engine")
 
     try:
@@ -400,7 +402,7 @@ def with_engine(
     *,
     db_url: str | None = None,
     pool_size: int | None = None,
-    max_overflow: int | None = None,
+    pool_max_overflow: int | None = None,
     pool_timeout: float | None = None,
 ) -> Any:  # noqa: ANN401
     """Decorator (or decorator factory) to ensure database engine is initialized for async functions.
@@ -423,7 +425,7 @@ def with_engine(
             without parentheses).  Do not pass explicitly.
         db_url: Database connection URL.  When ``None``, resolved from the active context.
         pool_size: Connection pool size (ignored for SQLite).
-        max_overflow: Max overflow connections (ignored for SQLite).
+        pool_max_overflow: Max overflow connections (ignored for SQLite).
         pool_timeout: Pool wait timeout in seconds (ignored for SQLite).
 
     Returns:
@@ -450,7 +452,9 @@ def with_engine(
         @functools.wraps(f)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             logger.trace("Initializing database engine in with_engine wrapper for function {}", func_name)
-            init_engine(db_url=db_url, pool_size=pool_size, max_overflow=max_overflow, pool_timeout=pool_timeout)
+            init_engine(
+                db_url=db_url, pool_size=pool_size, pool_max_overflow=pool_max_overflow, pool_timeout=pool_timeout
+            )
             logger.debug("Database engine initialized in with_engine wrapper for function {}", func_name)
 
             try:

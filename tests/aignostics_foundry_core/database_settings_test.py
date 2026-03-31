@@ -14,10 +14,10 @@ SQLITE_URL = "sqlite+aiosqlite:///test.db"
 CUSTOM_PREFIX = "CUSTOM_DB_"
 CUSTOM_PREFIX_URL_ENV = "CUSTOM_DB_URL"
 DEFAULT_POOL_SIZE = 10
-DEFAULT_MAX_OVERFLOW = 10
+DEFAULT_POOL_MAX_OVERFLOW = 10
 DEFAULT_POOL_TIMEOUT = 30
 OVERRIDE_POOL_SIZE = 5
-OVERRIDE_MAX_OVERFLOW = 20
+OVERRIDE_POOL_MAX_OVERFLOW = 20
 OVERRIDE_POOL_TIMEOUT = 60
 
 
@@ -94,24 +94,24 @@ def test_explicit_env_prefix_overrides_context(monkeypatch: pytest.MonkeyPatch) 
 
 @pytest.mark.unit
 def test_pool_defaults_are_applied() -> None:
-    """pool_size, max_overflow, pool_timeout take their defaults when not set in env."""
+    """pool_size, pool_max_overflow, pool_timeout take their defaults when not set in env."""
     settings = DatabaseSettings(_env_prefix="TEST_DB_", url=SQLITE_URL)
     assert settings.pool_size == DEFAULT_POOL_SIZE
-    assert settings.max_overflow == DEFAULT_MAX_OVERFLOW
+    assert settings.pool_max_overflow == DEFAULT_POOL_MAX_OVERFLOW
     assert int(settings.pool_timeout) == DEFAULT_POOL_TIMEOUT
 
 
 @pytest.mark.unit
 def test_pool_overrides_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pool params read from {PREFIX}POOL_SIZE, {PREFIX}MAX_OVERFLOW, {PREFIX}POOL_TIMEOUT."""
+    """Pool params read from {PREFIX}POOL_SIZE, {PREFIX}POOL_MAX_OVERFLOW, {PREFIX}POOL_TIMEOUT."""
     monkeypatch.setenv("TEST_DB_URL", SQLITE_URL)
     monkeypatch.setenv("TEST_DB_POOL_SIZE", str(OVERRIDE_POOL_SIZE))
-    monkeypatch.setenv("TEST_DB_MAX_OVERFLOW", str(OVERRIDE_MAX_OVERFLOW))
+    monkeypatch.setenv("TEST_DB_POOL_MAX_OVERFLOW", str(OVERRIDE_POOL_MAX_OVERFLOW))
     monkeypatch.setenv("TEST_DB_POOL_TIMEOUT", str(OVERRIDE_POOL_TIMEOUT))
 
     settings = DatabaseSettings(_env_prefix="TEST_DB_")
     assert settings.pool_size == OVERRIDE_POOL_SIZE
-    assert settings.max_overflow == OVERRIDE_MAX_OVERFLOW
+    assert settings.pool_max_overflow == OVERRIDE_POOL_MAX_OVERFLOW
     assert int(settings.pool_timeout) == OVERRIDE_POOL_TIMEOUT
 
 
