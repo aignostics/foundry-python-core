@@ -48,7 +48,7 @@ class DatabaseSettings(OpaqueSettings):
     pool_size: int = 10
     pool_max_overflow: int = 10
     pool_timeout: float = 30.0
-    db_name: str | None = None
+    name: str | None = None
 
     def __init__(self, _env_prefix: str | None = None, **kwargs: Any) -> None:  # noqa: ANN401
         """Initialise settings, deriving env prefix from the active FoundryContext when not given.
@@ -68,17 +68,17 @@ class DatabaseSettings(OpaqueSettings):
     def get_url(self) -> str:
         """Return the database URL string, optionally substituting the database name.
 
-        When :attr:`db_name` is set, the path component of the URL is replaced with
-        ``/{db_name}``, leaving the scheme, host, port, query, and fragment unchanged.
+        When :attr:`name` is set, the path component of the URL is replaced with
+        ``/{name}``, leaving the scheme, host, port, query, and fragment unchanged.
 
         Returns:
             The database URL as a plain string.
         """
         raw = self.url.get_secret_value()
-        if self.db_name is None:
+        if self.name is None:
             return raw
         parsed = urllib.parse.urlparse(raw)
-        return urllib.parse.urlunparse(parsed._replace(path=f"/{self.db_name}"))
+        return urllib.parse.urlunparse(parsed._replace(path=f"/{self.name}"))
 
 
 # Global engine and session maker - initialized once per process and kept open
