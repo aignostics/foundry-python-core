@@ -2,21 +2,28 @@
 
 import os
 import platform
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from aignostics_foundry_core.foundry import FoundryContext
+from aignostics_foundry_core.foundry import get_context
 
 
-def user_agent(project_name: str, version: str, repository_url: str) -> str:
+def user_agent(*, context: "FoundryContext | None" = None) -> str:
     """Generate a user agent string for HTTP requests.
 
-    Format: {project_name}-python-sdk/{version} ({platform}; +{repository_url}; {optional_parts})
+    Format: {name}-python-sdk/{version_full} ({platform}; +{repository_url}; {optional_parts})
 
     Args:
-        project_name: The name of the project (e.g. "bridge").
-        version: The version string (e.g. "1.2.3").
-        repository_url: The URL of the project repository.
+        context: The :class:`~aignostics_foundry_core.foundry.FoundryContext` to use.
+            When ``None``, falls back to the process-level context installed via
+            :func:`~aignostics_foundry_core.foundry.set_context`.
 
     Returns:
         str: The user agent string.
     """
+    ctx = context or get_context()
+
     current_test = os.getenv("PYTEST_CURRENT_TEST")  # Set if running under pytest
     github_run_id = os.getenv("GITHUB_RUN_ID")  # Set if running in GitHub Actions
     github_repository = os.getenv("GITHUB_REPOSITORY")  # Set if running in GitHub Actions
@@ -32,8 +39,9 @@ def user_agent(project_name: str, version: str, repository_url: str) -> str:
 
     optional_suffix = "; " + "; ".join(optional_parts) if optional_parts else ""
 
-    # Format: {project}-python-sdk/{version} ({platform}; +{repository_url}; {optional_parts})
-    base_info = f"{project_name}-python-sdk/{version}"
-    system_info = f"{platform.platform()}; +{repository_url}{optional_suffix}"
+    # Format: {project}-python-sdk/{version_full} ({platform}; +{repository_url}; {optional_parts})
+    # TODO(oliverm): Find a way to not hard code python-sdk here. This was taken as such from Bridge.
+    base_info = f"{ctx.name}-python-sdk/{ctx.version_full}"
+    system_info = f"{platform.platform()}; +{ctx.repository_url}{optional_suffix}"
 
     return f"{base_info} ({system_info})"
