@@ -1,3 +1,14 @@
+## v0.6.0 (2026-03-31)
+
+### Feat
+
+- add autoconfigured DatabaseSettings ([0de7adf](https://github.com/aignostics/foundry-python-core/commit/0de7adf41f5c8138c3428424f07a839a6b46b0d8))
+- **foundry**: auto-inject third_party into sys.path ([884b120](https://github.com/aignostics/foundry-python-core/commit/884b12096e82b2591a4ed1d70bb3149b3d393154))
+
+### Fix
+
+- **api**: make AuthSettings fields mandatory ([acf40ec](https://github.com/aignostics/foundry-python-core/commit/acf40ec3111b17573439f627fcfc2e4c58f4dde4))
+
 ## v0.5.0 (2026-03-31)
 
 ### Feat
