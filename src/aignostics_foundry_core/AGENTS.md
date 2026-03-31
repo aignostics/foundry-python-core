@@ -17,16 +17,16 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 | **log** | Configurable loguru logging initialisation | `logging_initialize(filter_func=None, *, context=None)`, `LogSettings` (env-prefix configurable), `InterceptHandler` for stdlib-to-loguru bridging |
 | **sentry** | Configurable Sentry integration | `sentry_initialize(integrations, *, context=None)`, `SentrySettings` (env-prefix configurable), `set_sentry_user(user, role_claim)` for Auth0 user context |
 | **service** | FastAPI-injectable base service | `BaseService` ABC with `get_service()` (cached per-class FastAPI `Depends` factory), `key()`, and abstract `health()` / `info()` methods; concrete subclasses implement health checks and module info |
-| **database** | Async SQLAlchemy session management | `init_engine(db_url, pool_size, max_overflow, pool_timeout)`, `dispose_engine()`, `get_db_session()` (FastAPI dependency), `execute_with_session(func, …)`, `cli_run_with_db(func, …, db_url)`, `cli_run_with_engine(func, …, db_url)`, `with_engine(db_url)` decorator factory; auto-resets engine after `fork()` |
+| **database** | Async SQLAlchemy session management + DB settings | `DatabaseSettings` (`OpaqueSettings` subclass; env prefix defaults to `{ctx.env_prefix}DB_`; `get_url()` with optional `db_name` substitution); `init_engine(db_url=None, pool_size=None, max_overflow=None, pool_timeout=None)` — all params optional, fall back to active context when `None`; `dispose_engine()`, `get_db_session()` (FastAPI dependency), `execute_with_session(func, …)`, `cli_run_with_db(func, …, db_url=None)`, `cli_run_with_engine(func, …, db_url=None)`, `with_engine` dual-mode decorator (supports `@with_engine`, `@with_engine()`, `@with_engine(db_url=…)`); auto-resets engine after `fork()` |
 | **cli** | Typer CLI preparation utilities | `prepare_cli(cli, epilog, *, context=None)` — discovers and registers subcommands via `locate_implementations`, sets epilog recursively, installs `no_args_is_help` workaround; `no_args_is_help_workaround(ctx)` — raises `typer.Exit` when no subcommand is invoked |
 | **boot** | Application / library boot sequence | `boot(context, sentry_integrations, log_filter, show_cmdline)` — runs once per process: parses `--env` CLI args, initialises logging and Sentry, amends the SSL trust chain via *truststore* and *certifi*, and logs boot/shutdown messages |
 | **user_agent** | Parameterised HTTP user-agent string builder | `user_agent(project_name, version, repository_url)` — builds `{project_name}-python-sdk/{version} (…)` string including platform info, current test, and GitHub Actions run URL |
 | **gui** | NiceGUI page helpers, auth decorators, and nav builder | `GUINamespace` (configurable page decorator namespace), `gui` (default singleton), `page_public/authenticated/admin/internal/internal_admin` decorators, `get_gui_user`, `require_gui_user`, `BaseNavBuilder`, `NavItem`, `NavGroup`, `gui_get_nav_groups(*, context=None)`, `BasePageBuilder`, `gui_register_pages(*, context=None)`, `gui_run(*, context=None, …)`; constants `WINDOW_SIZE`, `BROWSER_RECONNECT_TIMEOUT`, `RESPONSE_TIMEOUT` |
 | **console** | Themed terminal output | Module-level `console` object (Rich `Console`) with colour theme and `_get_console()` factory |
-| **foundry** | Project context injection | `FoundryContext`, `FoundryContext.from_package()`, `set_context()`, `get_context()` — centralised project-specific values (name, version, `version_full`, `version_with_vcs_ref`, environment, env files, URLs, `python_version`, runtime mode flags `is_container`, `is_cli`, `is_test`, `is_library`) derived from package metadata and environment variables |
+| **foundry** | Project context injection | `FoundryContext`, `FoundryContext.from_package()`, `set_context()`, `get_context()` — centralised project-specific values (name, version, `version_full`, `version_with_vcs_ref`, environment, env files, URLs, `python_version`, runtime mode flags `is_container`, `is_cli`, `is_test`, `is_library`, `database: DatabaseSettings \| None`) derived from package metadata and environment variables; `from_package()` populates `database` from `{env_prefix}DB_*` env vars when `{env_prefix}DB_URL` is present |
 | **di** | Dependency injection | `locate_subclasses(cls, *, context=None)`, `locate_implementations(cls, *, context=None)`, `load_modules(*, context=None)`, `discover_plugin_packages`, `clear_caches`, `PLUGIN_ENTRY_POINT_GROUP` for plugin and subclass discovery |
 | **health** | Service health checks | `Health` model and `HealthStatus` enum for tree-structured health status |
-| **settings** | Pydantic settings loading | `OpaqueSettings`, `load_settings`, `strip_to_none_before_validator`, `UNHIDE_SENSITIVE_INFO` for env-based settings with secret masking and user-friendly validation errors |
+| **settings** | Pydantic settings loading | `OpaqueSettings`, `load_settings`, `strip_to_none_before_validator`, `UNHIDE_SENSITIVE_INFO` for env-based settings with secret masking and user-friendly validation errors; `console`, `Panel`, and `Text` are imported lazily inside `load_settings` (error path only) |
 
 ## Module Descriptions
 
@@ -44,12 +44,15 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
   - `FoundryContext(BaseModel)` — frozen; fields: `name`, `version`, `version_full`, `version_with_vcs_ref`, `environment`,
     `env_file: list[Path]`, `repository_url`, `documentation_url`, `python_version` (Python runtime
     version string, e.g. `"3.11.9"`), plus four runtime mode bool flags: `is_container`, `is_cli`,
-    `is_test`, `is_library` (all default `False`).
+    `is_test`, `is_library` (all default `False`), and `database: DatabaseSettings | None`
+    (populated by `from_package()` when `{env_prefix}DB_URL` is set; `None` otherwise).
   - `FoundryContext.from_package(package_name)` — classmethod that derives all values from
     `importlib.metadata` and environment variables (`{NAME}_ENVIRONMENT`, `VCS_REF`, `COMMIT_SHA`,
     `BUILDER`, `BUILD_DATE`, `CI_RUN_ID`, `CI_RUN_NUMBER`, `{NAME}_ENV_FILE`,
     `{NAME}_RUNNING_IN_CONTAINER`, `PYTEST_RUNNING_{NAME}`). Environment fallback chain:
     `{NAME}_ENVIRONMENT` → `ENV` → `VERCEL_ENV` → `RAILWAY_ENVIRONMENT` → `"local"`.
+    Also checks `{NAME}_DB_URL`: when present, constructs `DatabaseSettings(_env_prefix="{NAME}_DB_")`
+    and stores it in `ctx.database`; otherwise `ctx.database` is `None`.
   - `set_context(ctx)` — installs *ctx* as the process-level singleton.
   - `set_context(ctx)` also prepends `<package_root>/third_party/` to `sys.path` when that
     directory exists next to the package's `__init__.py` (idempotent; silent no-op otherwise).
@@ -211,6 +214,36 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 - **Location**: `aignostics_foundry_core/console.py`
 - **Dependencies**: `rich>=13`
 
+### DatabaseSettings
+
+**Database connection settings resolved from environment variables**
+
+- **Purpose**: Provides a self-contained `OpaqueSettings` subclass that reads database connection parameters from env vars. The env prefix defaults to `{FoundryContext.env_prefix}DB_` when not supplied, enabling zero-boilerplate DB configuration once a `FoundryContext` is installed.
+- **Key Features**:
+  - `DatabaseSettings(OpaqueSettings)` — fields: `url: SecretStr` (required), `pool_size: int = 10`, `max_overflow: int = 10`, `pool_timeout: float = 30.0`, `db_name: str | None = None`
+  - `__init__(_env_prefix=None, **kwargs)` — when `_env_prefix` is `None`, lazy-imports `get_context` and uses `f"{ctx.env_prefix}DB_"` as the prefix (avoids a circular import at module load time)
+  - `get_url() -> str` — returns the raw URL from the secret; if `db_name` is set, replaces the path component in the URL (e.g. `…/postgres` → `…/mydb`) while preserving scheme, host, port, query, and fragment
+  - `model_config = SettingsConfigDict(extra="ignore")` — extra env vars are silently ignored
+- **Location**: `aignostics_foundry_core/database.py` (top of file, before engine globals)
+- **Dependencies**: `pydantic>=2`, `pydantic-settings>=2`, Python stdlib (`urllib.parse`)
+- **Import**:
+  ```python
+  from aignostics_foundry_core.database import DatabaseSettings
+  ```
+- **Usage example**:
+  ```python
+  # Resolved from MYAPP_DB_URL etc. after set_context() is called:
+  settings = DatabaseSettings()
+
+  # Explicit prefix — useful in from_package() or tests:
+  settings = DatabaseSettings(_env_prefix="MYAPP_DB_", url="sqlite+aiosqlite:///test.db")
+  url = settings.get_url()  # "sqlite+aiosqlite:///test.db"
+
+  # Override database name at runtime:
+  settings = DatabaseSettings(_env_prefix="MYAPP_DB_", url="postgresql+asyncpg://host/old", db_name="new")
+  url = settings.get_url()  # "postgresql+asyncpg://host/new"
+  ```
+
 ### settings
 
 **Pydantic settings loading with secret masking and user-friendly validation errors**
@@ -220,7 +253,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
   - `UNHIDE_SENSITIVE_INFO: str` — context key constant to reveal secrets in `model_dump()`
   - `strip_to_none_before_validator(v)` — before-validator that strips whitespace and converts empty strings to `None`
   - `OpaqueSettings(BaseSettings)` — base class with `serialize_sensitive_info` (masks `SecretStr` fields) and `serialize_path_resolve` (resolves `Path` fields to absolute strings)
-  - `load_settings(settings_class)` — instantiates settings; on `ValidationError` prints a Rich `Panel` listing each invalid field and calls `sys.exit(78)`
+  - `load_settings(settings_class)` — instantiates settings; on `ValidationError` prints a Rich `Panel` listing each invalid field and calls `sys.exit(78)`. `rich.panel.Panel`, `rich.text.Text`, and `aignostics_foundry_core.console.console` are imported **lazily inside the `except` block** (error path only) to avoid a circular import chain at module load time.
 - **Location**: `aignostics_foundry_core/settings.py`
 - **Dependencies**: `pydantic>=2`, `pydantic-settings>=2`, `rich>=14`
 
@@ -288,15 +321,15 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 
 **Async SQLAlchemy session management**
 
-- **Purpose**: Manages a process-level async database engine singleton, providing session injection for FastAPI routes, background jobs, and CLI commands. All Bridge-specific settings are replaced with explicit parameters.
+- **Purpose**: Manages a process-level async database engine singleton, providing session injection for FastAPI routes, background jobs, and CLI commands. All public functions accept optional DB-config params and fall back to the active `FoundryContext.database` when they are `None`.
 - **Key Features**:
-  - `init_engine(db_url, pool_size=10, max_overflow=10, pool_timeout=30)` — initialises the global `AsyncEngine` and `async_sessionmaker`; subsequent calls are silent no-ops. Pool parameters are omitted automatically for SQLite (which does not use `QueuePool`).
+  - `init_engine(db_url=None, pool_size=None, max_overflow=None, pool_timeout=None)` — initialises the global `AsyncEngine` and `async_sessionmaker`; subsequent calls are silent no-ops. When `db_url` is `None`, the URL and pool settings are resolved from `get_context().database`; raises `RuntimeError` if no context is installed or `ctx.database` is `None`. Pool parameters are omitted automatically for SQLite (which does not use `QueuePool`).
   - `dispose_engine()` — async; disposes the engine; called during application shutdown.
   - `get_db_session()` — async generator; yields an `AsyncSession`; raises `RuntimeError` if engine not initialised. Use as a FastAPI `Depends` target.
   - `execute_with_session(async_func, *args, **kwargs)` — async; runs `async_func` with a session injected as the `session` keyword argument. For background jobs and CLI helpers.
-  - `cli_run_with_db(async_func, *args, db_url, pool_size, max_overflow, pool_timeout, **kwargs)` — synchronous wrapper: initialises engine, runs the coroutine, then disposes. For CLI commands.
-  - `cli_run_with_engine(async_func, *args, db_url, pool_size, max_overflow, pool_timeout, **kwargs)` — like `cli_run_with_db` but does not inject a session; for jobs that manage sessions themselves.
-  - `with_engine(db_url, pool_size, max_overflow, pool_timeout)` — decorator factory; wraps an async function to initialise the engine before execution. For long-lived workers; does **not** dispose after running.
+  - `cli_run_with_db(async_func, *args, db_url=None, pool_size=None, max_overflow=None, pool_timeout=None, **kwargs)` — synchronous wrapper: initialises engine, runs the coroutine, then disposes. All DB-config params optional; fall back to context when `None`. For CLI commands.
+  - `cli_run_with_engine(async_func, *args, db_url=None, pool_size=None, max_overflow=None, pool_timeout=None, **kwargs)` — like `cli_run_with_db` but does not inject a session; for jobs that manage sessions themselves.
+  - `with_engine` — dual-mode decorator; supports `@with_engine` (no-parens), `@with_engine()` (empty parens), and `@with_engine(db_url=…, …)` (explicit params). All params optional; fall back to context when absent. For long-lived workers; does **not** dispose after running.
   - Fork safety: `multiprocessing.util.register_after_fork` resets the engine in child processes automatically.
 - **Location**: `aignostics_foundry_core/database.py`
 - **Dependencies**: `sqlalchemy[asyncio]>=2,<3`, `asyncpg>=0.29,<1` (mandatory); `loguru` for structured logging

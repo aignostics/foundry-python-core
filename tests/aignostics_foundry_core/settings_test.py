@@ -18,6 +18,7 @@ from aignostics_foundry_core.settings import (
 
 _SECRET_VALUE = "sensitive"  # noqa: S105
 _MASKED_VALUE = "**********"
+_AIGNOSTICS_FOUNDRY_CORE_CONSOLE = "aignostics_foundry_core.console"
 
 
 class _TheTestSettings(OpaqueSettings):
@@ -144,7 +145,7 @@ class TestLoadSettings:
 
     @pytest.mark.unit
     @patch("sys.exit")
-    @patch("aignostics_foundry_core.settings.console.print")
+    @patch("aignostics_foundry_core.console.console.print")
     def test_load_settings_validation_error_exits(self, mock_console_print: MagicMock, mock_exit: MagicMock) -> None:
         """Test that validation error prints a Rich Panel and calls sys.exit(78)."""
         from rich.panel import Panel
@@ -157,8 +158,39 @@ class TestLoadSettings:
         assert isinstance(panel_arg, Panel)
 
     @pytest.mark.unit
+    def test_load_settings_success_does_not_import_console(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Successful load must not trigger the console import (lazy-import check)."""
+        import sys
+
+        monkeypatch.setenv("REQUIRED_VALUE", "test_value")
+        # Temporarily remove the console module so we can detect if it gets imported.
+        console_module = sys.modules.pop(_AIGNOSTICS_FOUNDRY_CORE_CONSOLE, None)
+        try:
+            load_settings(_TheTestSettings)
+            assert _AIGNOSTICS_FOUNDRY_CORE_CONSOLE not in sys.modules
+        finally:
+            if console_module is not None:
+                sys.modules[_AIGNOSTICS_FOUNDRY_CORE_CONSOLE] = console_module
+
+    @pytest.mark.unit
     @patch("sys.exit")
-    @patch("aignostics_foundry_core.settings.console.print")
+    @patch("aignostics_foundry_core.console.console.print")
+    def test_load_settings_invalid_prints_panel_and_exits(
+        self, mock_console_print: MagicMock, mock_exit: MagicMock
+    ) -> None:
+        """Lazy-imported console still renders a Rich Panel on ValidationError."""
+        from rich.panel import Panel
+
+        load_settings(_TheTestSettings)  # missing REQUIRED_VALUE → ValidationError
+
+        mock_exit.assert_called_once_with(78)
+        assert mock_console_print.call_count == 1
+        panel_arg = mock_console_print.call_args[0][0]
+        assert isinstance(panel_arg, Panel)
+
+    @pytest.mark.unit
+    @patch("sys.exit")
+    @patch("aignostics_foundry_core.console.console.print")
     def test_load_settings_validation_error_integer_loc(
         self, mock_console_print: MagicMock, mock_exit: MagicMock
     ) -> None:

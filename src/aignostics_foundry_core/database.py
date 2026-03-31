@@ -13,11 +13,73 @@ reset the engine in child processes, ensuring fresh connections.
 
 import functools
 import multiprocessing.util
-from collections.abc import AsyncGenerator, Callable
+import urllib.parse
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from loguru import logger
+from pydantic import SecretStr
+from pydantic_settings import SettingsConfigDict
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+
+from aignostics_foundry_core.settings import OpaqueSettings
+
+
+class DatabaseSettings(OpaqueSettings):
+    """Database connection settings whose env prefix is derived from the active FoundryContext.
+
+    The effective prefix defaults to ``{FoundryContext.env_prefix}DB_``, resolved at
+    instantiation time via :func:`aignostics_foundry_core.foundry.get_context`.  Pass
+    ``_env_prefix`` explicitly to bypass the context lookup (required inside
+    :meth:`FoundryContext.from_package` to avoid circular imports).
+
+    Environment variables (with default prefix ``{NAME}_DB_``):
+
+    * ``{PREFIX}URL`` — required; the full database connection URL
+    * ``{PREFIX}POOL_SIZE`` — optional; connection pool size (default ``10``)
+    * ``{PREFIX}MAX_OVERFLOW`` — optional; maximum pool overflow (default ``10``)
+    * ``{PREFIX}POOL_TIMEOUT`` — optional; pool checkout timeout in seconds (default ``30.0``)
+    * ``{PREFIX}NAME`` — optional; override the database name in the URL path component
+    """
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    url: SecretStr
+    pool_size: int = 10
+    max_overflow: int = 10
+    pool_timeout: float = 30.0
+    db_name: str | None = None
+
+    def __init__(self, _env_prefix: str | None = None, **kwargs: Any) -> None:  # noqa: ANN401
+        """Initialise settings, deriving env prefix from the active FoundryContext when not given.
+
+        Args:
+            _env_prefix: Optional explicit environment variable prefix (e.g. ``"MYAPP_DB_"``).
+                When ``None``, the prefix is derived from the active FoundryContext as
+                ``f"{get_context().env_prefix}DB_"``.
+            **kwargs: Forwarded to :class:`~pydantic_settings.BaseSettings`.
+        """
+        if _env_prefix is None:
+            from aignostics_foundry_core.foundry import get_context  # noqa: PLC0415
+
+            _env_prefix = f"{get_context().env_prefix}DB_"
+        super().__init__(_env_prefix=_env_prefix, **kwargs)  # pyright: ignore[reportCallIssue]
+
+    def get_url(self) -> str:
+        """Return the database URL string, optionally substituting the database name.
+
+        When :attr:`db_name` is set, the path component of the URL is replaced with
+        ``/{db_name}``, leaving the scheme, host, port, query, and fragment unchanged.
+
+        Returns:
+            The database URL as a plain string.
+        """
+        raw = self.url.get_secret_value()
+        if self.db_name is None:
+            return raw
+        parsed = urllib.parse.urlparse(raw)
+        return urllib.parse.urlunparse(parsed._replace(path=f"/{self.db_name}"))
+
 
 # Global engine and session maker - initialized once per process and kept open
 _engine: AsyncEngine | None = None
@@ -58,11 +120,56 @@ _module_sentinel = _DatabaseModuleSentinel()
 multiprocessing.util.register_after_fork(_module_sentinel, lambda _obj: _reset_engine_after_fork())
 
 
+_DEFAULT_POOL_SIZE = 10
+_DEFAULT_MAX_OVERFLOW = 10
+_DEFAULT_POOL_TIMEOUT = 30.0
+
+
+def _resolve_db_params(
+    db_url: str | None,
+    pool_size: int | None,
+    max_overflow: int | None,
+    pool_timeout: float | None,
+) -> tuple[str, int, int, float]:
+    """Resolve database connection parameters, falling back to the active context.
+
+    When ``db_url`` is ``None``, all four values are sourced from
+    ``get_context().database``.  When ``db_url`` is provided, any ``None`` pool
+    params are replaced by their module-level defaults.
+
+    Returns:
+        A tuple of ``(db_url, pool_size, max_overflow, pool_timeout)``.
+
+    Raises:
+        RuntimeError: If ``db_url`` is ``None`` and no context is installed, or
+            the context has no ``database`` configured.
+    """
+    if db_url is None:
+        from aignostics_foundry_core.foundry import get_context  # noqa: PLC0415
+
+        ctx = get_context()
+        if ctx.database is None:
+            msg = f"No database URL configured. Set {ctx.env_prefix}DB_URL or pass db_url explicitly."
+            raise RuntimeError(msg)
+        return (
+            ctx.database.get_url(),
+            pool_size if pool_size is not None else ctx.database.pool_size,
+            max_overflow if max_overflow is not None else ctx.database.max_overflow,
+            pool_timeout if pool_timeout is not None else ctx.database.pool_timeout,
+        )
+    return (
+        db_url,
+        pool_size if pool_size is not None else _DEFAULT_POOL_SIZE,
+        max_overflow if max_overflow is not None else _DEFAULT_MAX_OVERFLOW,
+        pool_timeout if pool_timeout is not None else _DEFAULT_POOL_TIMEOUT,
+    )
+
+
 def init_engine(
-    db_url: str,
-    pool_size: int = 10,
-    max_overflow: int = 10,
-    pool_timeout: float = 30,
+    db_url: str | None = None,
+    pool_size: int | None = None,
+    max_overflow: int | None = None,
+    pool_timeout: float | None = None,
 ) -> None:
     """Initialize the database engine singleton.
 
@@ -73,20 +180,32 @@ def init_engine(
     For multiprocessing: Engine is automatically reset in child processes via
     multiprocessing.util.register_after_fork().
 
+    When ``db_url`` is ``None``, the URL and pool settings are resolved from the
+    active :class:`~aignostics_foundry_core.foundry.FoundryContext`.  A
+    :exc:`RuntimeError` is raised if no context is installed or the context has no
+    ``database`` configured.
+
     Args:
         db_url: Database connection URL (e.g. ``postgresql+asyncpg://user:pass@host/db``).
+            When ``None``, resolved from the active context's ``database`` settings.
         pool_size: Number of connections to keep in the pool. Ignored for dialects that
-            do not support QueuePool (e.g. SQLite).
+            do not support QueuePool (e.g. SQLite).  Defaults to the context value or 10.
         max_overflow: Number of additional connections above pool_size. Ignored for
-            dialects that do not support QueuePool.
+            dialects that do not support QueuePool.  Defaults to the context value or 10.
         pool_timeout: Seconds to wait for a connection from the pool. Ignored for
-            dialects that do not support QueuePool.
+            dialects that do not support QueuePool.  Defaults to the context value or 30.
+
+    Raises:
+        RuntimeError: If ``db_url`` is ``None`` and no context is installed, or the
+            context has no ``database`` configured.
     """
     global _engine, _async_session_maker  # noqa: PLW0603
 
     if _engine is not None:
         logger.trace("Database engine already initialized, reusing existing engine and connection pool.")
         return  # Already initialized
+
+    db_url, pool_size, max_overflow, pool_timeout = _resolve_db_params(db_url, pool_size, max_overflow, pool_timeout)
 
     logger.trace(
         "Initializing global database engine with pool_size={}, max_overflow={}, pool_timeout={}",
@@ -186,10 +305,10 @@ async def execute_with_session(async_func: Any, *args: Any, **kwargs: Any) -> An
 def cli_run_with_db(
     async_func: Any,  # noqa: ANN401
     *args: Any,  # noqa: ANN401
-    db_url: str,
-    pool_size: int = 10,
-    max_overflow: int = 10,
-    pool_timeout: float = 30,
+    db_url: str | None = None,
+    pool_size: int | None = None,
+    max_overflow: int | None = None,
+    pool_timeout: float | None = None,
     **kwargs: Any,  # noqa: ANN401
 ) -> Any:  # noqa: ANN401
     """Run an async database function from a synchronous CLI context.
@@ -199,10 +318,14 @@ def cli_run_with_db(
 
     NOT for use in long-lived processes (API, workers) - use @with_engine decorator instead.
 
+    When ``db_url`` is ``None``, the URL and pool settings are resolved from the active
+    :class:`~aignostics_foundry_core.foundry.FoundryContext` (same behaviour as
+    :func:`init_engine`).
+
     Args:
         async_func: The async function to run (receives ``session`` as a keyword argument).
         *args: Positional arguments forwarded to ``async_func``.
-        db_url: Database connection URL.
+        db_url: Database connection URL.  When ``None``, resolved from the active context.
         pool_size: Connection pool size (ignored for SQLite).
         max_overflow: Max overflow connections (ignored for SQLite).
         pool_timeout: Pool wait timeout in seconds (ignored for SQLite).
@@ -229,10 +352,10 @@ def cli_run_with_db(
 def cli_run_with_engine(
     async_func: Any,  # noqa: ANN401
     *args: Any,  # noqa: ANN401
-    db_url: str,
-    pool_size: int = 10,
-    max_overflow: int = 10,
-    pool_timeout: float = 30,
+    db_url: str | None = None,
+    pool_size: int | None = None,
+    max_overflow: int | None = None,
+    pool_timeout: float | None = None,
     **kwargs: Any,  # noqa: ANN401
 ) -> Any:  # noqa: ANN401
     """Run an async function with initialized database engine from a synchronous CLI context.
@@ -242,10 +365,14 @@ def cli_run_with_engine(
 
     NOT for use in long-lived processes (API, workers) - use @with_engine decorator instead.
 
+    When ``db_url`` is ``None``, the URL and pool settings are resolved from the active
+    :class:`~aignostics_foundry_core.foundry.FoundryContext` (same behaviour as
+    :func:`init_engine`).
+
     Args:
         async_func: The async function to run (does not require a session parameter).
         *args: Positional arguments forwarded to ``async_func``.
-        db_url: Database connection URL.
+        db_url: Database connection URL.  When ``None``, resolved from the active context.
         pool_size: Connection pool size (ignored for SQLite).
         max_overflow: Max overflow connections (ignored for SQLite).
         pool_timeout: Pool wait timeout in seconds (ignored for SQLite).
@@ -269,41 +396,58 @@ def cli_run_with_engine(
 
 
 def with_engine(
-    db_url: str,
-    pool_size: int = 10,
-    max_overflow: int = 10,
-    pool_timeout: float = 30,
-) -> Callable[[Any], Any]:
-    """Decorator factory to ensure database engine is initialized for async functions.
+    func: Any | None = None,  # noqa: ANN401
+    *,
+    db_url: str | None = None,
+    pool_size: int | None = None,
+    max_overflow: int | None = None,
+    pool_timeout: float | None = None,
+) -> Any:  # noqa: ANN401
+    """Decorator (or decorator factory) to ensure database engine is initialized for async functions.
 
-    This decorator wraps an async function to automatically initialize the database
-    engine singleton before execution. The connection pool persists across all jobs
-    in the process for efficiency. Useful for background jobs and workers.
+    Supports two calling conventions:
+
+    * ``@with_engine`` — no-parens form; resolves URL and pool settings from the
+      active :class:`~aignostics_foundry_core.foundry.FoundryContext`.
+    * ``@with_engine()`` or ``@with_engine(db_url=..., ...)`` — explicit-parens form;
+      any omitted params are resolved from the active context.
+
+    The connection pool persists across all jobs in the process for efficiency.
+    Useful for background jobs and workers.
 
     For multiprocessing: Engine is automatically reset in child processes via
     multiprocessing.util.register_after_fork().
 
     Args:
-        db_url: Database connection URL.
+        func: The async function to decorate (only when used as ``@with_engine``
+            without parentheses).  Do not pass explicitly.
+        db_url: Database connection URL.  When ``None``, resolved from the active context.
         pool_size: Connection pool size (ignored for SQLite).
         max_overflow: Max overflow connections (ignored for SQLite).
         pool_timeout: Pool wait timeout in seconds (ignored for SQLite).
 
     Returns:
-        A decorator that wraps an async function with engine initialization.
+        The decorated async function (no-parens form) or a decorator (parens form).
 
-    Example:
-        @with_engine(db_url="postgresql+asyncpg://user:pass@host/db")
+    Example::
+
+        # Context-aware — no arguments needed once set_context() is called:
+        @with_engine
         async def my_job():
             result = await execute_with_session(some_db_operation)
             return result
+
+
+        # Explicit URL (e.g. secondary database):
+        @with_engine(db_url="postgresql+asyncpg://user:pass@host/db")
+        async def my_other_job(): ...
     """
 
-    def decorator(func: Any) -> Any:  # noqa: ANN401
-        func_name = getattr(func, "__name__", str(func))
+    def decorator(f: Any) -> Any:  # noqa: ANN401
+        func_name = getattr(f, "__name__", str(f))
         logger.trace("Applying with_engine decorator to function {}", func_name)
 
-        @functools.wraps(func)
+        @functools.wraps(f)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             logger.trace("Initializing database engine in with_engine wrapper for function {}", func_name)
             init_engine(db_url=db_url, pool_size=pool_size, max_overflow=max_overflow, pool_timeout=pool_timeout)
@@ -311,7 +455,7 @@ def with_engine(
 
             try:
                 logger.trace("Executing function {} within with_engine wrapper", func_name)
-                result = await func(*args, **kwargs)
+                result = await f(*args, **kwargs)
                 logger.trace("Successfully executed function {} within with_engine wrapper", func_name)
                 return result
             except Exception:
@@ -320,4 +464,6 @@ def with_engine(
 
         return wrapper
 
-    return decorator
+    if func is not None:  # called as @with_engine (no parens)
+        return decorator(func)
+    return decorator  # called as @with_engine() or @with_engine(db_url=...)

@@ -7,6 +7,7 @@ from pathlib import Path
 import psutil
 import pytest
 
+from aignostics_foundry_core.database import DatabaseSettings
 from aignostics_foundry_core.foundry import FoundryContext
 
 __all__ = ["make_context"]
@@ -68,6 +69,7 @@ def make_context(  # noqa: PLR0913
     environment: str = "test",
     project_path: Path | None = None,
     repository_url: str = "",
+    database: DatabaseSettings | None = None,
     **kwargs: bool,
 ) -> FoundryContext:
     """Create a minimal FoundryContext for testing.
@@ -79,6 +81,8 @@ def make_context(  # noqa: PLR0913
         environment: The deployment environment (defaults to ``"test"``).
         project_path: Optional path to the project root.
         repository_url: The project repository URL (defaults to ``""``).
+        database: Optional :class:`~aignostics_foundry_core.database.DatabaseSettings`
+            instance to attach to the context.
         **kwargs: Optional boolean flags forwarded to :class:`FoundryContext`
             (``is_test``, ``is_cli``, ``is_container``, ``is_library``).
     """
@@ -91,5 +95,6 @@ def make_context(  # noqa: PLR0913
         env_prefix=env_prefix,
         project_path=project_path,
         repository_url=repository_url,
+        database=database,
         **kwargs,  # type: ignore[arg-type]
     )

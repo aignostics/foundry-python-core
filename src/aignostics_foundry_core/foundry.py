@@ -29,6 +29,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from aignostics_foundry_core.database import DatabaseSettings
+
 
 def _empty_path_list() -> list[Path]:
     return []
@@ -76,6 +78,13 @@ class FoundryContext(BaseModel):
     is_library: bool = False
     python_version: str = ""
     project_path: Path | None = None
+    database: DatabaseSettings | None = None
+    """Database settings resolved from ``{env_prefix}DB_*`` environment variables.
+
+    Populated by :meth:`from_package` when ``{env_prefix}DB_URL`` is present in the
+    environment.  ``None`` when the variable is absent or when the context is constructed
+    directly (e.g. in tests).
+    """
     """Absolute path to the project/repo root (directory containing ``.git``).
 
     Populated by walking up from the installed package location to find the git
@@ -112,6 +121,8 @@ class FoundryContext(BaseModel):
         repository_url, documentation_url = _extract_urls(package_name)
         project_path = _find_project_path(package_name)
         vcs_ref = os.environ.get("VCS_REF") or (project_path and _get_vcs_ref_from_git(project_path)) or "unknown"
+        env_prefix = f"{name_upper}_"
+        database = DatabaseSettings(_env_prefix=f"{env_prefix}DB_") if os.environ.get(f"{env_prefix}DB_URL") else None
         return cls(
             name=name,
             version=version,
@@ -119,11 +130,12 @@ class FoundryContext(BaseModel):
             version_with_vcs_ref=_build_version_with_vcs_ref(version, vcs_ref),
             environment=environment,
             env_file=_build_env_file_list(name, name_upper, environment),
-            env_prefix=f"{name_upper}_",
+            env_prefix=env_prefix,
             repository_url=repository_url,
             documentation_url=documentation_url,
             python_version=platform.python_version(),
             project_path=project_path,
+            database=database,
             **_build_runtime_flags(name, name_upper),
         )
 
