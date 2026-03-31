@@ -19,6 +19,8 @@ DEFAULT_POOL_TIMEOUT = 30
 OVERRIDE_POOL_SIZE = 5
 OVERRIDE_POOL_MAX_OVERFLOW = 20
 OVERRIDE_POOL_TIMEOUT = 60
+TEST_DB_PREFIX = "TEST_DB_"
+TEST_DB_NAME_ENV = "TEST_DB_NAME"
 
 
 @pytest.fixture(autouse=True)
@@ -36,15 +38,15 @@ def _reset_context() -> Generator[None, None, None]:  # pyright: ignore[reportUn
 
 @pytest.mark.unit
 def test_get_url_returns_plain_url_when_db_name_not_set() -> None:
-    """get_url() returns the raw secret value unchanged when db_name is None."""
+    """get_url() returns the raw secret value unchanged when database name is None."""
     settings = DatabaseSettings(_env_prefix="TEST_DB_", url=POSTGRES_URL)
     assert settings.get_url() == POSTGRES_URL
 
 
 @pytest.mark.unit
 def test_get_url_replaces_db_name_in_path() -> None:
-    """get_url() substitutes the path component when db_name is set."""
-    settings = DatabaseSettings(_env_prefix="TEST_DB_", url=POSTGRES_URL, db_name="mydb")
+    """get_url() substitutes the path component when name is set."""
+    settings = DatabaseSettings(_env_prefix="TEST_DB_", url=POSTGRES_URL, name="mydb")
     result = settings.get_url()
     assert result.endswith("/mydb")
     assert "postgres" not in result.split("/")[-1]
@@ -52,8 +54,8 @@ def test_get_url_replaces_db_name_in_path() -> None:
 
 @pytest.mark.unit
 def test_get_url_preserves_scheme_and_host() -> None:
-    """Scheme, host, and port are intact after db_name substitution."""
-    settings = DatabaseSettings(_env_prefix="TEST_DB_", url=POSTGRES_URL, db_name="mydb")
+    """Scheme, host, and port are intact after name substitution."""
+    settings = DatabaseSettings(_env_prefix="TEST_DB_", url=POSTGRES_URL, name="mydb")
     result = settings.get_url()
     assert result.startswith("postgresql+asyncpg://")
     assert "localhost:5432" in result
@@ -118,6 +120,18 @@ def test_pool_overrides_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
 # ---------------------------------------------------------------------------
 # Secret masking
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_db_name_reads_from_name_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Setting {PREFIX}NAME populates name and get_url() substitutes the database name."""
+    monkeypatch.setenv("TEST_DB_URL", POSTGRES_URL)
+    monkeypatch.setenv(TEST_DB_NAME_ENV, "mydb")
+
+    settings = DatabaseSettings(_env_prefix=TEST_DB_PREFIX)
+
+    assert settings.name == "mydb"
+    assert settings.get_url().endswith("/mydb")
 
 
 @pytest.mark.unit
