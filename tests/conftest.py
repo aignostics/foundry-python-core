@@ -60,12 +60,14 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         session.exitstatus = 0
 
 
-def make_context(
+def make_context(  # noqa: PLR0913
     name: str = TEST_PROJECT_NAME,
+    *,
     env_prefix: str = TEST_PROJECT_PREFIX,
     version: str = "0.0.0",
     environment: str = "test",
     project_path: Path | None = None,
+    repository_url: str = "",
     **kwargs: bool,
 ) -> FoundryContext:
     """Create a minimal FoundryContext for testing.
@@ -76,6 +78,7 @@ def make_context(
         version: The version string (defaults to ``"0.0.0"``).
         environment: The deployment environment (defaults to ``"test"``).
         project_path: Optional path to the project root.
+        repository_url: The project repository URL (defaults to ``""``).
         **kwargs: Optional boolean flags forwarded to :class:`FoundryContext`
             (``is_test``, ``is_cli``, ``is_container``, ``is_library``).
     """
@@ -87,5 +90,6 @@ def make_context(
         environment=environment,
         env_prefix=env_prefix,
         project_path=project_path,
+        repository_url=repository_url,
         **kwargs,  # type: ignore[arg-type]
     )
