@@ -51,6 +51,8 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
     `{NAME}_RUNNING_IN_CONTAINER`, `PYTEST_RUNNING_{NAME}`). Environment fallback chain:
     `{NAME}_ENVIRONMENT` → `ENV` → `VERCEL_ENV` → `RAILWAY_ENVIRONMENT` → `"local"`.
   - `set_context(ctx)` — installs *ctx* as the process-level singleton.
+  - `set_context(ctx)` also prepends `<package_root>/third_party/` to `sys.path` when that
+    directory exists next to the package's `__init__.py` (idempotent; silent no-op otherwise).
   - `get_context()` — returns the installed context or raises `RuntimeError` with a helpful message
     if `set_context()` has not been called.
 - **Location**: `aignostics_foundry_core/foundry.py`

@@ -286,11 +286,36 @@ def _build_runtime_flags(name: str, name_upper: str) -> dict[str, bool]:
 _context: FoundryContext | None = None
 
 
+def _inject_third_party_path(package_name: str) -> None:
+    """Prepend ``<package_root>/third_party/`` to :data:`sys.path` when it exists.
+
+    Looks up *package_name* via :func:`importlib.util.find_spec` and, if a
+    ``third_party/`` subdirectory sits next to the package's ``__init__.py``,
+    inserts it at ``sys.path[0]``.  The insertion is idempotent — calling this
+    a second time does not duplicate the entry.
+
+    Args:
+        package_name: The importable name of the package whose ``third_party/``
+            directory should be injected (e.g. ``"myproject"``).
+    """
+    spec = importlib.util.find_spec(package_name)
+    if spec is None or spec.origin is None:
+        return
+    third_party = Path(spec.origin).parent / "third_party"
+    if third_party.is_dir() and str(third_party) not in sys.path:
+        sys.path.insert(0, str(third_party))
+
+
 def set_context(ctx: FoundryContext) -> None:
     """Install *ctx* as the global project context.
 
     Subsequent calls to :func:`get_context` will return *ctx*.  Calling this a
     second time replaces the previously installed context.
+
+    As a side effect, prepends ``<package_root>/third_party/`` to
+    :data:`sys.path` when that directory exists next to the package's
+    ``__init__.py``.  The injection is idempotent and silent when the directory
+    is absent or the package cannot be located.
 
     Args:
         ctx: The :class:`FoundryContext` to install.
@@ -300,6 +325,7 @@ def set_context(ctx: FoundryContext) -> None:
     """
     global _context  # noqa: PLW0603
     _context = ctx
+    _inject_third_party_path(ctx.name)
 
 
 def reset_context() -> None:
