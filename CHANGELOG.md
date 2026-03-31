@@ -1,3 +1,9 @@
+## v0.6.1 (2026-03-31)
+
+### Fix
+
+- **database**: rename max_overflow to pool_max_overflow ([5c7f26c](https://github.com/aignostics/foundry-python-core/commit/5c7f26ca1cce0a254d39e4547530397f2ffc6493))
+
 ## v0.6.0 (2026-03-31)
 
 ### Feat
