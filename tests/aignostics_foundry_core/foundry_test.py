@@ -12,6 +12,7 @@ import pytest
 from pydantic import ValidationError
 
 from aignostics_foundry_core.foundry import FoundryContext, get_context, reset_context, set_context
+from tests.conftest import make_context
 
 # Constants (SonarQube S1192)
 PACKAGE_NAME = "aignostics_foundry_core"
@@ -355,7 +356,7 @@ def test_from_package_is_test_when_pytest_running_env_set(monkeypatch: pytest.Mo
 @pytest.mark.unit
 def test_foundry_context_mode_flags_default_to_false() -> None:
     """FoundryContext constructed directly has all four mode flags as False."""
-    ctx = FoundryContext(name="test", version="0.0.0", version_full="0.0.0", environment="test")
+    ctx = make_context()
     assert ctx.is_container is False
     assert ctx.is_cli is False
     assert ctx.is_test is False
@@ -399,7 +400,7 @@ def test_context_raises_before_set_context() -> None:
 def test_set_context_replaces_previous_context() -> None:
     """Calling set_context() twice makes get_context() return the second context."""
     ctx1 = FoundryContext.from_package(PACKAGE_NAME)
-    ctx2 = FoundryContext(name="other", version="0.0.0", version_full="0.0.0", environment="test")
+    ctx2 = make_context()
     set_context(ctx1)
     set_context(ctx2)
     assert get_context() is ctx2

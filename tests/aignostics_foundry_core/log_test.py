@@ -1,4 +1,4 @@
-"""Tests for aignostics_foundry_core.log."""
+"""Tests for aignostics_foundry_core.log module."""
 
 import logging as stdlib_logging
 import sys
@@ -8,10 +8,8 @@ import pytest
 from pydantic import ValidationError
 
 from aignostics_foundry_core.log import InterceptHandler, LogSettings, logging_initialize
-from tests.conftest import make_context
+from tests.conftest import TEST_PROJECT_PREFIX, make_context
 
-_PROJECT = "testfoundry"
-_VERSION = "0.0.1"
 _MARKER_MESSAGE = "log_test_unique_marker_4f2a"
 _STDLIB_MESSAGE = "stdlib_redirect_unique_marker_9b3c"
 _FILE_HANDLER_MARKER = "file_handler_unique_marker_7e9b"
@@ -29,7 +27,7 @@ class TestLoggingInitialize:
     def _stub_get_context(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
             "aignostics_foundry_core.log.get_context",
-            lambda: make_context(_PROJECT, env_prefix=f"{_PROJECT.upper()}_"),
+            make_context,
         )
 
     def test_logging_initialize_adds_stderr_handler(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -45,7 +43,7 @@ class TestLoggingInitialize:
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """When stderr is disabled via env var, no output is written to stderr."""
-        monkeypatch.setenv(f"{_PROJECT.upper()}_LOG_STDERR_ENABLED", "false")
+        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}LOG_STDERR_ENABLED", "false")
         logging_initialize()
         from loguru import logger
 
@@ -65,8 +63,8 @@ class TestLoggingInitialize:
     ) -> None:
         """File handler writes log output to the configured file when file_enabled."""
         log_file = tmp_path / "test.log"
-        monkeypatch.setenv(f"{_PROJECT.upper()}_LOG_FILE_ENABLED", "true")
-        monkeypatch.setenv(f"{_PROJECT.upper()}_LOG_FILE_NAME", str(log_file))
+        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}LOG_FILE_ENABLED", "true")
+        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}LOG_FILE_NAME", str(log_file))
         logging_initialize()
         from loguru import logger
 
@@ -108,7 +106,7 @@ class TestLoggingInitialize:
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """logging_initialize reads env-var prefix from context.name."""
-        monkeypatch.setenv(f"{_PROJECT.upper()}_LOG_LEVEL", "DEBUG")
+        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}LOG_LEVEL", "DEBUG")
         logging_initialize()
         from loguru import logger
 
@@ -121,9 +119,9 @@ class TestLoggingInitialize:
         """LogSettings reads env vars from the prefix of the active get_context()."""
         monkeypatch.setattr(
             "aignostics_foundry_core.log.get_context",
-            lambda: make_context("myproject", env_prefix="MYPROJECT_"),
+            make_context,
         )
-        monkeypatch.setenv("MYPROJECT_LOG_STDERR_ENABLED", "false")
+        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}LOG_STDERR_ENABLED", "false")
         logging_initialize()
         from loguru import logger
 
@@ -139,7 +137,7 @@ class TestLogSettings:
     def _stub_get_context(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
             "aignostics_foundry_core.log.get_context",
-            lambda: make_context(_PROJECT, env_prefix=f"{_PROJECT.upper()}_"),
+            make_context,
         )
 
     @pytest.mark.unit
@@ -147,9 +145,9 @@ class TestLogSettings:
         """LogSettings reads env vars using the env_prefix from the active FoundryContext."""
         monkeypatch.setattr(
             "aignostics_foundry_core.log.get_context",
-            lambda: make_context("proj", env_prefix="PROJ_"),
+            make_context,
         )
-        monkeypatch.setenv("PROJ_LOG_STDERR_ENABLED", "false")
+        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}LOG_STDERR_ENABLED", "false")
         settings = LogSettings()  # pyright: ignore[reportCallIssue]
         assert settings.stderr_enabled is False
 

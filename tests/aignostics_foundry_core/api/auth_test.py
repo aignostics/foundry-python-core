@@ -20,7 +20,7 @@ from aignostics_foundry_core.api.auth import (
     require_internal_admin,
 )
 from aignostics_foundry_core.foundry import reset_context, set_context
-from tests.conftest import make_context
+from tests.conftest import TEST_PROJECT_PREFIX, make_context
 
 _INTERNAL_ORG_ID = "org_internal_123"
 _OTHER_ORG_ID = "org_other_456"
@@ -36,7 +36,7 @@ def _auth_context() -> Generator[None, None, None]:  # pyright: ignore[reportUnu
     Yields:
         None
     """
-    set_context(make_context("foundry", "FOUNDRY_"))
+    set_context(make_context())
     yield
     reset_context()
 
@@ -105,8 +105,8 @@ class TestAuthSettings:
 
     def test_auth_settings_uses_context_env_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """AuthSettings reads env vars from the prefix supplied by FoundryContext."""
-        set_context(make_context("proj", "PROJ_"))
-        monkeypatch.setenv("PROJ_AUTH_AUTH0_ROLE_CLAIM", "https://custom/role")
+        set_context(make_context())
+        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}AUTH_AUTH0_ROLE_CLAIM", "https://custom/role")
         settings = AuthSettings()
         assert settings.auth0_role_claim == "https://custom/role"
 
@@ -266,7 +266,7 @@ class TestRequireInternal:
 
     async def test_internal_org_member_passes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal returns None without raising when user is in the internal org."""
-        monkeypatch.setenv("FOUNDRY_AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
+        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
         request = MagicMock()
         user = {"sub": _USER_SUB, "org_id": _INTERNAL_ORG_ID, "exp": int(time.time()) + 3600}
         fake_client = MagicMock()
@@ -304,8 +304,8 @@ class TestRequireInternalAdmin:
 
     async def test_correct_org_wrong_role_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal_admin raises ForbiddenError when user is in internal org but lacks admin role."""
-        monkeypatch.setenv("FOUNDRY_AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
-        monkeypatch.delenv("FOUNDRY_AUTH_AUTH0_ROLE_CLAIM", raising=False)
+        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
+        monkeypatch.delenv(f"{TEST_PROJECT_PREFIX}AUTH_AUTH0_ROLE_CLAIM", raising=False)
         request = MagicMock()
         user = {
             "sub": _USER_SUB,
@@ -322,8 +322,8 @@ class TestRequireInternalAdmin:
 
     async def test_internal_admin_passes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal_admin returns None without raising when user is internal org admin."""
-        monkeypatch.setenv("FOUNDRY_AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
-        monkeypatch.delenv("FOUNDRY_AUTH_AUTH0_ROLE_CLAIM", raising=False)
+        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}AUTH_INTERNAL_ORG_ID", _INTERNAL_ORG_ID)
+        monkeypatch.delenv(f"{TEST_PROJECT_PREFIX}AUTH_AUTH0_ROLE_CLAIM", raising=False)
         request = MagicMock()
         user = {
             "sub": _USER_SUB,
