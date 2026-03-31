@@ -56,6 +56,15 @@ class FoundryContext(BaseModel):
     Falls back to reading the current branch or commit SHA from ``.git/HEAD``
     when ``VCS_REF`` is absent and :attr:`project_path` is set.
     """
+    version_with_vcs_ref: str
+    """Compact version string with VCS ref and commit SHA only.
+
+    Derived from :attr:`version` with ``+<vcs_ref>[-<commit_sha>]`` appended
+    when ``VCS_REF`` and/or ``COMMIT_SHA`` environment variables are present.
+    Unlike :attr:`version_full`, this field omits CI build metadata
+    (``CI_RUN_ID``, ``CI_RUN_NUMBER``, ``BUILDER``, ``BUILD_DATE``).
+    Falls back to :attr:`version` when neither variable is set.
+    """
     environment: str
     env_file: list[Path] = Field(default_factory=_empty_path_list)
     env_prefix: str = ""
@@ -107,6 +116,7 @@ class FoundryContext(BaseModel):
             name=name,
             version=version,
             version_full=_build_version_full(version, vcs_ref),
+            version_with_vcs_ref=_build_version_with_vcs_ref(version, vcs_ref),
             environment=environment,
             env_file=_build_env_file_list(name, name_upper, environment),
             env_prefix=f"{name_upper}_",
@@ -195,6 +205,24 @@ def _build_version_full(version: str, vcs_ref: str) -> str:
     if extra_parts:
         result += "---" + "---".join(extra_parts)
     return result
+
+
+def _build_version_with_vcs_ref(version: str, vcs_ref: str) -> str:
+    """Append VCS ref and commit SHA to *version*, omitting CI build metadata.
+
+    Args:
+        version: The base version string (e.g. ``"1.2.3"``).
+        vcs_ref: The VCS ref string (branch name, short SHA, or ``"unknown"``).
+
+    Returns:
+        The version string with optional ``+<vcs_ref>[-<commit_sha>]`` suffix,
+        or the bare *version* when both values are ``"unknown"``.
+    """
+    commit_sha = os.getenv("COMMIT_SHA", "unknown")
+    parts = [p for p in [vcs_ref, commit_sha] if p != "unknown"]
+    if not parts:
+        return version
+    return version + "+" + "-".join(parts)
 
 
 def _detect_environment(name_upper: str) -> str:

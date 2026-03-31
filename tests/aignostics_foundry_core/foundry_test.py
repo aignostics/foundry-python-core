@@ -420,3 +420,74 @@ def test_reset_context_causes_get_context_to_raise() -> None:
 def test_reset_context_is_idempotent_when_no_context_set() -> None:
     """reset_context() does not raise when no context has been installed."""
     reset_context()  # no prior set_context() — must not raise
+
+
+# ---------------------------------------------------------------------------
+# from_package — version_with_vcs_ref
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_from_package_version_with_vcs_ref_equals_version_when_no_vcs_info(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """version_with_vcs_ref equals version when VCS_REF and COMMIT_SHA are absent."""
+
+    def _find_spec_none(name: str, package: str | None = None) -> None:
+        return None
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_none)
+    monkeypatch.setenv("BUILDER", BUILDER_UNKNOWN)
+    for var in ["VCS_REF", "COMMIT_SHA", "BUILD_DATE", "CI_RUN_ID", "CI_RUN_NUMBER"]:
+        monkeypatch.delenv(var, raising=False)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.version_with_vcs_ref == ctx.version
+
+
+@pytest.mark.unit
+def test_from_package_version_with_vcs_ref_includes_vcs_ref(monkeypatch: pytest.MonkeyPatch) -> None:
+    """version_with_vcs_ref contains VCS_REF and starts with '{version}+' when VCS_REF is set."""
+    monkeypatch.setenv("VCS_REF", VCS_REF_VALUE)
+    monkeypatch.delenv("COMMIT_SHA", raising=False)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.version_with_vcs_ref.startswith(ctx.version + "+")
+    assert VCS_REF_VALUE in ctx.version_with_vcs_ref
+
+
+@pytest.mark.unit
+def test_from_package_version_with_vcs_ref_includes_commit_sha(monkeypatch: pytest.MonkeyPatch) -> None:
+    """version_with_vcs_ref contains COMMIT_SHA when COMMIT_SHA is set."""
+
+    def _find_spec_none(name: str, package: str | None = None) -> None:
+        return None
+
+    monkeypatch.setattr(importlib.util, "find_spec", _find_spec_none)
+    monkeypatch.delenv("VCS_REF", raising=False)
+    monkeypatch.setenv("COMMIT_SHA", COMMIT_SHA_VALUE)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert COMMIT_SHA_VALUE in ctx.version_with_vcs_ref
+
+
+@pytest.mark.unit
+def test_from_package_version_with_vcs_ref_joins_vcs_ref_and_commit_sha_with_dash(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """version_with_vcs_ref joins VCS_REF and COMMIT_SHA with '-' when both are set."""
+    monkeypatch.setenv("VCS_REF", VCS_REF_VALUE)
+    monkeypatch.setenv("COMMIT_SHA", COMMIT_SHA_VALUE)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert f"{VCS_REF_VALUE}-{COMMIT_SHA_VALUE}" in ctx.version_with_vcs_ref
+
+
+@pytest.mark.unit
+def test_from_package_version_with_vcs_ref_excludes_ci_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    """version_with_vcs_ref does not contain CI build metadata even when those env vars are set."""
+    monkeypatch.setenv("VCS_REF", VCS_REF_VALUE)
+    monkeypatch.setenv("COMMIT_SHA", COMMIT_SHA_VALUE)
+    monkeypatch.setenv("CI_RUN_ID", CI_RUN_ID_VALUE)
+    monkeypatch.setenv("CI_RUN_NUMBER", CI_RUN_NUMBER_VALUE)
+    monkeypatch.setenv("BUILD_DATE", BUILD_DATE_VALUE)
+    monkeypatch.setenv("BUILDER", "gh-actions")
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    for fragment in ["---", "run.", "build.", "builder.", "built."]:
+        assert fragment not in ctx.version_with_vcs_ref
