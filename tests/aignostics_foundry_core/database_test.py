@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aignostics_foundry_core.database import (
+    DatabaseSettings,
     cli_run_with_db,
     cli_run_with_engine,
     dispose_engine,
@@ -16,18 +17,23 @@ from aignostics_foundry_core.database import (
     init_engine,
     with_engine,
 )
+from aignostics_foundry_core.foundry import reset_context, set_context
+from tests.conftest import make_context
 
 NON_SQLITE_DB_URL = "postgresql+asyncpg://u:p@localhost/db"
+DB_URL_ERROR_FRAGMENT = "DB_URL"
 
 SESSION_KWARG = "session"
 
 
 @pytest.fixture(autouse=True)
 async def reset_engine() -> AsyncGenerator[None, None]:  # pyright: ignore[reportUnusedFunction]
-    """Ensure engine state is clean before and after each test."""
+    """Ensure engine and context state are clean before and after each test."""
     await dispose_engine()
+    reset_context()
     yield
     await dispose_engine()
+    reset_context()
 
 
 @pytest.fixture
@@ -164,7 +170,7 @@ class TestWithEngine:
     """Tests for the with_engine decorator factory."""
 
     @pytest.mark.unit
-    async def test_with_engine_decorator_initialises_engine(self, sqlite_url: str) -> None:
+    async def test_with_engine_explicit_url_still_works(self, sqlite_url: str) -> None:
         """A function decorated with @with_engine(db_url=...) runs without error."""
         calls: list[bool] = []
 
@@ -187,3 +193,118 @@ class TestWithEngine:
 
         with pytest.raises(RuntimeError, match=err_msg):
             await failing_job()
+
+
+class TestInitEngineContextAware:
+    """Tests for context-aware init_engine fallback behaviour."""
+
+    @pytest.mark.unit
+    async def test_init_engine_uses_context_url_when_no_explicit_url(self, sqlite_url: str) -> None:
+        """init_engine() with no args uses the URL from the active context database."""
+        db_settings = DatabaseSettings(_env_prefix="TEST_DB_", url=sqlite_url)
+        set_context(make_context(database=db_settings))
+
+        init_engine()  # no db_url argument
+
+        await execute_with_session(noop)  # confirms engine is functional
+
+    @pytest.mark.unit
+    async def test_init_engine_raises_when_no_url_and_no_context_database(self) -> None:
+        """init_engine() raises RuntimeError when context.database is None."""
+        set_context(make_context(database=None))
+
+        with pytest.raises(RuntimeError, match=DB_URL_ERROR_FRAGMENT):
+            init_engine()
+
+    @pytest.mark.unit
+    async def test_init_engine_raises_when_context_not_set(self) -> None:
+        """init_engine() raises RuntimeError when no context has been installed."""
+        # reset_engine fixture already cleared context — calling without set_context()
+        with pytest.raises(RuntimeError):
+            init_engine()
+
+    @pytest.mark.unit
+    async def test_init_engine_explicit_url_takes_precedence_over_context(
+        self, sqlite_url: str, tmp_path: Path
+    ) -> None:
+        """Explicit db_url overrides the URL stored in the active context."""
+        other_url = f"sqlite+aiosqlite:///{tmp_path}/other.db"
+        db_settings = DatabaseSettings(_env_prefix="TEST_DB_", url=other_url)
+        set_context(make_context(database=db_settings))
+
+        # Pass a different URL explicitly — should not raise
+        init_engine(db_url=sqlite_url)
+
+        await execute_with_session(noop)  # engine works → explicit URL was used
+
+
+class TestCliRunWithDbContextAware:
+    """Tests for context-aware cli_run_with_db fallback."""
+
+    @pytest.mark.unit
+    async def test_cli_run_with_db_uses_context_url(self, sqlite_url: str) -> None:
+        """cli_run_with_db with no db_url uses the URL from the active context."""
+
+        async def return_42(**_: object) -> int:
+            await asyncio.sleep(0)
+            return 42
+
+        db_settings = DatabaseSettings(_env_prefix="TEST_DB_", url=sqlite_url)
+        set_context(make_context(database=db_settings))
+
+        result = await asyncio.to_thread(cli_run_with_db, return_42)
+
+        assert result == 42
+
+
+class TestCliRunWithEngineContextAware:
+    """Tests for context-aware cli_run_with_engine fallback."""
+
+    @pytest.mark.unit
+    async def test_cli_run_with_engine_uses_context_url(self, sqlite_url: str) -> None:
+        """cli_run_with_engine with no db_url uses the URL from the active context."""
+
+        async def return_hello() -> str:
+            await asyncio.sleep(0)
+            return "hello"
+
+        db_settings = DatabaseSettings(_env_prefix="TEST_DB_", url=sqlite_url)
+        set_context(make_context(database=db_settings))
+
+        result = await asyncio.to_thread(cli_run_with_engine, return_hello)
+
+        assert result == "hello"
+
+
+class TestWithEngineContextAware:
+    """Tests for context-aware with_engine decorator."""
+
+    @pytest.mark.unit
+    async def test_with_engine_no_parens_uses_context(self, sqlite_url: str) -> None:
+        """@with_engine (no parens) resolves the URL from the active context."""
+        db_settings = DatabaseSettings(_env_prefix="TEST_DB_", url=sqlite_url)
+        set_context(make_context(database=db_settings))
+        calls: list[bool] = []
+
+        @with_engine
+        async def my_job() -> None:  # noqa: RUF029
+            calls.append(True)
+
+        await my_job()
+
+        assert calls == [True]
+
+    @pytest.mark.unit
+    async def test_with_engine_empty_parens_uses_context(self, sqlite_url: str) -> None:
+        """@with_engine() (empty parens) resolves the URL from the active context."""
+        db_settings = DatabaseSettings(_env_prefix="TEST_DB_", url=sqlite_url)
+        set_context(make_context(database=db_settings))
+        calls: list[bool] = []
+
+        @with_engine()
+        async def my_job() -> None:  # noqa: RUF029
+            calls.append(True)
+
+        await my_job()
+
+        assert calls == [True]

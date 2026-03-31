@@ -81,6 +81,51 @@ All public library functions (`logging_initialize`, `sentry_initialize`, `boot`,
 `load_modules`, etc.) accept an optional `context` keyword argument and fall
 back to `get_context()` when it is `None`.
 
+### Database
+
+Once a context is configured via `set_context()`, all database functions work
+with no arguments — the URL and pool settings are read from the context:
+
+```python
+from aignostics_foundry_core.database import init_engine, cli_run_with_db, with_engine
+
+# Zero-arg engine init — reads MYPROJECT_DB_URL, _DB_POOL_SIZE, etc. from env
+init_engine()
+
+# CLI helper — initialises engine, runs coroutine, disposes engine
+cli_run_with_db(my_async_func)
+
+
+# Background job decorator — engine initialised before each invocation
+@with_engine
+async def my_job(): ...
+
+
+# Override for a secondary database
+@with_engine(db_url="postgresql+asyncpg://user:pass@host/secondary")
+async def my_other_job(): ...
+```
+
+`FoundryContext.from_package()` activates database configuration automatically
+when the following environment variables are present:
+
+| Variable | Required | Description |
+|---|---|---|
+| `{PREFIX}DB_URL` | yes (to activate) | Full database connection URL |
+| `{PREFIX}DB_POOL_SIZE` | no | Connection pool size (default `10`) |
+| `{PREFIX}DB_MAX_OVERFLOW` | no | Max pool overflow (default `10`) |
+| `{PREFIX}DB_POOL_TIMEOUT` | no | Pool wait timeout in seconds (default `30.0`) |
+| `{PREFIX}DB_NAME` | no | Override database name in the URL path |
+
+In tests, construct `DatabaseSettings` directly instead of setting env vars:
+
+```python
+from aignostics_foundry_core.database import DatabaseSettings
+from tests.conftest import make_context
+
+ctx = make_context(database=DatabaseSettings(_env_prefix="TEST_DB_", url="sqlite+aiosqlite:///test.db"))
+```
+
 ### Health API
 
 ```python

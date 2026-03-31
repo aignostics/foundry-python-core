@@ -2,8 +2,11 @@
 
 import importlib.metadata
 import importlib.util
+import os
 import platform
+import subprocess
 import sys
+import textwrap
 from collections.abc import Generator
 from importlib.machinery import ModuleSpec
 from pathlib import Path
@@ -17,6 +20,9 @@ from tests.conftest import make_context
 # Constants (SonarQube S1192)
 PACKAGE_NAME = "aignostics_foundry_core"
 STAGING = "staging"
+SQLITE_URL = "sqlite+aiosqlite:///test.db"
+DB_URL_ENV_KEY = f"{PACKAGE_NAME.upper()}_DB_URL"
+DB_POOL_SIZE_ENV_KEY = f"{PACKAGE_NAME.upper()}_DB_POOL_SIZE"
 ERROR_MSG_FRAGMENT = "set_context"
 VCS_REF_VALUE = "abc123"
 VCS_REF_OVERRIDE = "ci-override-ref"
@@ -28,6 +34,7 @@ BUILDER_UNKNOWN = "unknown"
 GIT_BRANCH = "main"
 GIT_SHA_FULL = "a" * 40
 GIT_SHA_SHORT = "a" * 7
+INIT_PY = "__init__.py"
 
 
 @pytest.fixture(autouse=True)
@@ -205,7 +212,7 @@ def test_from_package_project_path_is_none_when_no_git_ancestor(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """from_package() sets project_path=None when no .git directory exists in any ancestor."""
-    fake_spec = ModuleSpec(PACKAGE_NAME, None, origin=str(tmp_path / PACKAGE_NAME / "__init__.py"))
+    fake_spec = ModuleSpec(PACKAGE_NAME, None, origin=str(tmp_path / PACKAGE_NAME / INIT_PY))
 
     def _find_spec_no_git(name: str, package: str | None = None) -> ModuleSpec:
         return fake_spec
@@ -230,7 +237,7 @@ def test_from_package_project_path_resolves_git_root() -> None:
 
 def _fake_spec_for(tmp_path: Path) -> ModuleSpec:
     """Return a ModuleSpec whose origin sits inside *tmp_path*."""
-    return ModuleSpec(PACKAGE_NAME, None, origin=str(tmp_path / PACKAGE_NAME / "__init__.py"))
+    return ModuleSpec(PACKAGE_NAME, None, origin=str(tmp_path / PACKAGE_NAME / INIT_PY))
 
 
 def _make_git_head(tmp_path: Path, content: str) -> None:
@@ -434,7 +441,7 @@ def test_set_context_prepends_third_party_dir_to_sys_path(monkeypatch: pytest.Mo
     """When third_party/ exists next to __init__.py, it is at sys.path[0] after set_context()."""
     pkg_dir = tmp_path / PACKAGE_NAME
     pkg_dir.mkdir()
-    (pkg_dir / "__init__.py").touch()
+    (pkg_dir / INIT_PY).touch()
     third_party_dir = pkg_dir / THIRD_PARTY
     third_party_dir.mkdir()
 
@@ -455,7 +462,7 @@ def test_set_context_skips_missing_third_party_dir(monkeypatch: pytest.MonkeyPat
     """When no third_party/ dir exists, sys.path is unchanged after set_context()."""
     pkg_dir = tmp_path / PACKAGE_NAME
     pkg_dir.mkdir()
-    (pkg_dir / "__init__.py").touch()
+    (pkg_dir / INIT_PY).touch()
     # No third_party/ subdirectory created
 
     def _find_spec_no_third_party(name: str, package: str | None = None) -> ModuleSpec:
@@ -476,7 +483,7 @@ def test_set_context_is_idempotent_for_sys_path(monkeypatch: pytest.MonkeyPatch,
     """Calling set_context() twice leaves exactly one entry for third_party/ in sys.path."""
     pkg_dir = tmp_path / PACKAGE_NAME
     pkg_dir.mkdir()
-    (pkg_dir / "__init__.py").touch()
+    (pkg_dir / INIT_PY).touch()
     third_party_dir = pkg_dir / THIRD_PARTY
     third_party_dir.mkdir()
 
@@ -581,3 +588,107 @@ def test_from_package_version_with_vcs_ref_excludes_ci_metadata(monkeypatch: pyt
     ctx = FoundryContext.from_package(PACKAGE_NAME)
     for fragment in ["---", "run.", "build.", "builder.", "built."]:
         assert fragment not in ctx.version_with_vcs_ref
+
+
+# ---------------------------------------------------------------------------
+# from_package — database field
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_from_package_database_is_none_when_db_url_not_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    """from_package() sets database=None when {PREFIX}DB_URL is absent."""
+    monkeypatch.delenv(DB_URL_ENV_KEY, raising=False)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.database is None
+
+
+@pytest.mark.unit
+def test_from_package_database_populated_when_db_url_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    """from_package() populates database when {PREFIX}DB_URL is set."""
+    monkeypatch.setenv(DB_URL_ENV_KEY, SQLITE_URL)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.database is not None
+    assert ctx.database.get_url() == SQLITE_URL
+
+
+@pytest.mark.unit
+def test_from_package_database_pool_size_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """from_package() reads pool_size from {PREFIX}DB_POOL_SIZE when DB_URL is also set."""
+    monkeypatch.setenv(DB_URL_ENV_KEY, SQLITE_URL)
+    monkeypatch.setenv(DB_POOL_SIZE_ENV_KEY, "5")
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.database is not None
+    assert ctx.database.pool_size == 5
+
+
+# ---------------------------------------------------------------------------
+# from_package — database field — import-order integration tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+def test_foundry_imported_before_database() -> None:
+    """Importing foundry then database and calling from_package() with DB_URL set exits cleanly."""
+    script = textwrap.dedent(f"""
+        from aignostics_foundry_core.foundry import FoundryContext
+        from aignostics_foundry_core.database import DatabaseSettings
+        ctx = FoundryContext.from_package("{PACKAGE_NAME}")
+        assert ctx.database is not None
+        assert ctx.database.get_url() == "{SQLITE_URL}"
+    """)
+    env = os.environ.copy()
+    env[DB_URL_ENV_KEY] = SQLITE_URL
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env, check=False)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.integration
+def test_database_imported_before_foundry() -> None:
+    """Importing database then foundry and calling from_package() with DB_URL set exits cleanly."""
+    script = textwrap.dedent(f"""
+        from aignostics_foundry_core.database import DatabaseSettings
+        from aignostics_foundry_core.foundry import FoundryContext
+        ctx = FoundryContext.from_package("{PACKAGE_NAME}")
+        assert ctx.database is not None
+        assert ctx.database.get_url() == "{SQLITE_URL}"
+    """)
+    env = os.environ.copy()
+    env[DB_URL_ENV_KEY] = SQLITE_URL
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env, check=False)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.integration
+def test_from_package_called_twice_is_safe() -> None:
+    """Calling from_package() twice in the same process exits cleanly."""
+    script = textwrap.dedent(f"""
+        from aignostics_foundry_core.foundry import FoundryContext
+        ctx1 = FoundryContext.from_package("{PACKAGE_NAME}")
+        ctx2 = FoundryContext.from_package("{PACKAGE_NAME}")
+        assert ctx1.database is not None
+        assert ctx2.database is not None
+    """)
+    env = os.environ.copy()
+    env[DB_URL_ENV_KEY] = SQLITE_URL
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env, check=False)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.integration
+def test_make_context_without_prior_from_package() -> None:
+    """Constructing FoundryContext directly (no from_package()) has database=None."""
+    script = textwrap.dedent("""
+        from aignostics_foundry_core.foundry import FoundryContext
+        ctx = FoundryContext(
+            name="test",
+            version="0.0.0",
+            version_full="0.0.0",
+            version_with_vcs_ref="0.0.0",
+            environment="test",
+            env_prefix="TEST_",
+        )
+        assert ctx.database is None
+    """)
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr

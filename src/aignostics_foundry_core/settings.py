@@ -6,10 +6,6 @@ from typing import TypeVar
 
 from pydantic import FieldSerializationInfo, SecretStr, ValidationError
 from pydantic_settings import BaseSettings
-from rich.panel import Panel
-from rich.text import Text
-
-from aignostics_foundry_core.console import console
 
 _T = TypeVar("_T", bound=BaseSettings)
 
@@ -86,6 +82,11 @@ def load_settings(settings_class: type[_T]) -> _T:
     try:
         return settings_class()
     except ValidationError as e:
+        from rich.panel import Panel  # noqa: PLC0415
+        from rich.text import Text  # noqa: PLC0415
+
+        from aignostics_foundry_core.console import console  # noqa: PLC0415
+
         errors = e.errors()
         text = Text()
         text.append(
