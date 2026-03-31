@@ -83,6 +83,7 @@ def make_context(
         name=name,
         version=version,
         version_full=version,
+        version_with_vcs_ref=version,
         environment=environment,
         env_prefix=env_prefix,
         project_path=project_path,
