@@ -1,3 +1,13 @@
+## v0.7.0 (2026-04-01)
+
+### Feat
+
+- **database**: resolve env_file from active context in DatabaseSettings ([1bb1483](https://github.com/aignostics/foundry-python-core/commit/1bb1483b86e743b06ddadda1af1af47d7480ccc3))
+
+### Fix
+
+- **foundry**: detect db url in .env files in from_package ([e6bd18d](https://github.com/aignostics/foundry-python-core/commit/e6bd18d3d11d1c509f7eaf61255cdeb27c232505))
+
 ## v0.6.2 (2026-03-31)
 
 ### Fix
