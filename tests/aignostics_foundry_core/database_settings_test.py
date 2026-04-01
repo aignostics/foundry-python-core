@@ -1,6 +1,7 @@
 """Tests for DatabaseSettings."""
 
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
 
@@ -11,6 +12,9 @@ from tests.conftest import make_context
 # Constants (SonarQube S1192)
 POSTGRES_URL = "postgresql+asyncpg://user:pass@localhost:5432/postgres"
 SQLITE_URL = "sqlite+aiosqlite:///test.db"
+WRONG_SQLITE_URL = "sqlite+aiosqlite:///wrong.db"
+MYAPP_ENV_PREFIX = "MYAPP_"
+MYAPP_DB_URL_KEY = "MYAPP_DB_URL"
 CUSTOM_PREFIX = "CUSTOM_DB_"
 CUSTOM_PREFIX_URL_ENV = "CUSTOM_DB_URL"
 DEFAULT_POOL_SIZE = 10
@@ -141,3 +145,44 @@ def test_url_is_masked_in_repr() -> None:
     representation = repr(settings)
     assert "pass" not in representation
     assert "**" in representation or "SecretStr" in representation
+
+
+# ---------------------------------------------------------------------------
+# env-file resolution via context (integration)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+def test_database_settings_reads_url_from_env_file_via_context(tmp_path: Path) -> None:
+    """DatabaseSettings() with no args reads URL from context env_file when context is set."""
+    env_file = tmp_path / ".env"
+    env_file.write_text(f"{MYAPP_DB_URL_KEY}={SQLITE_URL}\n")
+
+    ctx = make_context(env_prefix=MYAPP_ENV_PREFIX, env_file=[env_file])
+    set_context(ctx)
+
+    settings = DatabaseSettings()
+    assert settings.get_url() == SQLITE_URL
+
+
+@pytest.mark.integration
+def test_database_settings_explicit_env_file_overrides_context(tmp_path: Path) -> None:
+    """An explicit _env_file passed to DatabaseSettings() takes precedence over the context env_file."""
+    context_env_file = tmp_path / "context.env"
+    context_env_file.write_text(f"{MYAPP_DB_URL_KEY}={WRONG_SQLITE_URL}\n")
+
+    explicit_env_file = tmp_path / "explicit.env"
+    explicit_env_file.write_text(f"{MYAPP_DB_URL_KEY}={SQLITE_URL}\n")
+
+    ctx = make_context(env_prefix=MYAPP_ENV_PREFIX, env_file=[context_env_file])
+    set_context(ctx)
+
+    settings = DatabaseSettings(_env_file=[explicit_env_file])
+    assert settings.get_url() == SQLITE_URL
+
+
+@pytest.mark.integration
+def test_database_settings_no_context_raises_without_prefix() -> None:
+    """DatabaseSettings() raises RuntimeError when no context is installed and no prefix is given."""
+    with pytest.raises(RuntimeError, match="get_context\\(\\) called before set_context"):
+        DatabaseSettings()
