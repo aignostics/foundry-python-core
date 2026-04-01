@@ -23,6 +23,7 @@ STAGING = "staging"
 SQLITE_URL = "sqlite+aiosqlite:///test.db"
 DB_URL_ENV_KEY = f"{PACKAGE_NAME.upper()}_DB_URL"
 DB_POOL_SIZE_ENV_KEY = f"{PACKAGE_NAME.upper()}_DB_POOL_SIZE"
+ENV_FILE_ENV_KEY = f"{PACKAGE_NAME.upper()}_ENV_FILE"
 ERROR_MSG_FRAGMENT = "set_context"
 VCS_REF_VALUE = "abc123"
 VCS_REF_OVERRIDE = "ci-override-ref"
@@ -671,6 +672,78 @@ def test_from_package_called_twice_is_safe() -> None:
     """)
     env = os.environ.copy()
     env[DB_URL_ENV_KEY] = SQLITE_URL
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env, check=False)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.integration
+def test_from_package_sets_database_when_db_url_only_in_env_file(tmp_path: Path) -> None:
+    """from_package() populates database when DB_URL is only in a .env file, not in OS env."""
+    env_file = tmp_path / ".env"
+    env_file.write_text(f"{DB_URL_ENV_KEY}={SQLITE_URL}\n")
+
+    script = textwrap.dedent(f"""
+        from aignostics_foundry_core.foundry import FoundryContext
+        ctx = FoundryContext.from_package("{PACKAGE_NAME}")
+        assert ctx.database is not None, "database should not be None"
+        assert ctx.database.get_url() == "{SQLITE_URL}", f"expected {SQLITE_URL!r}, got {{ctx.database.get_url()!r}}"
+    """)
+    env = os.environ.copy()
+    env.pop(DB_URL_ENV_KEY, None)
+    env[ENV_FILE_ENV_KEY] = str(env_file)
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env, check=False)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.integration
+def test_from_package_database_is_none_when_db_url_absent_from_env_file(tmp_path: Path) -> None:
+    """from_package() sets database=None when DB_URL is absent from both OS env and .env file."""
+    env_file = tmp_path / ".env"
+    env_file.write_text("SOME_OTHER_KEY=value\n")
+
+    script = textwrap.dedent(f"""
+        from aignostics_foundry_core.foundry import FoundryContext
+        ctx = FoundryContext.from_package("{PACKAGE_NAME}")
+        assert ctx.database is None, "database should be None when DB_URL is absent"
+    """)
+    env = os.environ.copy()
+    env.pop(DB_URL_ENV_KEY, None)
+    env[ENV_FILE_ENV_KEY] = str(env_file)
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env, check=False)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.integration
+def test_from_package_reads_pool_settings_from_env_file(tmp_path: Path) -> None:
+    """from_package() reads pool_size from .env file when DB_URL is also in the .env file."""
+    env_file = tmp_path / ".env"
+    env_file.write_text(f"{DB_URL_ENV_KEY}={SQLITE_URL}\n{DB_POOL_SIZE_ENV_KEY}=3\n")
+
+    script = textwrap.dedent(f"""
+        from aignostics_foundry_core.foundry import FoundryContext
+        ctx = FoundryContext.from_package("{PACKAGE_NAME}")
+        assert ctx.database is not None, "database should not be None"
+        assert ctx.database.pool_size == 3, f"expected pool_size=3, got {{ctx.database.pool_size}}"
+    """)
+    env = os.environ.copy()
+    env.pop(DB_URL_ENV_KEY, None)
+    env.pop(DB_POOL_SIZE_ENV_KEY, None)
+    env[ENV_FILE_ENV_KEY] = str(env_file)
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env, check=False)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.integration
+def test_from_package_sets_database_when_db_url_in_os_env_and_env_file_absent(tmp_path: Path) -> None:
+    """from_package() populates database when DB_URL is in OS env and no .env file is set — regression."""
+    script = textwrap.dedent(f"""
+        from aignostics_foundry_core.foundry import FoundryContext
+        ctx = FoundryContext.from_package("{PACKAGE_NAME}")
+        assert ctx.database is not None, "database should not be None when DB_URL is in OS env"
+    """)
+    env = os.environ.copy()
+    env[DB_URL_ENV_KEY] = SQLITE_URL
+    env.pop(ENV_FILE_ENV_KEY, None)
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env, check=False)
     assert result.returncode == 0, result.stderr
 
