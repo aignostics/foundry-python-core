@@ -15,6 +15,7 @@ import functools
 import multiprocessing.util
 import urllib.parse
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from typing import Any
 
 from loguru import logger
@@ -50,20 +51,45 @@ class DatabaseSettings(OpaqueSettings):
     pool_timeout: float = 30.0
     name: str | None = None
 
-    def __init__(self, _env_prefix: str | None = None, **kwargs: Any) -> None:  # noqa: ANN401
-        """Initialise settings, deriving env prefix from the active FoundryContext when not given.
+    def __init__(
+        self,
+        _env_prefix: str | None = None,
+        _env_file: list[Path] | None = None,
+        **kwargs: Any,  # noqa: ANN401
+    ) -> None:
+        """Initialise settings, deriving env prefix and env files from the active FoundryContext when not given.
 
         Args:
             _env_prefix: Optional explicit environment variable prefix (e.g. ``"MYAPP_DB_"``).
                 When ``None``, the prefix is derived from the active FoundryContext as
                 ``f"{get_context().env_prefix}DB_"``.
+            _env_file: Optional explicit list of ``.env`` files to read settings from.
+                When ``None`` and a :class:`~aignostics_foundry_core.foundry.FoundryContext` is
+                active, the context's :attr:`~aignostics_foundry_core.foundry.FoundryContext.env_file`
+                list is used so that all settings sources remain consistent.  When ``None`` and no
+                context is available (but ``_env_prefix`` is provided explicitly), env-file loading
+                is skipped.
             **kwargs: Forwarded to :class:`~pydantic_settings.BaseSettings`.
+
+        Raises:
+            RuntimeError: If both ``_env_prefix`` is absent and no active context is installed.
         """
-        if _env_prefix is None:
+        if _env_prefix is None or _env_file is None:
             from aignostics_foundry_core.foundry import get_context  # noqa: PLC0415
 
-            _env_prefix = f"{get_context().env_prefix}DB_"
-        super().__init__(_env_prefix=_env_prefix, **kwargs)  # pyright: ignore[reportCallIssue]
+            try:
+                ctx = get_context()
+                if _env_prefix is None:
+                    _env_prefix = f"{ctx.env_prefix}DB_"
+                if _env_file is None:
+                    _env_file = ctx.env_file
+            except RuntimeError:
+                if _env_prefix is None:
+                    raise
+        if _env_file is not None:
+            super().__init__(_env_prefix=_env_prefix, _env_file=_env_file, **kwargs)  # pyright: ignore[reportCallIssue]
+        else:
+            super().__init__(_env_prefix=_env_prefix, **kwargs)  # pyright: ignore[reportCallIssue]
 
     def get_url(self) -> str:
         """Return the database URL string, optionally substituting the database name.

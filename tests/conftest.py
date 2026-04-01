@@ -70,6 +70,7 @@ def make_context(  # noqa: PLR0913
     project_path: Path | None = None,
     repository_url: str = "",
     database: DatabaseSettings | None = None,
+    env_file: list[Path] | None = None,
     **kwargs: bool,
 ) -> FoundryContext:
     """Create a minimal FoundryContext for testing.
@@ -83,6 +84,7 @@ def make_context(  # noqa: PLR0913
         repository_url: The project repository URL (defaults to ``""``).
         database: Optional :class:`~aignostics_foundry_core.database.DatabaseSettings`
             instance to attach to the context.
+        env_file: Optional list of ``.env`` file paths to attach to the context.
         **kwargs: Optional boolean flags forwarded to :class:`FoundryContext`
             (``is_test``, ``is_cli``, ``is_container``, ``is_library``).
     """
@@ -96,5 +98,6 @@ def make_context(  # noqa: PLR0913
         project_path=project_path,
         repository_url=repository_url,
         database=database,
+        env_file=env_file or [],
         **kwargs,  # type: ignore[arg-type]
     )
