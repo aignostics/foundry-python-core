@@ -27,6 +27,7 @@ import sys
 from importlib import metadata
 from pathlib import Path
 
+from dotenv import dotenv_values
 from pydantic import BaseModel, Field
 
 from aignostics_foundry_core.database import DatabaseSettings
@@ -122,14 +123,20 @@ class FoundryContext(BaseModel):
         project_path = _find_project_path(package_name)
         vcs_ref = os.environ.get("VCS_REF") or (project_path and _get_vcs_ref_from_git(project_path)) or "unknown"
         env_prefix = f"{name_upper}_"
-        database = DatabaseSettings(_env_prefix=f"{env_prefix}DB_") if os.environ.get(f"{env_prefix}DB_URL") else None
+        env_files = _build_env_file_list(name, name_upper, environment)
+        db_url_key = f"{env_prefix}DB_URL"
+        database = (
+            DatabaseSettings(_env_prefix=f"{env_prefix}DB_", _env_file=env_files)
+            if os.environ.get(db_url_key) or _any_env_file_has(db_url_key, env_files)
+            else None
+        )
         return cls(
             name=name,
             version=version,
             version_full=_build_version_full(version, vcs_ref),
             version_with_vcs_ref=_build_version_with_vcs_ref(version, vcs_ref),
             environment=environment,
-            env_file=_build_env_file_list(name, name_upper, environment),
+            env_file=env_files,
             env_prefix=env_prefix,
             repository_url=repository_url,
             documentation_url=documentation_url,
@@ -262,6 +269,19 @@ def _build_env_file_list(name: str, name_upper: str, environment: str) -> list[P
     if extra:
         paths.insert(2, Path(extra))
     return paths
+
+
+def _any_env_file_has(key: str, env_files: list[Path]) -> bool:
+    """Return True if *key* appears in any of the given env files.
+
+    Args:
+        key: The environment variable key to look for.
+        env_files: Ordered list of env file paths to search.
+
+    Returns:
+        True if *key* is found in any readable env file, False otherwise.
+    """
+    return any(key in dotenv_values(f) for f in env_files if f.is_file())
 
 
 def _extract_urls(package_name: str) -> tuple[str, str]:

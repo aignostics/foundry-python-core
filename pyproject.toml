@@ -58,6 +58,7 @@ dependencies = [
     "psutil>=6",
     "pydantic>=2,<3",
     "pydantic-settings>=2,<3",
+    "python-dotenv>=1,<2",
     "rich>=14,<15",
     "sentry-sdk>=2,<3",
     "sqlalchemy[asyncio]>=2,<3",
