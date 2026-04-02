@@ -289,7 +289,7 @@ SOFTWARE.
 
 ```
 
-## Pygments (2.19.2) - BSD License
+## Pygments (2.20.0) - UNKNOWN
 
 Pygments is a syntax highlighting package written in Python.
 
@@ -909,7 +909,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 ```
 
-## aiohttp (3.13.3) - Apache-2.0 AND MIT
+## aiohttp (3.13.5) - Apache-2.0 AND MIT
 
 Async http client/server framework (asyncio)
 
