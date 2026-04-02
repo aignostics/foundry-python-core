@@ -275,8 +275,8 @@ def sentry_initialize(
         "aignx/base",
         {
             "project_name": ctx.name,
-            "repository_url": ctx.repository_url,
-            "documentation_url": ctx.documentation_url,
+            "repository_url": ctx.metadata.repository_url,
+            "documentation_url": ctx.metadata.documentation_url,
             "version_full": ctx.version_full,
             "in_container": ctx.is_container,
             "test_mode": ctx.is_test,

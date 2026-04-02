@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from aignostics_foundry_core.foundry import FoundryContext, get_context, reset_context, set_context
+from aignostics_foundry_core.foundry import FoundryContext, PackageMetadata, get_context, reset_context, set_context
 from tests.conftest import make_context
 
 # Constants (SonarQube S1192)
@@ -36,6 +36,77 @@ GIT_BRANCH = "main"
 GIT_SHA_FULL = "a" * 40
 GIT_SHA_SHORT = "a" * 7
 INIT_PY = "__init__.py"
+
+
+# ---------------------------------------------------------------------------
+# PackageMetadata — field defaults
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_foundry_context_metadata_field_defaults() -> None:
+    """A directly-constructed FoundryContext has empty PackageMetadata defaults."""
+    ctx = make_context()
+    assert not ctx.metadata.description
+    assert ctx.metadata.author_name is None
+    assert ctx.metadata.author_email is None
+    assert not ctx.metadata.repository_url
+    assert not ctx.metadata.documentation_url
+
+
+# ---------------------------------------------------------------------------
+# PackageMetadata.from_name() — detail assertions
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_package_metadata_from_name_description() -> None:
+    """PackageMetadata.from_name() returns a non-empty description (Summary field)."""
+    pkg_meta = PackageMetadata.from_name(PACKAGE_NAME)
+    assert isinstance(pkg_meta.description, str)
+    assert pkg_meta.description
+
+
+@pytest.mark.unit
+def test_package_metadata_from_name_author_name() -> None:
+    """PackageMetadata.from_name() returns a non-None, non-empty author_name."""
+    pkg_meta = PackageMetadata.from_name(PACKAGE_NAME)
+    assert pkg_meta.author_name is not None
+    assert pkg_meta.author_name
+
+
+@pytest.mark.unit
+def test_package_metadata_from_name_author_email() -> None:
+    """PackageMetadata.from_name() returns a non-None author_email containing '@'."""
+    pkg_meta = PackageMetadata.from_name(PACKAGE_NAME)
+    assert pkg_meta.author_email is not None
+    assert "@" in pkg_meta.author_email
+
+
+@pytest.mark.unit
+def test_package_metadata_from_name_repository_url() -> None:
+    """PackageMetadata.from_name() returns a non-empty repository_url (Source URL)."""
+    pkg_meta = PackageMetadata.from_name(PACKAGE_NAME)
+    assert pkg_meta.repository_url
+
+
+@pytest.mark.unit
+def test_package_metadata_from_name_documentation_url() -> None:
+    """PackageMetadata.from_name() returns a non-empty documentation_url (Documentation URL)."""
+    pkg_meta = PackageMetadata.from_name(PACKAGE_NAME)
+    assert pkg_meta.documentation_url
+
+
+# ---------------------------------------------------------------------------
+# from_package() — wires metadata via PackageMetadata.from_name()
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_from_package_metadata_is_package_metadata_instance() -> None:
+    """from_package() sets .metadata to a PackageMetadata populated via from_name()."""
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.metadata == PackageMetadata.from_name(PACKAGE_NAME)
 
 
 @pytest.fixture(autouse=True)
