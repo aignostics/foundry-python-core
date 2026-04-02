@@ -1,3 +1,9 @@
+## v0.7.2 (2026-04-02)
+
+### Fix
+
+- **api**: guard get_user against non-dict session ([6828e28](https://github.com/aignostics/foundry-python-core/commit/6828e28b36026e25e6f75948c1589c156b59f6cb))
+
 ## v0.7.1 (2026-04-02)
 
 ### Fix
