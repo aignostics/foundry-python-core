@@ -36,11 +36,14 @@ class DatabaseSettings(OpaqueSettings):
 
     Environment variables (with default prefix ``{NAME}_DB_``):
 
-    * ``{PREFIX}URL`` — required; the full database connection URL
+    * ``{PREFIX}URL`` — required; the full database connection URL. Access via :meth:`get_url` only.
     * ``{PREFIX}POOL_SIZE`` — optional; connection pool size (default ``10``)
     * ``{PREFIX}POOL_MAX_OVERFLOW`` — optional; maximum pool overflow (default ``10``)
     * ``{PREFIX}POOL_TIMEOUT`` — optional; pool checkout timeout in seconds (default ``30.0``)
     * ``{PREFIX}NAME`` — optional; override the database name in the URL path component
+
+    References:
+        docs/decisions/0004-databasesettings-url-attribute.md
     """
 
     model_config = SettingsConfigDict(extra="ignore")
@@ -58,6 +61,10 @@ class DatabaseSettings(OpaqueSettings):
         **kwargs: Any,  # noqa: ANN401
     ) -> None:
         """Initialise settings, deriving env prefix and env files from the active FoundryContext when not given.
+
+        TODO(oliverm): should this class have a `host` attribute WITHOUT the DB name, and construct the full URL as
+          `host/name`? This would avoid the confusion between the `url` attribute and the `get_url()` method.
+          See docs/decisions/0004-databasesettings-url-attribute.md.
 
         Args:
             _env_prefix: Optional explicit environment variable prefix (e.g. ``"MYAPP_DB_"``).
@@ -92,15 +99,16 @@ class DatabaseSettings(OpaqueSettings):
             super().__init__(_env_prefix=_env_prefix, **kwargs)  # pyright: ignore[reportCallIssue]
 
     def get_url(self) -> str:
-        """Return the database URL string, optionally substituting the database name.
+        """Return the database URL string, normalizing the driver and optionally substituting the database name.
 
-        When :attr:`name` is set, the path component of the URL is replaced with
-        ``/{name}``, leaving the scheme, host, port, query, and fragment unchanged.
+        The method performs two transformations:
+        1. Normalizes ``+asyncpg`` driver to ``+psycopg`` in the URL scheme
+        2. When :attr:`name` is set, replaces the path component with ``/{name}``
 
         Returns:
-            The database URL as a plain string.
+            The database URL as a plain string with normalized driver.
         """
-        raw = self.url.get_secret_value()
+        raw = self.url.get_secret_value().replace("+asyncpg", "+psycopg")
         if self.name is None:
             return raw
         parsed = urllib.parse.urlparse(raw)

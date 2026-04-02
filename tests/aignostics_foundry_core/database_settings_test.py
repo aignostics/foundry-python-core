@@ -11,6 +11,7 @@ from tests.conftest import make_context
 
 # Constants (SonarQube S1192)
 POSTGRES_URL = "postgresql+asyncpg://user:pass@localhost:5432/postgres"
+POSTGRES_URL_PSYCOPG = "postgresql+psycopg://user:pass@localhost:5432/postgres"
 SQLITE_URL = "sqlite+aiosqlite:///test.db"
 WRONG_SQLITE_URL = "sqlite+aiosqlite:///wrong.db"
 MYAPP_ENV_PREFIX = "MYAPP_"
@@ -44,7 +45,7 @@ def _reset_context() -> Generator[None, None, None]:  # pyright: ignore[reportUn
 def test_get_url_returns_plain_url_when_db_name_not_set() -> None:
     """get_url() returns the raw secret value unchanged when database name is None."""
     settings = DatabaseSettings(_env_prefix="TEST_DB_", url=POSTGRES_URL)
-    assert settings.get_url() == POSTGRES_URL
+    assert settings.get_url() == POSTGRES_URL_PSYCOPG
 
 
 @pytest.mark.unit
@@ -61,8 +62,24 @@ def test_get_url_preserves_scheme_and_host() -> None:
     """Scheme, host, and port are intact after name substitution."""
     settings = DatabaseSettings(_env_prefix="TEST_DB_", url=POSTGRES_URL, name="mydb")
     result = settings.get_url()
-    assert result.startswith("postgresql+asyncpg://")
+    assert result.startswith("postgresql+psycopg://")
     assert "localhost:5432" in result
+
+
+@pytest.mark.unit
+def test_get_url_normalises_asyncpg_to_psycopg() -> None:
+    """get_url() rewrites +asyncpg to +psycopg in the returned URL."""
+    settings = DatabaseSettings(_env_prefix="TEST_DB_", url=POSTGRES_URL)
+    result = settings.get_url()
+    assert "+asyncpg" not in result
+    assert "+psycopg" in result
+
+
+@pytest.mark.unit
+def test_get_url_leaves_non_asyncpg_schemes_unchanged() -> None:
+    """get_url() does not modify URLs that do not contain +asyncpg."""
+    settings = DatabaseSettings(_env_prefix="TEST_DB_", url=SQLITE_URL)
+    assert settings.get_url() == SQLITE_URL
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +95,7 @@ def test_default_env_prefix_reads_from_context(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("MYAPP_DB_URL", POSTGRES_URL)
 
     settings = DatabaseSettings()
-    assert settings.get_url() == POSTGRES_URL
+    assert settings.get_url() == POSTGRES_URL_PSYCOPG
 
 
 @pytest.mark.unit
@@ -90,7 +107,7 @@ def test_explicit_env_prefix_overrides_context(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv(CUSTOM_PREFIX_URL_ENV, POSTGRES_URL)
 
     settings = DatabaseSettings(_env_prefix=CUSTOM_PREFIX)
-    assert settings.get_url() == POSTGRES_URL
+    assert settings.get_url() == POSTGRES_URL_PSYCOPG
 
 
 # ---------------------------------------------------------------------------
@@ -139,8 +156,8 @@ def test_db_name_reads_from_name_env_var(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 @pytest.mark.unit
-def test_url_is_masked_in_repr() -> None:
-    """repr(settings) / str(settings) does not expose the raw URL."""
+def test_raw_url_is_masked_in_repr() -> None:
+    """repr(settings) does not expose the secret value of raw_url."""
     settings = DatabaseSettings(_env_prefix="TEST_DB_", url=POSTGRES_URL)
     representation = repr(settings)
     assert "pass" not in representation
