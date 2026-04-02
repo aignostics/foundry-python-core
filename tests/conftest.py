@@ -8,7 +8,7 @@ import psutil
 import pytest
 
 from aignostics_foundry_core.database import DatabaseSettings
-from aignostics_foundry_core.foundry import FoundryContext
+from aignostics_foundry_core.foundry import FoundryContext, PackageMetadata
 
 __all__ = ["make_context"]
 
@@ -71,6 +71,7 @@ def make_context(  # noqa: PLR0913
     repository_url: str = "",
     database: DatabaseSettings | None = None,
     env_file: list[Path] | None = None,
+    metadata: PackageMetadata | None = None,
     **kwargs: bool,
 ) -> FoundryContext:
     """Create a minimal FoundryContext for testing.
@@ -81,13 +82,18 @@ def make_context(  # noqa: PLR0913
         version: The version string (defaults to ``"0.0.0"``).
         environment: The deployment environment (defaults to ``"test"``).
         project_path: Optional path to the project root.
-        repository_url: The project repository URL (defaults to ``""``).
+        repository_url: Shorthand to set ``metadata.repository_url`` when *metadata* is
+            not provided.  Ignored when *metadata* is supplied explicitly.
         database: Optional :class:`~aignostics_foundry_core.database.DatabaseSettings`
             instance to attach to the context.
         env_file: Optional list of ``.env`` file paths to attach to the context.
+        metadata: Optional :class:`~aignostics_foundry_core.foundry.PackageMetadata`
+            to attach to the context.  When ``None``, a ``PackageMetadata`` with
+            ``repository_url`` set from the *repository_url* argument is used.
         **kwargs: Optional boolean flags forwarded to :class:`FoundryContext`
             (``is_test``, ``is_cli``, ``is_container``, ``is_library``).
     """
+    resolved_metadata = metadata if metadata is not None else PackageMetadata(repository_url=repository_url)
     return FoundryContext(
         name=name,
         version=version,
@@ -96,8 +102,8 @@ def make_context(  # noqa: PLR0913
         environment=environment,
         env_prefix=env_prefix,
         project_path=project_path,
-        repository_url=repository_url,
         database=database,
         env_file=env_file or [],
+        metadata=resolved_metadata,
         **kwargs,  # type: ignore[arg-type]
     )

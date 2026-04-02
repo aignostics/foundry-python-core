@@ -55,7 +55,6 @@ class TestUserAgent:
             version_full=CTX_VERSION_FULL,
             version_with_vcs_ref=CTX_VERSION,
             environment="test",
-            repository_url=CTX_REPOSITORY_URL,
         )
         result = user_agent(context=ctx)
 

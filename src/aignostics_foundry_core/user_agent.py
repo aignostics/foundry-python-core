@@ -42,6 +42,6 @@ def user_agent(*, context: "FoundryContext | None" = None) -> str:
     # Format: {project}-python-sdk/{version_full} ({platform}; +{repository_url}; {optional_parts})
     # TODO(oliverm): Find a way to not hard code python-sdk here. This was taken as such from Bridge.
     base_info = f"{ctx.name}-python-sdk/{ctx.version_full}"
-    system_info = f"{platform.platform()}; +{ctx.repository_url}{optional_suffix}"
+    system_info = f"{platform.platform()}; +{ctx.metadata.repository_url}{optional_suffix}"
 
     return f"{base_info} ({system_info})"

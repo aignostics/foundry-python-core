@@ -37,6 +37,57 @@ def _empty_path_list() -> list[Path]:
     return []
 
 
+class PackageMetadata(BaseModel):
+    """All package-derived metadata: description, author, and project URLs.
+
+    Populated via :meth:`from_name` from ``importlib.metadata``.
+    Defaults to empty/``None`` values so contexts constructed directly (e.g. in tests)
+    work without any extra setup.
+    """
+
+    model_config = {"frozen": True}
+
+    description: str = ""
+    author_name: str | None = None
+    author_email: str | None = None
+    repository_url: str = ""
+    documentation_url: str = ""
+
+    @classmethod
+    def from_name(cls, package_name: str) -> PackageMetadata:
+        """Return a :class:`PackageMetadata` populated from installed package metadata.
+
+        Reads ``Summary``, ``Author-email``, and ``Project-URL`` entries from
+        ``importlib.metadata`` for *package_name*.
+
+        Args:
+            package_name: The importable package name (e.g. ``"aignostics_foundry_core"``).
+
+        Returns:
+            A fully populated, frozen :class:`PackageMetadata` instance.
+        """
+        pkg_meta = metadata.metadata(package_name)
+        authors = pkg_meta.get_all("Author-email") or []
+        author = authors[0] if authors else None
+        author_name = author.split("<")[0].strip() if author else None
+        author_email = author.split("<")[1].strip(" >") if author else None
+        description = pkg_meta.get("Summary") or ""
+        repository_url = ""
+        documentation_url = ""
+        for url_entry in pkg_meta.get_all("Project-URL") or []:
+            if url_entry.startswith("Source"):
+                repository_url = url_entry.split(", ", 1)[1]
+            elif url_entry.startswith("Documentation"):
+                documentation_url = url_entry.split(", ", 1)[1]
+        return cls(
+            description=description,
+            author_name=author_name,
+            author_email=author_email,
+            repository_url=repository_url,
+            documentation_url=documentation_url,
+        )
+
+
 class FoundryContext(BaseModel):
     """Immutable project context carrying all project-specific values.
 
@@ -71,14 +122,18 @@ class FoundryContext(BaseModel):
     environment: str
     env_file: list[Path] = Field(default_factory=_empty_path_list)
     env_prefix: str = ""
-    repository_url: str = ""
-    documentation_url: str = ""
     is_container: bool = False
     is_cli: bool = False
     is_test: bool = False
     is_library: bool = False
     python_version: str = ""
     project_path: Path | None = None
+    metadata: PackageMetadata = Field(default_factory=PackageMetadata)
+    """Package-derived author and description metadata.
+
+    Populated by :meth:`from_package` from ``importlib.metadata``.
+    Defaults to empty values when the context is constructed directly (e.g. in tests).
+    """
     database: DatabaseSettings | None = None
     """Database settings resolved from ``{env_prefix}DB_*`` environment variables.
 
@@ -119,7 +174,6 @@ class FoundryContext(BaseModel):
         name_upper = name.upper()
         version = metadata.version(package_name)
         environment = _detect_environment(name_upper)
-        repository_url, documentation_url = _extract_urls(package_name)
         project_path = _find_project_path(package_name)
         vcs_ref = os.environ.get("VCS_REF") or (project_path and _get_vcs_ref_from_git(project_path)) or "unknown"
         env_prefix = f"{name_upper}_"
@@ -138,8 +192,7 @@ class FoundryContext(BaseModel):
             environment=environment,
             env_file=env_files,
             env_prefix=env_prefix,
-            repository_url=repository_url,
-            documentation_url=documentation_url,
+            metadata=PackageMetadata.from_name(package_name),
             python_version=platform.python_version(),
             project_path=project_path,
             database=database,
@@ -282,19 +335,6 @@ def _any_env_file_has(key: str, env_files: list[Path]) -> bool:
         True if *key* is found in any readable env file, False otherwise.
     """
     return any(key in dotenv_values(f) for f in env_files if f.is_file())
-
-
-def _extract_urls(package_name: str) -> tuple[str, str]:
-    """Return ``(repository_url, documentation_url)`` from package metadata."""
-    pkg_metadata = metadata.metadata(package_name)
-    repository_url = ""
-    documentation_url = ""
-    for url_entry in pkg_metadata.get_all("Project-URL") or []:
-        if url_entry.startswith("Source"):
-            repository_url = url_entry.split(", ", 1)[1]
-        elif url_entry.startswith("Documentation"):
-            documentation_url = url_entry.split(", ", 1)[1]
-    return repository_url, documentation_url
 
 
 def _build_runtime_flags(name: str, name_upper: str) -> dict[str, bool]:
