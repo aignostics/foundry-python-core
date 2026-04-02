@@ -300,13 +300,13 @@ async def get_user(
 
     try:
         auth_client = get_auth_client(request)
-        session: dict[str, Any] = await auth_client.require_session(request, Response())  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType, reportUnknownVariableType]
+        session: dict = await auth_client.require_session(request, Response())  # type: ignore[reportUnknownVariableType]
     except Exception:  # noqa: BLE001
         msg = "No session found"
         logger.debug(msg)
         return None
 
-    raw_user = session.get("user")
+    raw_user: dict | None = session.get("user") if isinstance(session, dict) else None  # type: ignore[reportUnknownVariableType]
     if not raw_user or not isinstance(raw_user, dict):
         msg = "Failed to retrieve user information from session"
         logger.critical(msg)

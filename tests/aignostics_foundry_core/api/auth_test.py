@@ -168,6 +168,18 @@ class TestGetUser:
 
         assert result is None
 
+    async def test_get_user_returns_none_when_session_is_not_a_dict(self) -> None:
+        """get_user returns None when require_session returns a non-dict value."""
+        request = MagicMock()
+        cookie = "fake-cookie"
+        fake_client = MagicMock()
+        fake_client.require_session = AsyncMock(return_value="not-a-dict")
+        request.app.state.auth_client = fake_client
+
+        result = await get_user(request, cookie)
+
+        assert result is None
+
     async def test_get_user_returns_user_for_valid_session(self) -> None:
         """get_user returns the user dict when the session is valid and not expired."""
         request = MagicMock()
