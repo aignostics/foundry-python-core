@@ -262,41 +262,33 @@ def create_internal_admin_router(
     return cast("APIRouter", VersionedAPIRouter(version, prefix=actual_prefix, tags=tags, dependencies=dependencies))
 
 
-def build_api_metadata(  # noqa: PLR0913, PLR0917
-    title: str,
-    description: str = "",
-    author_name: str = "",
-    author_email: str = "",
-    repository_url: str = "",
-    documentation_url: str = "",
-    version: str | None = None,
-) -> dict[str, Any]:
+def build_api_metadata(version: str | None = None, *, context: FoundryContext | None = None) -> dict[str, Any]:
     """Build a metadata dictionary suitable for passing to a FastAPI instance.
 
+    All fields (title, description, author, URLs) are derived from *context*.
+
     Args:
-        title: The API title (project name).
-        description: Human-readable description of the API.
-        author_name: Contact person or team name.
-        author_email: Contact email address.
-        repository_url: URL to the source repository.
-        documentation_url: URL to the documentation or terms of service.
         version: Optional API version string.
+        context: Project context supplying the title, description, author, and URLs.
+            When ``None``, the global context installed via
+            :func:`aignostics_foundry_core.foundry.set_context` is used.
 
     Returns:
         Dictionary containing FastAPI metadata keys.
     """
+    ctx = context or get_context()
     metadata: dict[str, Any] = {
-        "title": title,
-        "description": description,
+        "title": ctx.name,
+        "description": ctx.metadata.description,
         "contact": {
-            "name": author_name or "Unknown",
-            "email": author_email,
-            "url": repository_url,
+            "name": ctx.metadata.author_name or "Unknown",
+            "email": ctx.metadata.author_email or "",
+            "url": ctx.metadata.repository_url,
         },
-        "terms_of_service": documentation_url,
+        "terms_of_service": ctx.metadata.documentation_url,
         "license_info": {
             "name": "Aignostics Commercial License",
-            "url": f"{repository_url}/blob/main/LICENSE",
+            "url": f"{ctx.metadata.repository_url}/blob/main/LICENSE",
         },
     }
     if version is not None:
@@ -304,16 +296,19 @@ def build_api_metadata(  # noqa: PLR0913, PLR0917
     return metadata
 
 
-def build_versioned_api_tags(version_name: str, repository_url: str = "") -> list[dict[str, Any]]:
+def build_versioned_api_tags(version_name: str, *, context: FoundryContext | None = None) -> list[dict[str, Any]]:
     """Build ``openapi_tags`` for a versioned API instance.
 
     Args:
         version_name: The version name (e.g., "v1").
-        repository_url: URL to the source repository (used for external docs link).
+        context: Project context supplying the repository URL for the external docs link.
+            When ``None``, the global context installed via
+            :func:`aignostics_foundry_core.foundry.set_context` is used.
 
     Returns:
         List of OpenAPI tag dictionaries for the versioned API.
     """
+    repository_url = (context or get_context()).metadata.repository_url
     return [
         {
             "name": version_name,
@@ -351,7 +346,6 @@ def build_root_api_tags(base_url: str, versions: list[str]) -> list[dict[str, An
 
 def get_versioned_api_instances(
     versions: list[str],
-    build_metadata: dict[str, Any] | None = None,
     *,
     context: FoundryContext | None = None,
 ) -> dict[str, FastAPI]:
@@ -364,18 +358,19 @@ def get_versioned_api_instances(
 
     Args:
         versions: Ordered list of API version names (e.g., ``["v1", "v2"]``).
-        build_metadata: Optional extra kwargs forwarded to each ``FastAPI()`` constructor.
-        context: Project context supplying the package name.  When ``None``,
-            the global context installed via
-            :func:`aignostics_foundry_core.foundry.set_context` is used.
+        context: Project context supplying the package name, title, description, author,
+            and URLs for each ``FastAPI`` instance.  When ``None``, the global context
+            installed via :func:`aignostics_foundry_core.foundry.set_context` is used.
 
     Returns:
         Mapping from version name to its configured ``FastAPI`` instance.
     """
     from fastapi import FastAPI  # noqa: PLC0415
 
-    load_modules(context=context or get_context())
-    api_instances: dict[str, FastAPI] = {version: FastAPI(**(build_metadata or {})) for version in versions}
+    ctx = context or get_context()
+    load_modules(context=ctx)
+    api_metadata = build_api_metadata(context=ctx)
+    api_instances: dict[str, FastAPI] = {version: FastAPI(**api_metadata) for version in versions}
 
     for router in VersionedAPIRouter.get_instances():
         router_version: str = cast("Any", router).version

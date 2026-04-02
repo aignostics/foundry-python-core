@@ -135,10 +135,10 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
   - `API_TAG_PUBLIC`, `API_TAG_AUTHENTICATED`, `API_TAG_ADMIN`, `API_TAG_INTERNAL`, `API_TAG_INTERNAL_ADMIN` — string constants for OpenAPI tagging
   - `create_public_router(module_tag, *, version, prefix, …)` — public (unauthenticated) router
   - `create_authenticated_router`, `create_admin_router`, `create_internal_router`, `create_internal_admin_router` — router factories that inject the appropriate `require_*` dependency from `api.auth`
-  - `build_api_metadata(title, description, author_name, author_email, repository_url, documentation_url, version)` — returns a `dict` suitable for `FastAPI(**metadata)`
-  - `build_versioned_api_tags(version_name, repository_url)` — OpenAPI tags for a single versioned sub-app
+  - `build_api_metadata(version=None, *, context=None)` — returns a `dict` suitable for `FastAPI(**metadata)`; derives title, description, author, and URLs from *context* (falls back to global context)
+  - `build_versioned_api_tags(version_name, *, context=None)` — OpenAPI tags for a single versioned sub-app; reads `repository_url` from *context*
   - `build_root_api_tags(base_url, versions)` — OpenAPI tags for the root app linking to each version's docs
-  - `get_versioned_api_instances(versions, build_metadata=None, *, context=None)` — loads project modules (resolved via context), creates one `FastAPI` per version, routes registered `VersionedAPIRouter` instances to the matching version
+  - `get_versioned_api_instances(versions, *, context=None)` — loads project modules (resolved via context), calls `build_api_metadata(context=ctx)` to configure each `FastAPI` instance, routes registered `VersionedAPIRouter` instances to the matching version
   - `init_api(root_path, lifespan, exception_handler_registrations, versions=None, version_exception_handler_registrations=None, **fastapi_kwargs)` — creates a `FastAPI` with the standard Foundry exception handlers (`ApiException`, `RequestValidationError`, `ValidationError`, `Exception`) pre-registered; when *versions* is supplied, calls `get_versioned_api_instances` internally, optionally applies *version_exception_handler_registrations* to each sub-app, and mounts them at `/{version}` on the root app
 - **Location**: `aignostics_foundry_core/api/core.py`
 - **Dependencies**: `fastapi>=0.110,<1` (mandatory); `aignostics_foundry_core.di` (`load_modules`)

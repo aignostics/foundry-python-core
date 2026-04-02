@@ -56,10 +56,10 @@ def test_api_tag_constants() -> None:
 
 @pytest.mark.unit
 def test_build_api_metadata_returns_dict_with_title() -> None:
-    """build_api_metadata returns a dict containing the title key."""
+    """build_api_metadata returns a dict containing the title derived from context."""
     from aignostics_foundry_core.api.core import build_api_metadata
 
-    result = build_api_metadata(title=TEST_TITLE, description="Test API", repository_url="https://example.com")
+    result = build_api_metadata(context=make_context(name=TEST_TITLE))
 
     assert isinstance(result, dict)
     assert result[TITLE_KEY] == TEST_TITLE
@@ -184,7 +184,7 @@ def test_build_api_metadata_includes_version_when_provided() -> None:
     """build_api_metadata adds a 'version' key when version is supplied."""
     from aignostics_foundry_core.api.core import build_api_metadata
 
-    result = build_api_metadata(title=TEST_TITLE, version=TEST_VERSION_STR)
+    result = build_api_metadata(version=TEST_VERSION_STR, context=make_context())
 
     assert result["version"] == TEST_VERSION_STR
 
@@ -194,11 +194,24 @@ def test_build_versioned_api_tags_returns_tag_for_version() -> None:
     """build_versioned_api_tags returns a single-element list with the correct name."""
     from aignostics_foundry_core.api.core import build_versioned_api_tags
 
-    tags = build_versioned_api_tags("v2", repository_url=BASE_URL)
+    tags = build_versioned_api_tags("v2", context=make_context(repository_url=BASE_URL))
 
     assert len(tags) == 1
     assert tags[0]["name"] == "v2"
     assert BASE_URL in tags[0]["externalDocs"]["url"]
+
+
+@pytest.mark.unit
+def test_build_api_metadata_contact_uses_context_author() -> None:
+    """build_api_metadata populates contact from context's PackageMetadata author fields."""
+    from aignostics_foundry_core.api.core import build_api_metadata
+    from aignostics_foundry_core.foundry import PackageMetadata
+
+    ctx = make_context(metadata=PackageMetadata(author_name="Ada", author_email="ada@example.com"))
+    result = build_api_metadata(context=ctx)
+
+    assert result["contact"]["name"] == "Ada"
+    assert result["contact"]["email"] == "ada@example.com"
 
 
 @pytest.mark.unit
@@ -217,7 +230,7 @@ def test_build_root_api_tags_one_entry_per_version() -> None:
 
 @pytest.mark.unit
 def test_get_versioned_api_instances_returns_fastapi_per_version() -> None:
-    """get_versioned_api_instances returns a FastAPI instance for each requested version."""
+    """get_versioned_api_instances returns a FastAPI instance with the context name as title."""
     from fastapi import FastAPI
 
     from aignostics_foundry_core.api.core import VersionedAPIRouter, get_versioned_api_instances
@@ -227,6 +240,7 @@ def test_get_versioned_api_instances_returns_fastapi_per_version() -> None:
 
     assert VERSION_GVI in result
     assert isinstance(result[VERSION_GVI], FastAPI)
+    assert result[VERSION_GVI].title == "aignostics_foundry_core"
 
 
 @pytest.mark.unit
