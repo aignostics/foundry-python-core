@@ -1,3 +1,9 @@
+## v0.7.1 (2026-04-02)
+
+### Fix
+
+- **database**: normalise asyncpg to psycopg in get_url ([4918893](https://github.com/aignostics/foundry-python-core/commit/4918893a261ec69e4a60daa991dc71166212f9c9))
+
 ## v0.7.0 (2026-04-01)
 
 ### Feat
