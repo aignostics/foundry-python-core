@@ -1,3 +1,13 @@
+## v0.8.0 (2026-04-07)
+
+### Feat
+
+- **foundry**: add PackageMetadata to FoundryContext ([8e8f904](https://github.com/aignostics/foundry-python-core/commit/8e8f90429999e485d49f1feddf903ee0eba80b1f))
+
+### Refactor
+
+- **api**: derive metadata from context in api.core helpers ([df0a01f](https://github.com/aignostics/foundry-python-core/commit/df0a01fb582dc9163af081a32fb6233d9646c2e9))
+
 ## v0.7.2 (2026-04-02)
 
 ### Fix
