@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from fastapi.routing import APIRouter
 
     from aignostics_foundry_core.foundry import FoundryContext
+    from aignostics_foundry_core.gui.auth import FrameFunc
 
 WINDOW_SIZE = (1280, 768)
 BROWSER_RECONNECT_TIMEOUT = 60 * 60 * 24 * 7  # 7 days
@@ -49,21 +50,30 @@ class BasePageBuilder(ABC):
         """Register NiceGUI pages."""
 
 
-def gui_register_pages(*, context: FoundryContext | None = None) -> None:
-    """Register pages from all discovered PageBuilders.
+def gui_register_pages(*, context: FoundryContext | None = None, frame_func: FrameFunc = None) -> None:
+    """Register pages from all discovered PageBuilders and actualize the registry.
 
-    Discovers all ``BasePageBuilder`` subclasses for the configured project and
-    calls ``register_pages()`` on each one.
+    Discovers all ``BasePageBuilder`` subclasses for the configured project,
+    calls ``register_pages()`` on each one (which populates ``_registry`` via
+    the ``page_*`` decorators), then actualizes every registry entry with the
+    given ``frame_func``. The registry is cleared after processing.
 
     Args:
         context: Project context used for PageBuilder discovery.  When ``None``,
             the global context installed via
             :func:`aignostics_foundry_core.foundry.set_context` is used.
+        frame_func: Optional frame callable injected into every registered page.
+            Called as ``frame_func(title, user=user)`` inside the page wrapper.
+            When ``None``, pages render without a frame.
     """
+    from .auth import process_page_registry  # noqa: PLC0415
+
     page_builders = locate_subclasses(BasePageBuilder, context=context or get_context())
     for page_builder in page_builders:
         page_builder: BasePageBuilder  # type: ignore[no-redef]
         page_builder.register_pages()
+
+    process_page_registry(frame_func=frame_func)
 
 
 def _register_callbacks(
@@ -123,6 +133,7 @@ def gui_run(  # noqa: PLR0913, PLR0917
     shutdown_callbacks: list[Callable[[], Any]] | None = None,
     *,
     context: FoundryContext | None = None,
+    frame_func: FrameFunc = None,
 ) -> None:
     """Start the NiceGUI application.
 
@@ -146,6 +157,9 @@ def gui_run(  # noqa: PLR0913, PLR0917
         context: Project context used for page builder discovery and window
             title.  When ``None``, the global context installed via
             :func:`aignostics_foundry_core.foundry.set_context` is used.
+        frame_func: Optional frame callable forwarded to ``gui_register_pages``.
+            Injected into every page registered via the ``page_*`` registry
+            decorators.  Called as ``frame_func(title, user=user)``.
     """
     from nicegui import app, ui  # noqa: PLC0415
     from nicegui import native as native_app  # noqa: PLC0415
@@ -153,7 +167,7 @@ def gui_run(  # noqa: PLR0913, PLR0917
     ctx = context or get_context()
 
     _register_callbacks(app, startup_callbacks, shutdown_callbacks)
-    gui_register_pages(context=ctx)
+    gui_register_pages(context=ctx, frame_func=frame_func)
 
     if fastapi_app is not None:
         _mount_fastapi_app(app, fastapi_app, auth_router)

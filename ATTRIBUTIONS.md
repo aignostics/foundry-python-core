@@ -360,7 +360,7 @@ SOFTWARE.
 
 ```
 
-## aignostics-foundry-core (0.8.1) - MIT License
+## aignostics-foundry-core (0.8.2) - MIT License
 
 🏭 Foundational infrastructure for Foundry components.
 
