@@ -293,10 +293,10 @@ def test_init_api_mounts_versioned_apps(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 @pytest.mark.unit
-def test_init_api_applies_version_exception_handlers(monkeypatch: pytest.MonkeyPatch) -> None:
-    """init_api applies version_exception_handler_registrations to each versioned sub-app."""
+def test_init_api_propagates_custom_exception_handlers_to_versioned_apps(monkeypatch: pytest.MonkeyPatch) -> None:
+    """init_api registers exception_handler_registrations on each versioned sub-app."""
     from typing import Any
-    from unittest.mock import MagicMock
+    from unittest.mock import MagicMock, call
 
     import aignostics_foundry_core.api.core as core_module
     from aignostics_foundry_core.api.core import init_api
@@ -311,10 +311,50 @@ def test_init_api_applies_version_exception_handlers(monkeypatch: pytest.MonkeyP
 
     def my_handler(request: object, exc: Exception) -> None: ...
 
-    init_api(versions=[VERSION_V1, VERSION_V2], version_exception_handler_registrations=[(ValueError, my_handler)])
+    init_api(versions=[VERSION_V1, VERSION_V2], exception_handler_registrations=[(ValueError, my_handler)])
 
-    stub_v1.add_exception_handler.assert_called_once_with(exc_class_or_status_code=ValueError, handler=my_handler)
-    stub_v2.add_exception_handler.assert_called_once_with(exc_class_or_status_code=ValueError, handler=my_handler)
+    custom_call = call(exc_class_or_status_code=ValueError, handler=my_handler)
+    assert custom_call in stub_v1.add_exception_handler.call_args_list
+    assert custom_call in stub_v2.add_exception_handler.call_args_list
+
+
+@pytest.mark.unit
+def test_init_api_registers_standard_handlers_on_versioned_apps(monkeypatch: pytest.MonkeyPatch) -> None:
+    """init_api registers the 4 standard handlers on each versioned sub-app."""
+    from typing import Any
+    from unittest.mock import MagicMock, call
+
+    from fastapi.exceptions import RequestValidationError
+    from pydantic import ValidationError
+
+    import aignostics_foundry_core.api.core as core_module
+    from aignostics_foundry_core.api.core import (
+        ApiException,
+        api_exception_handler,
+        init_api,
+        unhandled_exception_handler,
+        validation_exception_handler,
+    )
+
+    stub_v1 = MagicMock()
+    stub_v2 = MagicMock()
+
+    def fake_get_versioned(versions: list[str], **_: Any) -> dict[str, MagicMock]:  # noqa: ANN401
+        return {VERSION_V1: stub_v1, VERSION_V2: stub_v2}
+
+    monkeypatch.setattr(core_module, "get_versioned_api_instances", fake_get_versioned)
+
+    init_api(versions=[VERSION_V1, VERSION_V2])
+
+    expected_calls = [
+        call(exc_class_or_status_code=ApiException, handler=api_exception_handler),
+        call(exc_class_or_status_code=RequestValidationError, handler=validation_exception_handler),
+        call(exc_class_or_status_code=ValidationError, handler=validation_exception_handler),
+        call(exc_class_or_status_code=Exception, handler=unhandled_exception_handler),
+    ]
+    for expected in expected_calls:
+        assert expected in stub_v1.add_exception_handler.call_args_list
+        assert expected in stub_v2.add_exception_handler.call_args_list
 
 
 @pytest.mark.unit

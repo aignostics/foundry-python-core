@@ -390,7 +390,6 @@ def init_api(
     lifespan: Any | None = None,  # noqa: ANN401
     exception_handler_registrations: list[tuple[type[Exception], Any]] | None = None,
     versions: list[str] | None = None,
-    version_exception_handler_registrations: list[tuple[type[Exception], Any]] | None = None,
     **fastapi_kwargs: Any,  # noqa: ANN401
 ) -> FastAPI:
     """Initialise a FastAPI application with standard exception handlers.
@@ -398,21 +397,25 @@ def init_api(
     This is a generic factory that creates a ``FastAPI`` instance and registers
     the standard Foundry exception handlers.  When *versions* is supplied the
     function also creates versioned sub-applications via
-    ``get_versioned_api_instances``, optionally applies per-version exception
-    handlers, and mounts each sub-app at ``/{version}`` on the root app.
+    ``get_versioned_api_instances`` and mounts each sub-app at ``/{version}``
+    on the root app.
+
+    All exception handlers — both the custom ``exception_handler_registrations``
+    entries and the 4 standard handlers (``ApiException``,
+    ``RequestValidationError``, ``ValidationError``, ``Exception``) — are
+    registered on the root app **and** on every versioned sub-app.  This is
+    necessary because FastAPI mounted sub-apps handle exceptions independently;
+    the root app's handlers never fire for requests matched inside a sub-app.
 
     Args:
         root_path: ASGI root path (useful for reverse-proxy setups).
         lifespan: Optional async context manager for application lifespan.
         exception_handler_registrations: Additional ``(exc_class, handler)`` pairs
-            to register before the standard handlers.
+            to register on all app instances before the standard handlers.
         versions: Optional list of API version names (e.g. ``["v1", "v2"]``).
             When provided, ``get_versioned_api_instances`` is called internally
             and each resulting sub-app is mounted at ``/{version}`` on the root
             app.
-        version_exception_handler_registrations: ``(exc_class, handler)`` pairs
-            to register on *every* versioned sub-app before mounting.  Only used
-            when *versions* is also provided.
         **fastapi_kwargs: Extra keyword arguments forwarded to ``FastAPI()``.
 
     Returns:
@@ -437,8 +440,19 @@ def init_api(
     if versions:
         versioned_apps = get_versioned_api_instances(versions)
         for version_name, version_app in versioned_apps.items():
-            for exc_class, handler in version_exception_handler_registrations or []:
+            for exc_class, handler in exception_handler_registrations or []:
                 version_app.add_exception_handler(exc_class_or_status_code=exc_class, handler=handler)
+            version_app.add_exception_handler(  # type: ignore[arg-type]
+                exc_class_or_status_code=ApiException,
+                handler=api_exception_handler,  # pyright: ignore[reportArgumentType]
+            )
+            version_app.add_exception_handler(
+                exc_class_or_status_code=RequestValidationError, handler=validation_exception_handler
+            )
+            version_app.add_exception_handler(
+                exc_class_or_status_code=ValidationError, handler=validation_exception_handler
+            )
+            version_app.add_exception_handler(exc_class_or_status_code=Exception, handler=unhandled_exception_handler)
             api.mount(f"/{version_name}", version_app)
 
     return api
