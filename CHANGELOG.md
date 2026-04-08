@@ -1,3 +1,9 @@
+## v0.8.1 (2026-04-08)
+
+### Fix
+
+- **api**: propagate exception handlers to versioned apps ([47a78a0](https://github.com/aignostics/foundry-python-core/commit/47a78a0356615eb56a8bd95745c9de0047bb8798))
+
 ## v0.8.0 (2026-04-07)
 
 ### Feat
