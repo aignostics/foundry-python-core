@@ -1,3 +1,9 @@
+## v0.8.2 (2026-04-08)
+
+### Fix
+
+- trigger version bump ([994f9f5](https://github.com/aignostics/foundry-python-core/commit/994f9f5e1898eac1b6c3c95d5b933d895e4ceea0))
+
 ## v0.8.1 (2026-04-08)
 
 ### Fix
