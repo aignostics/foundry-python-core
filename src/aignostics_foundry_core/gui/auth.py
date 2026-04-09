@@ -3,16 +3,48 @@
 This module provides:
 - get_gui_user: Get authenticated user from Auth0 session
 - require_gui_user: Require authentication, redirect to login if not authenticated
-- Page decorators: page_public, page_authenticated, page_admin, page_internal,
+- Page actualize functions (private): _actualize_public, _actualize_authenticated,
+  _actualize_admin, _actualize_internal, _actualize_internal_admin
+- Page registry decorators: page_public, page_authenticated, page_admin, page_internal,
   page_internal_admin
+- clear_page_registry: Clear the global page registry (for test isolation)
 - GUINamespace: Configurable namespace for page decorators
 - gui: Default GUINamespace singleton (no frame)
+
+References:
+    docs/decisions/0005-gui-page-registration.md
+
+Example (registry-based, new style)::
+
+    from aignostics_foundry_core.gui import page_authenticated, gui_run
+
+
+    @page_authenticated("/dashboard")
+    def dashboard(user: dict) -> None:
+        ui.label(f"Hello, {user['name']}")
+
+
+    # Later, in main:
+    gui_run(frame_func=my_frame)  # Actualizes all registered pages
+
+Example (namespace-based, legacy style)::
+
+    from aignostics_foundry_core.gui import GUINamespace
+
+    gui = GUINamespace(frame_func=my_frame)
+
+
+    @gui.authenticated("/dashboard")
+    def dashboard(user: dict) -> None:
+        ui.label(f"Hello, {user['name']}")
 """
 
 import contextlib
 import inspect
 import time
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any
 
 from fastapi import Request
@@ -25,11 +57,74 @@ from aignostics_foundry_core.settings import load_settings
 from .core import RESPONSE_TIMEOUT
 
 CLASS_FORBIDDEN_ERROR = "text-red-500 text-2xl"
+MSG_403_FORBIDDEN = "403 Forbidden"
 
 # FrameFunc is an optional callable that returns a context manager.
 # Call signature: frame_func(title, user=user)
 # Example: contextlib.contextmanager-decorated function.
 FrameFunc = Callable[..., Any] | None
+
+
+class AccessLevel(StrEnum):
+    """Access level for a registered NiceGUI page."""
+
+    PUBLIC = "public"
+    AUTHENTICATED = "authenticated"
+    ADMIN = "admin"
+    INTERNAL = "internal"
+    INTERNAL_ADMIN = "internal_admin"
+
+
+@dataclass
+class _PageEntry:
+    """Registry entry for a deferred NiceGUI page registration."""
+
+    access: AccessLevel
+    path: str
+    title: str
+    func: Callable[..., Any]
+
+
+# Module-level registry — NOT thread-safe. Tests MUST call clear_page_registry()
+# in setup/teardown. Production code should only write during module import and
+# read during gui_register_pages().
+_registry: list[_PageEntry] = []
+
+
+def clear_page_registry() -> None:
+    """Clear the global page registry.
+
+    Call in test teardown to ensure isolation between tests. Each test that
+    exercises page registration should clear the registry before and after.
+    """
+    _registry.clear()
+
+
+def process_page_registry(frame_func: FrameFunc = None) -> None:
+    """Actualize all entries in the page registry and clear it.
+
+    Iterates over every ``_PageEntry`` recorded by the ``page_*`` decorators,
+    calls the matching ``_actualize_*`` function with the given ``frame_func``,
+    then clears the registry.
+
+    Called by ``gui_register_pages`` after all ``BasePageBuilder.register_pages()``
+    methods have run.
+
+    Args:
+        frame_func: Optional frame callable injected into every registered page.
+            Called as ``frame_func(title, user=user)`` inside the page wrapper.
+            When ``None``, pages render without a frame.
+    """
+    actualize_map = {
+        AccessLevel.PUBLIC: _actualize_public,
+        AccessLevel.AUTHENTICATED: _actualize_authenticated,
+        AccessLevel.ADMIN: _actualize_admin,
+        AccessLevel.INTERNAL: _actualize_internal,
+        AccessLevel.INTERNAL_ADMIN: _actualize_internal_admin,
+    }
+    for entry in _registry:
+        actualize_map[entry.access](entry.path, entry.title, frame_func=frame_func)(entry.func)
+    _registry.clear()
 
 
 async def _invoke_page_func(func: Callable[..., Any], user: dict[str, Any] | None) -> None:
@@ -116,33 +211,22 @@ async def require_gui_user(request: Request, return_to: str | None = None) -> di
     return user
 
 
-def page_public(
+# ---------------------------------------------------------------------------
+# Private actualize functions — called immediately with a known frame_func.
+# Used by GUINamespace methods and by gui_register_pages when processing the
+# registry.
+# ---------------------------------------------------------------------------
+
+
+def _actualize_public(
     path: str,
     title: str = "",
     frame_func: FrameFunc = None,
 ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
-    """Decorator for public NiceGUI pages with optional frame.
-
-    Creates a page that does not require authentication. The user (or ``None``
-    if not authenticated) is passed to the decorated function. Supports both
-    sync and async functions.
-
-    Args:
-        path: The URL path for the page.
-        title: The title passed to ``frame_func`` (if provided).
-        frame_func: Optional callable returning a context manager used to wrap
-            the page content. Called as ``frame_func(title, user=user)``.
+    """Register a public NiceGUI page immediately with the given frame_func.
 
     Returns:
         A decorator that wraps the page function.
-
-    Example:
-        @page_public("/public-page")
-        def public_page(user: dict[str, Any] | None) -> None:
-            if user:
-                ui.label(f"Hello, {user.get('name')}")
-            else:
-                ui.label("Hello, guest!")
     """
     from nicegui import ui  # noqa: PLC0415
 
@@ -164,22 +248,12 @@ def page_public(
     return decorator
 
 
-def page_authenticated(
+def _actualize_authenticated(
     path: str,
     title: str = "",
     frame_func: FrameFunc = None,
 ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
-    """Decorator for authenticated NiceGUI pages with optional frame.
-
-    Creates a page that requires authentication. If the user is not
-    authenticated, they are redirected to login with ``returnTo`` set to the
-    current page. Supports both sync and async functions.
-
-    Args:
-        path: The URL path for the page.
-        title: The title passed to ``frame_func`` (if provided).
-        frame_func: Optional callable returning a context manager used to wrap
-            the page content. Called as ``frame_func(title, user=user)``.
+    """Register an authenticated NiceGUI page immediately with the given frame_func.
 
     Returns:
         A decorator that wraps the page function.
@@ -206,22 +280,12 @@ def page_authenticated(
     return decorator
 
 
-def page_admin(
+def _actualize_admin(
     path: str,
     title: str = "",
     frame_func: FrameFunc = None,
 ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
-    """Decorator for admin-only NiceGUI pages with optional frame.
-
-    Creates a page that requires authentication and admin role. If the user is
-    not authenticated, they are redirected to login. If authenticated but not
-    admin, a 403 error is shown. Supports both sync and async functions.
-
-    Args:
-        path: The URL path for the page.
-        title: The title passed to ``frame_func`` (if provided).
-        frame_func: Optional callable returning a context manager used to wrap
-            the page content. Called as ``frame_func(title, user=user)``.
+    """Register an admin-only NiceGUI page immediately with the given frame_func.
 
     Returns:
         A decorator that wraps the page function.
@@ -241,7 +305,7 @@ def page_admin(
             role = user.get(auth_settings.auth0_role_claim)
             if role != AUTH0_ROLE_ADMIN:
                 with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
-                    ui.label("403 Forbidden - Admin access required").classes(CLASS_FORBIDDEN_ERROR)
+                    ui.label(f"{MSG_403_FORBIDDEN} - Admin access required").classes(CLASS_FORBIDDEN_ERROR)
                 return
 
             with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
@@ -256,23 +320,12 @@ def page_admin(
     return decorator
 
 
-def page_internal(
+def _actualize_internal(
     path: str,
     title: str = "",
     frame_func: FrameFunc = None,
 ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
-    """Decorator for internal-org-only NiceGUI pages with optional frame.
-
-    Creates a page that requires authentication and internal org membership.
-    If the user is not authenticated, they are redirected to login. If
-    authenticated but not in the internal org, a 403 error is shown. Supports
-    both sync and async functions.
-
-    Args:
-        path: The URL path for the page.
-        title: The title passed to ``frame_func`` (if provided).
-        frame_func: Optional callable returning a context manager used to wrap
-            the page content. Called as ``frame_func(title, user=user)``.
+    """Register an internal-org-only NiceGUI page immediately with the given frame_func.
 
     Returns:
         A decorator that wraps the page function.
@@ -292,7 +345,7 @@ def page_internal(
             org_id = user.get("org_id")
             if org_id != auth_settings.internal_org_id:
                 with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
-                    ui.label("403 Forbidden - Internal access required").classes(CLASS_FORBIDDEN_ERROR)
+                    ui.label(f"{MSG_403_FORBIDDEN} - Internal access required").classes(CLASS_FORBIDDEN_ERROR)
                 return
 
             with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
@@ -307,21 +360,12 @@ def page_internal(
     return decorator
 
 
-def page_internal_admin(
+def _actualize_internal_admin(
     path: str,
     title: str = "",
     frame_func: FrameFunc = None,
 ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
-    """Decorator for internal-org admin-only NiceGUI pages with optional frame.
-
-    Creates a page that requires authentication, internal org membership, AND
-    admin role. Supports both sync and async functions.
-
-    Args:
-        path: The URL path for the page.
-        title: The title passed to ``frame_func`` (if provided).
-        frame_func: Optional callable returning a context manager used to wrap
-            the page content. Called as ``frame_func(title, user=user)``.
+    """Register an internal-org admin-only NiceGUI page immediately with the given frame_func.
 
     Returns:
         A decorator that wraps the page function.
@@ -343,7 +387,7 @@ def page_internal_admin(
 
             if org_id != auth_settings.internal_org_id or role != AUTH0_ROLE_ADMIN:
                 with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
-                    ui.label("403 Forbidden - Internal admin access required").classes(CLASS_FORBIDDEN_ERROR)
+                    ui.label(f"{MSG_403_FORBIDDEN} - Internal admin access required").classes(CLASS_FORBIDDEN_ERROR)
                 return
 
             with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
@@ -358,15 +402,175 @@ def page_internal_admin(
     return decorator
 
 
+# ---------------------------------------------------------------------------
+# Public registry decorators — write intent to _registry; frame_func is
+# injected later by gui_register_pages(frame_func=...).
+# ---------------------------------------------------------------------------
+
+
+def page_public(path: str, title: str = "") -> Callable[..., Any]:
+    """Decorator that registers a public page in the global registry.
+
+    The route is NOT registered with NiceGUI immediately. Call
+    ``gui_register_pages(frame_func=...)`` to actualize all registered pages
+    with the appropriate frame.
+
+    Args:
+        path: The URL path for the page.
+        title: The title passed to the frame function when the page is actualized.
+
+    Returns:
+        A decorator that records the page function in the registry and returns
+        it unchanged (sync or async). The function will be awaited automatically
+        when the page renders if it is a coroutine function.
+
+    Example:
+        @page_public("/")
+        async def home(user: dict[str, Any] | None) -> None:
+            ui.label("Welcome!")
+    """
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        _registry.append(_PageEntry(AccessLevel.PUBLIC, path, title, func))
+        return func
+
+    return decorator
+
+
+def page_authenticated(path: str, title: str = "") -> Callable[..., Any]:
+    """Decorator that registers an authenticated page in the global registry.
+
+    The route is NOT registered with NiceGUI immediately. Call
+    ``gui_register_pages(frame_func=...)`` to actualize all registered pages
+    with the appropriate frame.
+
+    Args:
+        path: The URL path for the page.
+        title: The title passed to the frame function when the page is actualized.
+
+    Returns:
+        A decorator that records the page function in the registry and returns
+        it unchanged (sync or async). The function will be awaited automatically
+        when the page renders if it is a coroutine function.
+
+    Example:
+        @page_authenticated("/dashboard")
+        async def dashboard(user: dict[str, Any]) -> None:
+            ui.label(f"Hello, {user['name']}")
+    """
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        _registry.append(_PageEntry(AccessLevel.AUTHENTICATED, path, title, func))
+        return func
+
+    return decorator
+
+
+def page_admin(path: str, title: str = "") -> Callable[..., Any]:
+    """Decorator that registers an admin-only page in the global registry.
+
+    The route is NOT registered with NiceGUI immediately. Call
+    ``gui_register_pages(frame_func=...)`` to actualize all registered pages
+    with the appropriate frame.
+
+    Args:
+        path: The URL path for the page.
+        title: The title passed to the frame function when the page is actualized.
+
+    Returns:
+        A decorator that records the page function in the registry and returns
+        it unchanged (sync or async). The function will be awaited automatically
+        when the page renders if it is a coroutine function.
+
+    Example:
+        @page_admin("/admin")
+        async def admin_page(user: dict[str, Any]) -> None:
+            ui.label(f"Admin panel for {user['name']}")
+    """
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        _registry.append(_PageEntry(AccessLevel.ADMIN, path, title, func))
+        return func
+
+    return decorator
+
+
+def page_internal(path: str, title: str = "") -> Callable[..., Any]:
+    """Decorator that registers an internal-org-only page in the global registry.
+
+    The route is NOT registered with NiceGUI immediately. Call
+    ``gui_register_pages(frame_func=...)`` to actualize all registered pages
+    with the appropriate frame.
+
+    Args:
+        path: The URL path for the page.
+        title: The title passed to the frame function when the page is actualized.
+
+    Returns:
+        A decorator that records the page function in the registry and returns
+        it unchanged (sync or async). The function will be awaited automatically
+        when the page renders if it is a coroutine function.
+
+    Example:
+        @page_internal("/internal")
+        async def internal_page(user: dict[str, Any]) -> None:
+            ui.label(f"Internal tools for {user['name']}")
+    """
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        _registry.append(_PageEntry(AccessLevel.INTERNAL, path, title, func))
+        return func
+
+    return decorator
+
+
+def page_internal_admin(path: str, title: str = "") -> Callable[..., Any]:
+    """Decorator that registers an internal-org admin-only page in the global registry.
+
+    The route is NOT registered with NiceGUI immediately. Call
+    ``gui_register_pages(frame_func=...)`` to actualize all registered pages
+    with the appropriate frame.
+
+    Args:
+        path: The URL path for the page.
+        title: The title passed to the frame function when the page is actualized.
+
+    Returns:
+        A decorator that records the page function in the registry and returns
+        it unchanged (sync or async). The function will be awaited automatically
+        when the page renders if it is a coroutine function.
+
+    Example:
+        @page_internal_admin("/internal-admin")
+        async def internal_admin_page(user: dict[str, Any]) -> None:
+            ui.label(f"Internal admin panel for {user['name']}")
+    """
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        _registry.append(_PageEntry(AccessLevel.INTERNAL_ADMIN, path, title, func))
+        return func
+
+    return decorator
+
+
 class GUINamespace:
     """Namespace for NiceGUI page decorators with configurable frame function.
 
     Provides decorators for creating pages with automatic frame rendering
-    and user injection at various access levels.
+    and user injection at various access levels. Unlike the standalone
+    ``page_*`` registry decorators, ``GUINamespace`` methods actualize the
+    route immediately (bypassing the registry) using the frame function
+    supplied at construction time.
 
     Args:
         frame_func: Optional callable returning a context manager for page
             framing. Called as ``frame_func(title, user=user)``.
+
+    References:
+        docs/decisions/0005-gui-page-registration.md
+
+    Both sync and async page functions are supported; async functions are
+    awaited automatically when the page renders.
 
     Example:
         from aignostics_foundry_core.gui import gui
@@ -396,6 +600,9 @@ class GUINamespace:
     ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
         """Decorator for public NiceGUI pages.
 
+        Registers the route immediately via ``_actualize_public``, bypassing
+        the global registry.
+
         Args:
             path: The URL path for the page.
             title: The title passed to the frame function (if configured).
@@ -403,7 +610,7 @@ class GUINamespace:
         Returns:
             A decorator that wraps the page function.
         """
-        return page_public(path, title, frame_func=self._frame_func)
+        return _actualize_public(path, title, frame_func=self._frame_func)
 
     def authenticated(
         self,
@@ -412,6 +619,9 @@ class GUINamespace:
     ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
         """Decorator for authenticated NiceGUI pages.
 
+        Registers the route immediately via ``_actualize_authenticated``,
+        bypassing the global registry.
+
         Args:
             path: The URL path for the page.
             title: The title passed to the frame function (if configured).
@@ -419,7 +629,7 @@ class GUINamespace:
         Returns:
             A decorator that wraps the page function.
         """
-        return page_authenticated(path, title, frame_func=self._frame_func)
+        return _actualize_authenticated(path, title, frame_func=self._frame_func)
 
     def admin(
         self,
@@ -428,6 +638,9 @@ class GUINamespace:
     ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
         """Decorator for admin-only NiceGUI pages.
 
+        Registers the route immediately via ``_actualize_admin``, bypassing
+        the global registry.
+
         Args:
             path: The URL path for the page.
             title: The title passed to the frame function (if configured).
@@ -435,7 +648,7 @@ class GUINamespace:
         Returns:
             A decorator that wraps the page function.
         """
-        return page_admin(path, title, frame_func=self._frame_func)
+        return _actualize_admin(path, title, frame_func=self._frame_func)
 
     def internal(
         self,
@@ -444,6 +657,9 @@ class GUINamespace:
     ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
         """Decorator for internal-org-only NiceGUI pages.
 
+        Registers the route immediately via ``_actualize_internal``, bypassing
+        the global registry.
+
         Args:
             path: The URL path for the page.
             title: The title passed to the frame function (if configured).
@@ -451,7 +667,7 @@ class GUINamespace:
         Returns:
             A decorator that wraps the page function.
         """
-        return page_internal(path, title, frame_func=self._frame_func)
+        return _actualize_internal(path, title, frame_func=self._frame_func)
 
     def internal_admin(
         self,
@@ -460,6 +676,9 @@ class GUINamespace:
     ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
         """Decorator for internal-org admin-only NiceGUI pages.
 
+        Registers the route immediately via ``_actualize_internal_admin``,
+        bypassing the global registry.
+
         Args:
             path: The URL path for the page.
             title: The title passed to the frame function (if configured).
@@ -467,7 +686,7 @@ class GUINamespace:
         Returns:
             A decorator that wraps the page function.
         """
-        return page_internal_admin(path, title, frame_func=self._frame_func)
+        return _actualize_internal_admin(path, title, frame_func=self._frame_func)
 
 
 gui = GUINamespace()

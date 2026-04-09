@@ -8,7 +8,9 @@ This module provides:
 """
 
 from .auth import (
+    AccessLevel,
     GUINamespace,
+    clear_page_registry,
     get_gui_user,
     gui,
     page_admin,
@@ -37,11 +39,13 @@ __all__ = [
     "BROWSER_RECONNECT_TIMEOUT",
     "RESPONSE_TIMEOUT",
     "WINDOW_SIZE",
+    "AccessLevel",
     "BaseNavBuilder",
     "BasePageBuilder",
     "GUINamespace",
     "NavGroup",
     "NavItem",
+    "clear_page_registry",
     "get_gui_user",
     "gui",
     "gui_get_nav_groups",

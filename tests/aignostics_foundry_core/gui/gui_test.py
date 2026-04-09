@@ -1,5 +1,6 @@
 """Tests for aignostics_foundry_core.gui.*."""
 
+import asyncio
 import os
 import sys
 import time
@@ -28,6 +29,7 @@ from tests.aignostics_foundry_core.api import AUTH0_ROLE_CLAIM_VAR_NAME, INTERNA
 from tests.conftest import TEST_PROJECT_NAME, make_context
 
 _PATCH_GET_GUI_USER = "aignostics_foundry_core.gui.auth.get_gui_user"
+_PATCH_REQUIRE_GUI_USER = "aignostics_foundry_core.gui.auth.require_gui_user"
 _PATH_NAV_LOCATE = "aignostics_foundry_core.gui.nav.locate_subclasses"
 _PATH_CORE_LOCATE = "aignostics_foundry_core.gui.core.locate_subclasses"
 
@@ -38,6 +40,7 @@ _ROLE_CLAIM = "https://example.com/role"
 _FIXED_PORT = 9000
 _DOCS_PATH = "/docs"
 _USER_SUB = "auth0|x"
+_MODULE_STARLETTE_RESPONSES = "starlette.responses"
 
 
 # ---------------------------------------------------------------------------
@@ -245,6 +248,15 @@ class TestConstants:
 class TestGuiRegisterPages:
     """Tests for gui_register_pages behaviour."""
 
+    @pytest.fixture(autouse=True)
+    def _clear_registry(self) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
+        """Ensure the page registry is clean before and after each test."""
+        from aignostics_foundry_core.gui import clear_page_registry
+
+        clear_page_registry()
+        yield
+        clear_page_registry()
+
     def test_calls_register_pages_on_each_builder(self) -> None:
         """gui_register_pages calls register_pages() on every discovered builder."""
         builder_a = MagicMock(spec=BasePageBuilder)
@@ -298,7 +310,7 @@ class TestGuiRun:
     def _call_gui_run(self, nicegui_mock: MagicMock, **kwargs: object) -> None:
         """Call gui_run with context and nicegui and locate_subclasses mocked."""
         with (
-            patch.dict(sys.modules, {"nicegui": nicegui_mock, "starlette.responses": MagicMock()}),
+            patch.dict(sys.modules, {"nicegui": nicegui_mock, _MODULE_STARLETTE_RESPONSES: MagicMock()}),
             patch(_PATH_CORE_LOCATE, return_value=[]),
         ):
             gui_run(context=make_context(), **kwargs)  # type: ignore[arg-type]
@@ -435,7 +447,7 @@ class TestGuiRun:
         nicegui_mock, _, _ = _make_nicegui_app_mock()
         ctx = make_context()
         with (
-            patch.dict(sys.modules, {"nicegui": nicegui_mock, "starlette.responses": MagicMock()}),
+            patch.dict(sys.modules, {"nicegui": nicegui_mock, _MODULE_STARLETTE_RESPONSES: MagicMock()}),
             patch(_PATH_CORE_LOCATE, return_value=[]) as locate_mock,
         ):
             gui_run(context=ctx)
@@ -602,7 +614,7 @@ class TestRequireGuiUser:
 
 
 # ---------------------------------------------------------------------------
-# Page decorator registration
+# Page registry decorators — deferred registration
 # ---------------------------------------------------------------------------
 
 
@@ -620,11 +632,39 @@ def _make_nicegui_mock() -> tuple[MagicMock, MagicMock]:
 
 
 @pytest.mark.unit
-class TestPagePublicRegistration:
-    """Tests for page_public route registration."""
+class TestPageRegistryDecorators:
+    """Tests for page_* registry decorators (deferred registration)."""
 
-    def test_registers_route_with_ui_page(self) -> None:
-        """page_public calls ui.page with the supplied path and RESPONSE_TIMEOUT."""
+    @pytest.fixture(autouse=True)
+    def _clear_registry(self) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
+        """Ensure registry is clean before and after each test."""
+        from aignostics_foundry_core.gui import clear_page_registry
+
+        clear_page_registry()
+        yield
+        clear_page_registry()
+
+    def _actualize_via_register_pages(self, frame_func: object = None) -> tuple[list[object], MagicMock]:
+        """Run gui_register_pages and return (wrappers, nicegui_mock).
+
+        Builds a capturing NiceGUI mock whose ``ui.page`` side-effect appends
+        each registered async wrapper to *wrappers*, then calls
+        ``gui_register_pages`` with that mock injected and an empty builder list.
+        """
+        wrappers: list[object] = []
+        nicegui_mock = MagicMock()
+        nicegui_mock.ui.page.side_effect = (  # pyright: ignore[reportUnknownMemberType]
+            lambda *a, **kw: lambda f: wrappers.append(f) or f  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        )
+        with (
+            patch.dict(sys.modules, {"nicegui": nicegui_mock}),
+            patch(_PATH_CORE_LOCATE, return_value=[]),
+        ):
+            gui_register_pages(context=make_context(), frame_func=frame_func)  # type: ignore[arg-type]
+        return wrappers, nicegui_mock
+
+    def test_page_public_does_not_register_route_immediately(self) -> None:
+        """page_public(path)(func) does NOT call ui.page; route deferred until gui_register_pages."""
         from aignostics_foundry_core.gui.auth import page_public
 
         nicegui_mock, page_recorder = _make_nicegui_mock()
@@ -632,30 +672,10 @@ class TestPagePublicRegistration:
         with patch.dict(sys.modules, {"nicegui": nicegui_mock}):
             page_public(_TEST_PATH)(lambda user: None)  # pyright: ignore[reportUnknownLambdaType]
 
-        page_recorder.assert_called_once_with(_TEST_PATH, response_timeout=RESPONSE_TIMEOUT)
+        page_recorder.assert_not_called()
 
-    def test_preserves_function_name(self) -> None:
-        """page_public preserves the decorated function's __name__."""
-        from aignostics_foundry_core.gui.auth import page_public
-
-        nicegui_mock, _ = _make_nicegui_mock()
-
-        def my_named_page(user: object) -> None:
-            # Test double: content is irrelevant; only __name__ is tested
-            ...
-
-        with patch.dict(sys.modules, {"nicegui": nicegui_mock}):
-            result = page_public(_TEST_PATH)(my_named_page)
-
-        assert result.__name__ == "my_named_page"
-
-
-@pytest.mark.unit
-class TestPageAuthenticatedRegistration:
-    """Tests for page_authenticated route registration."""
-
-    def test_registers_route_with_ui_page(self) -> None:
-        """page_authenticated calls ui.page with the supplied path."""
+    def test_page_authenticated_does_not_register_route_immediately(self) -> None:
+        """page_authenticated(path)(func) does NOT call ui.page immediately."""
         from aignostics_foundry_core.gui.auth import page_authenticated
 
         nicegui_mock, page_recorder = _make_nicegui_mock()
@@ -663,15 +683,10 @@ class TestPageAuthenticatedRegistration:
         with patch.dict(sys.modules, {"nicegui": nicegui_mock}):
             page_authenticated(_TEST_PATH)(lambda user: None)  # pyright: ignore[reportUnknownLambdaType]
 
-        page_recorder.assert_called_once_with(_TEST_PATH, response_timeout=RESPONSE_TIMEOUT)
+        page_recorder.assert_not_called()
 
-
-@pytest.mark.unit
-class TestPageAdminRegistration:
-    """Tests for page_admin route registration."""
-
-    def test_registers_route_with_ui_page(self) -> None:
-        """page_admin calls ui.page with the supplied path."""
+    def test_page_admin_does_not_register_route_immediately(self) -> None:
+        """page_admin(path)(func) does NOT call ui.page immediately."""
         from aignostics_foundry_core.gui.auth import page_admin
 
         nicegui_mock, page_recorder = _make_nicegui_mock()
@@ -679,15 +694,10 @@ class TestPageAdminRegistration:
         with patch.dict(sys.modules, {"nicegui": nicegui_mock}):
             page_admin(_TEST_PATH)(lambda user: None)  # pyright: ignore[reportUnknownLambdaType]
 
-        page_recorder.assert_called_once_with(_TEST_PATH, response_timeout=RESPONSE_TIMEOUT)
+        page_recorder.assert_not_called()
 
-
-@pytest.mark.unit
-class TestPageInternalRegistration:
-    """Tests for page_internal route registration."""
-
-    def test_registers_route_with_ui_page(self) -> None:
-        """page_internal calls ui.page with the supplied path."""
+    def test_page_internal_does_not_register_route_immediately(self) -> None:
+        """page_internal(path)(func) does NOT call ui.page immediately."""
         from aignostics_foundry_core.gui.auth import page_internal
 
         nicegui_mock, page_recorder = _make_nicegui_mock()
@@ -695,15 +705,10 @@ class TestPageInternalRegistration:
         with patch.dict(sys.modules, {"nicegui": nicegui_mock}):
             page_internal(_TEST_PATH)(lambda user: None)  # pyright: ignore[reportUnknownLambdaType]
 
-        page_recorder.assert_called_once_with(_TEST_PATH, response_timeout=RESPONSE_TIMEOUT)
+        page_recorder.assert_not_called()
 
-
-@pytest.mark.unit
-class TestPageInternalAdminRegistration:
-    """Tests for page_internal_admin route registration."""
-
-    def test_registers_route_with_ui_page(self) -> None:
-        """page_internal_admin calls ui.page with the supplied path."""
+    def test_page_internal_admin_does_not_register_route_immediately(self) -> None:
+        """page_internal_admin(path)(func) does NOT call ui.page immediately."""
         from aignostics_foundry_core.gui.auth import page_internal_admin
 
         nicegui_mock, page_recorder = _make_nicegui_mock()
@@ -711,7 +716,133 @@ class TestPageInternalAdminRegistration:
         with patch.dict(sys.modules, {"nicegui": nicegui_mock}):
             page_internal_admin(_TEST_PATH)(lambda user: None)  # pyright: ignore[reportUnknownLambdaType]
 
-        page_recorder.assert_called_once_with(_TEST_PATH, response_timeout=RESPONSE_TIMEOUT)
+        page_recorder.assert_not_called()
+
+    def test_page_public_preserves_original_function(self) -> None:
+        """page_public(path)(func) returns the original func unchanged, not a wrapper."""
+        from aignostics_foundry_core.gui.auth import page_public
+
+        def my_page(user: object) -> None: ...
+
+        result = page_public(_TEST_PATH)(my_page)
+
+        assert result is my_page
+
+    def test_page_decorator_accepts_and_invokes_async_page_function(self) -> None:
+        """page_public works with async page functions: the coroutine is awaited on render."""
+        from aignostics_foundry_core.gui.auth import page_public
+
+        called: list[bool] = []
+
+        async def my_async_page(user: object) -> None:  # noqa: RUF029
+            called.append(True)
+
+        result = page_public(_TEST_PATH)(my_async_page)
+        assert result is my_async_page  # decorator returns original function unchanged
+
+        wrappers, _ = self._actualize_via_register_pages()
+
+        assert len(wrappers) == 1
+        request = MagicMock()
+        with patch(_PATCH_GET_GUI_USER, new=AsyncMock(return_value=None)):
+            asyncio.run(wrappers[0](request))  # type: ignore[arg-type]
+
+        assert called == [True]
+
+    def test_gui_register_pages_actualizes_registered_page_with_frame_func(self) -> None:
+        """gui_register_pages processes registry and injects frame_func into the route."""
+        from aignostics_foundry_core.gui.auth import page_public
+
+        frame_entered: list[bool] = []
+
+        @contextmanager
+        def fake_frame(title: str, **_kw: object):  # type: ignore[misc]
+            frame_entered.append(True)
+            yield
+
+        def my_page(user: object) -> None: ...
+
+        page_public(_TEST_PATH)(my_page)
+
+        wrappers, nicegui_mock = self._actualize_via_register_pages(frame_func=fake_frame)
+
+        nicegui_mock.ui.page.assert_called_once_with(_TEST_PATH, response_timeout=RESPONSE_TIMEOUT)
+        assert len(wrappers) == 1
+
+        request = MagicMock()
+        with patch(_PATCH_GET_GUI_USER, new=AsyncMock(return_value=None)):
+            asyncio.run(wrappers[0](request))  # type: ignore[arg-type]
+
+        assert frame_entered == [True]
+
+    def test_gui_register_pages_without_frame_func_renders_without_error(self) -> None:
+        """gui_register_pages with frame_func=None actualizes the page without a frame."""
+        from aignostics_foundry_core.gui.auth import page_public
+
+        page_func_called: list[bool] = []
+
+        def my_page(user: object) -> None:
+            page_func_called.append(True)
+
+        page_public(_TEST_PATH)(my_page)
+
+        wrappers, _ = self._actualize_via_register_pages()
+
+        assert len(wrappers) == 1
+        request = MagicMock()
+        with patch(_PATCH_GET_GUI_USER, new=AsyncMock(return_value=None)):
+            asyncio.run(wrappers[0](request))  # type: ignore[arg-type]
+
+        assert page_func_called == [True]
+
+    def test_gui_register_pages_clears_registry_after_processing(self) -> None:
+        """Calling gui_register_pages twice only actualizes the page once (registry cleared)."""
+        from aignostics_foundry_core.gui.auth import page_public
+
+        page_public(_TEST_PATH)(lambda user: None)  # pyright: ignore[reportUnknownLambdaType]
+
+        nicegui_mock, page_recorder = _make_nicegui_mock()
+
+        with (
+            patch.dict(sys.modules, {"nicegui": nicegui_mock}),
+            patch(_PATH_CORE_LOCATE, return_value=[]),
+        ):
+            gui_register_pages(context=make_context())
+            gui_register_pages(context=make_context())
+
+        page_recorder.assert_called_once()
+
+    def test_gui_register_pages_frame_func_forwarded_from_gui_run(self) -> None:
+        """gui_run(frame_func=...) passes frame_func through to gui_register_pages."""
+        from aignostics_foundry_core.gui.auth import page_public
+
+        frame_entered: list[bool] = []
+
+        @contextmanager
+        def fake_frame(title: str, **_kw: object):  # type: ignore[misc]
+            frame_entered.append(True)
+            yield
+
+        page_public(_TEST_PATH)(lambda user: None)  # pyright: ignore[reportUnknownLambdaType]
+
+        nicegui_mock, _app_mock, _ = _make_nicegui_app_mock()
+        wrappers: list[object] = []
+        nicegui_mock.ui.page.side_effect = (  # pyright: ignore[reportUnknownMemberType]
+            lambda *a, **kw: lambda f: wrappers.append(f) or f  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        )
+
+        with (
+            patch.dict(sys.modules, {"nicegui": nicegui_mock, _MODULE_STARLETTE_RESPONSES: MagicMock()}),
+            patch(_PATH_CORE_LOCATE, return_value=[]),
+        ):
+            gui_run(context=make_context(), frame_func=fake_frame)
+
+        assert len(wrappers) == 1
+        request = MagicMock()
+        with patch(_PATCH_GET_GUI_USER, new=AsyncMock(return_value=None)):
+            asyncio.run(wrappers[0](request))  # type: ignore[arg-type]
+
+        assert frame_entered == [True]
 
 
 # ---------------------------------------------------------------------------
@@ -733,8 +864,8 @@ class TestGUINamespace:
         assert callable(gui.internal)
         assert callable(gui.internal_admin)
 
-    def test_public_method_delegates_to_page_public(self) -> None:
-        """GUINamespace.public registers a route via ui.page."""
+    def test_public_method_delegates_to_actualize_immediately(self) -> None:
+        """GUINamespace.public registers a route via ui.page immediately, bypassing registry."""
         from aignostics_foundry_core.gui.auth import GUINamespace
 
         nicegui_mock, page_recorder = _make_nicegui_mock()
@@ -745,8 +876,8 @@ class TestGUINamespace:
 
         page_recorder.assert_called_once_with(_TEST_PATH, response_timeout=RESPONSE_TIMEOUT)
 
-    def test_authenticated_method_delegates_to_page_authenticated(self) -> None:
-        """GUINamespace.authenticated registers a route via ui.page."""
+    def test_authenticated_method_delegates_to_actualize_immediately(self) -> None:
+        """GUINamespace.authenticated registers a route via ui.page immediately."""
         from aignostics_foundry_core.gui.auth import GUINamespace
 
         nicegui_mock, page_recorder = _make_nicegui_mock()
@@ -759,8 +890,6 @@ class TestGUINamespace:
 
     def test_frame_func_is_called_in_wrapper(self) -> None:
         """When frame_func is provided it is called inside the page wrapper."""
-        import asyncio
-
         from aignostics_foundry_core.gui.auth import GUINamespace
 
         frame_entered: list[bool] = []
@@ -790,3 +919,14 @@ class TestGUINamespace:
             asyncio.run(wrappers[0](request))  # type: ignore[arg-type]
 
         assert frame_entered == [True]
+
+    def test_gui_run_frame_func_parameter_accepted(self) -> None:
+        """gui_run accepts frame_func kwarg without raising (parameter is wired up)."""
+        nicegui_mock, _, _ = _make_nicegui_app_mock()
+        fake_frame = MagicMock()
+
+        with (
+            patch.dict(sys.modules, {"nicegui": nicegui_mock, _MODULE_STARLETTE_RESPONSES: MagicMock()}),
+            patch(_PATH_CORE_LOCATE, return_value=[]),
+        ):
+            gui_run(context=make_context(), frame_func=fake_frame)  # must not raise
