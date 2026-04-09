@@ -421,11 +421,12 @@ def page_public(path: str, title: str = "") -> Callable[..., Any]:
 
     Returns:
         A decorator that records the page function in the registry and returns
-        it unchanged.
+        it unchanged (sync or async). The function will be awaited automatically
+        when the page renders if it is a coroutine function.
 
     Example:
         @page_public("/")
-        def home(user: dict[str, Any] | None) -> None:
+        async def home(user: dict[str, Any] | None) -> None:
             ui.label("Welcome!")
     """
 
@@ -449,7 +450,13 @@ def page_authenticated(path: str, title: str = "") -> Callable[..., Any]:
 
     Returns:
         A decorator that records the page function in the registry and returns
-        it unchanged.
+        it unchanged (sync or async). The function will be awaited automatically
+        when the page renders if it is a coroutine function.
+
+    Example:
+        @page_authenticated("/dashboard")
+        async def dashboard(user: dict[str, Any]) -> None:
+            ui.label(f"Hello, {user['name']}")
     """
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -472,7 +479,13 @@ def page_admin(path: str, title: str = "") -> Callable[..., Any]:
 
     Returns:
         A decorator that records the page function in the registry and returns
-        it unchanged.
+        it unchanged (sync or async). The function will be awaited automatically
+        when the page renders if it is a coroutine function.
+
+    Example:
+        @page_admin("/admin")
+        async def admin_page(user: dict[str, Any]) -> None:
+            ui.label(f"Admin panel for {user['name']}")
     """
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -495,7 +508,13 @@ def page_internal(path: str, title: str = "") -> Callable[..., Any]:
 
     Returns:
         A decorator that records the page function in the registry and returns
-        it unchanged.
+        it unchanged (sync or async). The function will be awaited automatically
+        when the page renders if it is a coroutine function.
+
+    Example:
+        @page_internal("/internal")
+        async def internal_page(user: dict[str, Any]) -> None:
+            ui.label(f"Internal tools for {user['name']}")
     """
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -518,7 +537,13 @@ def page_internal_admin(path: str, title: str = "") -> Callable[..., Any]:
 
     Returns:
         A decorator that records the page function in the registry and returns
-        it unchanged.
+        it unchanged (sync or async). The function will be awaited automatically
+        when the page renders if it is a coroutine function.
+
+    Example:
+        @page_internal_admin("/internal-admin")
+        async def internal_admin_page(user: dict[str, Any]) -> None:
+            ui.label(f"Internal admin panel for {user['name']}")
     """
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -543,6 +568,9 @@ class GUINamespace:
 
     References:
         docs/decisions/0005-gui-page-registration.md
+
+    Both sync and async page functions are supported; async functions are
+    awaited automatically when the page renders.
 
     Example:
         from aignostics_foundry_core.gui import gui

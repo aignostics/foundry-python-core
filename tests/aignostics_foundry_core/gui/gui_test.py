@@ -709,6 +709,37 @@ class TestPageRegistryDecorators:
 
         assert result is my_page
 
+    def test_page_decorator_accepts_and_invokes_async_page_function(self) -> None:
+        """page_public works with async page functions: the coroutine is awaited on render."""
+        from aignostics_foundry_core.gui.auth import page_public
+
+        called: list[bool] = []
+
+        async def my_async_page(user: object) -> None:  # noqa: RUF029
+            called.append(True)
+
+        result = page_public(_TEST_PATH)(my_async_page)
+        assert result is my_async_page  # decorator returns original function unchanged
+
+        wrappers: list[object] = []
+        nicegui_mock = MagicMock()
+        nicegui_mock.ui.page.side_effect = (
+            lambda *a, **kw: lambda f: wrappers.append(f) or f  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        )
+
+        with (
+            patch.dict(sys.modules, {"nicegui": nicegui_mock}),
+            patch(_PATH_CORE_LOCATE, return_value=[]),
+        ):
+            gui_register_pages(context=make_context(), frame_func=None)
+
+        assert len(wrappers) == 1
+        request = MagicMock()
+        with patch(_PATCH_GET_GUI_USER, new=AsyncMock(return_value=None)):
+            asyncio.run(wrappers[0](request))  # type: ignore[arg-type]
+
+        assert called == [True]
+
     def test_gui_register_pages_actualizes_registered_page_with_frame_func(self) -> None:
         """gui_register_pages processes registry and injects frame_func into the route."""
         from aignostics_foundry_core.gui.auth import page_public
