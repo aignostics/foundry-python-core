@@ -1,3 +1,9 @@
+## v0.9.0 (2026-04-09)
+
+### Feat
+
+- **gui**: registry-based page registration with frame injection (#39) ([c22b79e](https://github.com/aignostics/foundry-python-core/commit/c22b79e02c1a920a127400a045ead2db5e181fe4))
+
 ## v0.8.2 (2026-04-08)
 
 ### Fix
