@@ -644,6 +644,25 @@ class TestPageRegistryDecorators:
         yield
         clear_page_registry()
 
+    def _actualize_via_register_pages(self, frame_func: object = None) -> tuple[list[object], MagicMock]:
+        """Run gui_register_pages and return (wrappers, nicegui_mock).
+
+        Builds a capturing NiceGUI mock whose ``ui.page`` side-effect appends
+        each registered async wrapper to *wrappers*, then calls
+        ``gui_register_pages`` with that mock injected and an empty builder list.
+        """
+        wrappers: list[object] = []
+        nicegui_mock = MagicMock()
+        nicegui_mock.ui.page.side_effect = (  # pyright: ignore[reportUnknownMemberType]
+            lambda *a, **kw: lambda f: wrappers.append(f) or f  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        )
+        with (
+            patch.dict(sys.modules, {"nicegui": nicegui_mock}),
+            patch(_PATH_CORE_LOCATE, return_value=[]),
+        ):
+            gui_register_pages(context=make_context(), frame_func=frame_func)  # type: ignore[arg-type]
+        return wrappers, nicegui_mock
+
     def test_page_public_does_not_register_route_immediately(self) -> None:
         """page_public(path)(func) does NOT call ui.page; route deferred until gui_register_pages."""
         from aignostics_foundry_core.gui.auth import page_public
@@ -721,17 +740,7 @@ class TestPageRegistryDecorators:
         result = page_public(_TEST_PATH)(my_async_page)
         assert result is my_async_page  # decorator returns original function unchanged
 
-        wrappers: list[object] = []
-        nicegui_mock = MagicMock()
-        nicegui_mock.ui.page.side_effect = (
-            lambda *a, **kw: lambda f: wrappers.append(f) or f  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-        )
-
-        with (
-            patch.dict(sys.modules, {"nicegui": nicegui_mock}),
-            patch(_PATH_CORE_LOCATE, return_value=[]),
-        ):
-            gui_register_pages(context=make_context(), frame_func=None)
+        wrappers, _ = self._actualize_via_register_pages()
 
         assert len(wrappers) == 1
         request = MagicMock()
@@ -755,17 +764,7 @@ class TestPageRegistryDecorators:
 
         page_public(_TEST_PATH)(my_page)
 
-        wrappers: list[object] = []
-        nicegui_mock = MagicMock()
-        nicegui_mock.ui.page.side_effect = (  # pyright: ignore[reportUnknownMemberType]
-            lambda *a, **kw: lambda f: wrappers.append(f) or f  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-        )
-
-        with (
-            patch.dict(sys.modules, {"nicegui": nicegui_mock}),
-            patch(_PATH_CORE_LOCATE, return_value=[]),
-        ):
-            gui_register_pages(context=make_context(), frame_func=fake_frame)
+        wrappers, nicegui_mock = self._actualize_via_register_pages(frame_func=fake_frame)
 
         nicegui_mock.ui.page.assert_called_once_with(_TEST_PATH, response_timeout=RESPONSE_TIMEOUT)
         assert len(wrappers) == 1
@@ -787,17 +786,7 @@ class TestPageRegistryDecorators:
 
         page_public(_TEST_PATH)(my_page)
 
-        wrappers: list[object] = []
-        nicegui_mock = MagicMock()
-        nicegui_mock.ui.page.side_effect = (  # pyright: ignore[reportUnknownMemberType]
-            lambda *a, **kw: lambda f: wrappers.append(f) or f  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-        )
-
-        with (
-            patch.dict(sys.modules, {"nicegui": nicegui_mock}),
-            patch(_PATH_CORE_LOCATE, return_value=[]),
-        ):
-            gui_register_pages(context=make_context(), frame_func=None)
+        wrappers, _ = self._actualize_via_register_pages()
 
         assert len(wrappers) == 1
         request = MagicMock()
