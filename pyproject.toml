@@ -62,6 +62,7 @@ dependencies = [
     "rich>=14,<15",
     "sentry-sdk>=2,<3",
     "sqlalchemy[postgresql-psycopgbinary,asyncio]>=2,<3",
+    "chancy[cron]>=0.25.1,<1",
     "nicegui>=3,<4",
     "truststore>=0.9,<1",
     "typer>=0.14,<1",

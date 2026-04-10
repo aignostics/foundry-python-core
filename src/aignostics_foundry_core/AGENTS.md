@@ -26,6 +26,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 | **foundry** | Project context injection | `PackageMetadata`, `FoundryContext`, `FoundryContext.from_package()`, `set_context()`, `get_context()` — centralised project-specific values (name, version, `version_full`, `version_with_vcs_ref`, environment, env files, URLs, `python_version`, `metadata: PackageMetadata` (description, author_name, author_email), runtime mode flags `is_container`, `is_cli`, `is_test`, `is_library`, `database: DatabaseSettings \| None`) derived from package metadata and environment variables; `from_package()` populates `metadata` from `importlib.metadata` and `database` from `{env_prefix}DB_*` env vars when `{env_prefix}DB_URL` is present                                                                                                                         |
 | **di** | Dependency injection | `locate_subclasses(cls, *, context=None)`, `locate_implementations(cls, *, context=None)`, `load_modules(*, context=None)`, `discover_plugin_packages`, `clear_caches`, `PLUGIN_ENTRY_POINT_GROUP` for plugin and subclass discovery                                                                                                                                                                                                                                                                                                                                                                                                       |
 | **health** | Service health checks | `Health` model and `HealthStatus` enum for tree-structured health status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **scheduler** | Chancy-backed job module base class | `BaseJoblet` ABC with `get_queues()`, `get_jobs()`, `get_crons()`, `get_triggers()` hooks and `register_queues/jobs/crons/triggers()` / `unregister_queues/jobs/crons/triggers()` lifecycle methods; `key()` returns second-to-last module component for identification |
 | **settings** | Pydantic settings loading | `OpaqueSettings`, `load_settings`, `strip_to_none_before_validator`, `UNHIDE_SENSITIVE_INFO` for env-based settings with secret masking and user-friendly validation errors; `console`, `Panel`, and `Text` are imported lazily inside `load_settings` (error path only)                                                                                                                                                                                                                                                                                                                                                                   |
 
 ## Module Descriptions
@@ -313,6 +314,45 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 - **Location**: `aignostics_foundry_core/service.py`
 - **Dependencies**: `fastapi>=0.110,<1` (for typing/DI); `pydantic-settings>=2`; `aignostics_foundry_core.health`, `aignostics_foundry_core.settings`
 - **Import**: `from aignostics_foundry_core.service import BaseService`
+
+### scheduler
+
+**Chancy-backed job module base class**
+
+- **Purpose**: Provides `BaseJoblet` — a reusable base class for building modular Chancy job units (joblets) that can be auto-registered with the scheduler. Any Foundry component that wants to define queues, one-time jobs, cron schedules, or database triggers extends `BaseJoblet` instead of coupling directly to the scheduler's internals.
+- **Key Features**:
+  - `get_queues()` — override to return `list[Queue]` declarations for this joblet (empty by default)
+  - `get_jobs()` — override to return `list[Job]` for one-time or delayed pushes (empty by default)
+  - `get_crons()` — override to return `list[tuple[str, Job]]` of `(cron_expression, job)` pairs; jobs **must** have a `unique_key` set or they will be skipped with a warning
+  - `get_triggers()` — override to return `list[tuple[str, list[str], Job]]` of `(table, operations, job_template)` for PostgreSQL trigger-based dispatch
+  - `register_queues/jobs/crons/triggers(chancy)` — async lifecycle methods; call them on startup to declare resources
+  - `unregister_queues/jobs/crons/triggers(chancy)` — async lifecycle methods; call them on shutdown to clean up resources
+  - `key()` — classmethod; returns the second-to-last dotted segment of `cls.__module__` (e.g. `"hello_world"` from `"bridge.hello_world.Joblet"`) for logging and identification
+- **Location**: `aignostics_foundry_core/scheduler.py`
+- **Dependencies**: `chancy[cron]>=0.25.1,<1` (mandatory); `loguru>=0.7,<1`
+- **Import**:
+  ```python
+  from aignostics_foundry_core.scheduler import BaseJoblet
+  ```
+- **Usage example**:
+  ```python
+  from chancy import Job, Queue, job
+  from aignostics_foundry_core.scheduler import BaseJoblet
+
+
+  @job(queue="my_module")
+  async def my_task() -> None: ...
+
+
+  class Joblet(BaseJoblet):
+      @staticmethod
+      def get_queues() -> list[Queue]:
+          return [Queue("my_module", concurrency=4)]
+
+      @staticmethod
+      def get_crons() -> list[tuple[str, Job]]:
+          return [("* * * * *", my_task.job.with_unique_key("my_cron"))]
+  ```
 
 ### cli
 
