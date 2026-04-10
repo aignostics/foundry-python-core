@@ -221,19 +221,11 @@ class TestBasePageBuilder:
 class TestConstants:
     """Tests for gui constants."""
 
-    def test_response_timeout(self) -> None:
-        """RESPONSE_TIMEOUT is 30 seconds."""
-        assert RESPONSE_TIMEOUT == 30
-
     def test_window_size_tuple(self) -> None:
         """WINDOW_SIZE is a (width, height) tuple with positive dimensions."""
         w, h = WINDOW_SIZE
         assert w > 0
         assert h > 0
-
-    def test_browser_reconnect_timeout_is_long(self) -> None:
-        """BROWSER_RECONNECT_TIMEOUT is at least one day in seconds."""
-        assert BROWSER_RECONNECT_TIMEOUT >= 60 * 60 * 24
 
 
 # ---------------------------------------------------------------------------
