@@ -51,6 +51,7 @@ from fastapi import Request
 from loguru import logger
 
 from aignostics_foundry_core.api.auth import AUTH0_ROLE_ADMIN, AuthSettings, get_auth_client
+from aignostics_foundry_core.foundry import get_context
 from aignostics_foundry_core.sentry import set_sentry_user
 from aignostics_foundry_core.settings import load_settings
 
@@ -81,7 +82,7 @@ class _PageEntry:
 
     access: AccessLevel
     path: str
-    title: str
+    title: str | None  # None → resolved at request time from get_context().name.title()
     func: Callable[..., Any]
 
 
@@ -220,7 +221,7 @@ async def require_gui_user(request: Request, return_to: str | None = None) -> di
 
 def _actualize_public(
     path: str,
-    title: str = "",
+    title: str | None = None,
     frame_func: FrameFunc = None,
 ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
     """Register a public NiceGUI page immediately with the given frame_func.
@@ -235,8 +236,9 @@ def _actualize_public(
     ) -> Callable[[Request], Awaitable[None]]:
         @ui.page(path, response_timeout=RESPONSE_TIMEOUT)
         async def wrapper(request: Request) -> None:
+            resolved_title = title if title is not None else get_context().name.title()
             user = await get_gui_user(request)
-            with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
+            with frame_func(resolved_title, user=user) if frame_func is not None else contextlib.nullcontext():
                 await _invoke_page_func(func, user)
 
         wrapper.__name__ = func.__name__
@@ -250,7 +252,7 @@ def _actualize_public(
 
 def _actualize_authenticated(
     path: str,
-    title: str = "",
+    title: str | None = None,
     frame_func: FrameFunc = None,
 ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
     """Register an authenticated NiceGUI page immediately with the given frame_func.
@@ -265,10 +267,11 @@ def _actualize_authenticated(
     ) -> Callable[[Request], Awaitable[None]]:
         @ui.page(path, response_timeout=RESPONSE_TIMEOUT)
         async def wrapper(request: Request) -> None:
+            resolved_title = title if title is not None else get_context().name.title()
             user = await require_gui_user(request)
             if not user:
                 return
-            with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
+            with frame_func(resolved_title, user=user) if frame_func is not None else contextlib.nullcontext():
                 await _invoke_page_func(func, user)
 
         wrapper.__name__ = func.__name__
@@ -282,7 +285,7 @@ def _actualize_authenticated(
 
 def _actualize_admin(
     path: str,
-    title: str = "",
+    title: str | None = None,
     frame_func: FrameFunc = None,
 ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
     """Register an admin-only NiceGUI page immediately with the given frame_func.
@@ -297,6 +300,7 @@ def _actualize_admin(
     ) -> Callable[[Request], Awaitable[None]]:
         @ui.page(path, response_timeout=RESPONSE_TIMEOUT)
         async def wrapper(request: Request) -> None:
+            resolved_title = title if title is not None else get_context().name.title()
             user = await require_gui_user(request)
             if not user:
                 return
@@ -304,11 +308,11 @@ def _actualize_admin(
             auth_settings = load_settings(AuthSettings)
             role = user.get(auth_settings.auth0_role_claim)
             if role != AUTH0_ROLE_ADMIN:
-                with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
+                with frame_func(resolved_title, user=user) if frame_func is not None else contextlib.nullcontext():
                     ui.label(f"{MSG_403_FORBIDDEN} - Admin access required").classes(CLASS_FORBIDDEN_ERROR)
                 return
 
-            with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
+            with frame_func(resolved_title, user=user) if frame_func is not None else contextlib.nullcontext():
                 await _invoke_page_func(func, user)
 
         wrapper.__name__ = func.__name__
@@ -322,7 +326,7 @@ def _actualize_admin(
 
 def _actualize_internal(
     path: str,
-    title: str = "",
+    title: str | None = None,
     frame_func: FrameFunc = None,
 ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
     """Register an internal-org-only NiceGUI page immediately with the given frame_func.
@@ -337,6 +341,7 @@ def _actualize_internal(
     ) -> Callable[[Request], Awaitable[None]]:
         @ui.page(path, response_timeout=RESPONSE_TIMEOUT)
         async def wrapper(request: Request) -> None:
+            resolved_title = title if title is not None else get_context().name.title()
             user = await require_gui_user(request)
             if not user:
                 return
@@ -344,11 +349,11 @@ def _actualize_internal(
             auth_settings = load_settings(AuthSettings)
             org_id = user.get("org_id")
             if org_id != auth_settings.internal_org_id:
-                with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
+                with frame_func(resolved_title, user=user) if frame_func is not None else contextlib.nullcontext():
                     ui.label(f"{MSG_403_FORBIDDEN} - Internal access required").classes(CLASS_FORBIDDEN_ERROR)
                 return
 
-            with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
+            with frame_func(resolved_title, user=user) if frame_func is not None else contextlib.nullcontext():
                 await _invoke_page_func(func, user)
 
         wrapper.__name__ = func.__name__
@@ -362,7 +367,7 @@ def _actualize_internal(
 
 def _actualize_internal_admin(
     path: str,
-    title: str = "",
+    title: str | None = None,
     frame_func: FrameFunc = None,
 ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
     """Register an internal-org admin-only NiceGUI page immediately with the given frame_func.
@@ -377,6 +382,7 @@ def _actualize_internal_admin(
     ) -> Callable[[Request], Awaitable[None]]:
         @ui.page(path, response_timeout=RESPONSE_TIMEOUT)
         async def wrapper(request: Request) -> None:
+            resolved_title = title if title is not None else get_context().name.title()
             user = await require_gui_user(request)
             if not user:
                 return
@@ -386,11 +392,11 @@ def _actualize_internal_admin(
             role = user.get(auth_settings.auth0_role_claim)
 
             if org_id != auth_settings.internal_org_id or role != AUTH0_ROLE_ADMIN:
-                with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
+                with frame_func(resolved_title, user=user) if frame_func is not None else contextlib.nullcontext():
                     ui.label(f"{MSG_403_FORBIDDEN} - Internal admin access required").classes(CLASS_FORBIDDEN_ERROR)
                 return
 
-            with frame_func(title, user=user) if frame_func is not None else contextlib.nullcontext():
+            with frame_func(resolved_title, user=user) if frame_func is not None else contextlib.nullcontext():
                 await _invoke_page_func(func, user)
 
         wrapper.__name__ = func.__name__
@@ -408,7 +414,7 @@ def _actualize_internal_admin(
 # ---------------------------------------------------------------------------
 
 
-def page_public(path: str, title: str = "") -> Callable[..., Any]:
+def page_public(path: str, title: str | None = None) -> Callable[..., Any]:
     """Decorator that registers a public page in the global registry.
 
     The route is NOT registered with NiceGUI immediately. Call
@@ -418,6 +424,7 @@ def page_public(path: str, title: str = "") -> Callable[..., Any]:
     Args:
         path: The URL path for the page.
         title: The title passed to the frame function when the page is actualized.
+            Defaults to the project name from ``get_context()`` when omitted.
 
     Returns:
         A decorator that records the page function in the registry and returns
@@ -437,7 +444,7 @@ def page_public(path: str, title: str = "") -> Callable[..., Any]:
     return decorator
 
 
-def page_authenticated(path: str, title: str = "") -> Callable[..., Any]:
+def page_authenticated(path: str, title: str | None = None) -> Callable[..., Any]:
     """Decorator that registers an authenticated page in the global registry.
 
     The route is NOT registered with NiceGUI immediately. Call
@@ -447,6 +454,7 @@ def page_authenticated(path: str, title: str = "") -> Callable[..., Any]:
     Args:
         path: The URL path for the page.
         title: The title passed to the frame function when the page is actualized.
+            Defaults to the project name from ``get_context()`` when omitted.
 
     Returns:
         A decorator that records the page function in the registry and returns
@@ -466,7 +474,7 @@ def page_authenticated(path: str, title: str = "") -> Callable[..., Any]:
     return decorator
 
 
-def page_admin(path: str, title: str = "") -> Callable[..., Any]:
+def page_admin(path: str, title: str | None = None) -> Callable[..., Any]:
     """Decorator that registers an admin-only page in the global registry.
 
     The route is NOT registered with NiceGUI immediately. Call
@@ -476,6 +484,7 @@ def page_admin(path: str, title: str = "") -> Callable[..., Any]:
     Args:
         path: The URL path for the page.
         title: The title passed to the frame function when the page is actualized.
+            Defaults to the project name from ``get_context()`` when omitted.
 
     Returns:
         A decorator that records the page function in the registry and returns
@@ -495,7 +504,7 @@ def page_admin(path: str, title: str = "") -> Callable[..., Any]:
     return decorator
 
 
-def page_internal(path: str, title: str = "") -> Callable[..., Any]:
+def page_internal(path: str, title: str | None = None) -> Callable[..., Any]:
     """Decorator that registers an internal-org-only page in the global registry.
 
     The route is NOT registered with NiceGUI immediately. Call
@@ -505,6 +514,7 @@ def page_internal(path: str, title: str = "") -> Callable[..., Any]:
     Args:
         path: The URL path for the page.
         title: The title passed to the frame function when the page is actualized.
+            Defaults to the project name from ``get_context()`` when omitted.
 
     Returns:
         A decorator that records the page function in the registry and returns
@@ -524,7 +534,7 @@ def page_internal(path: str, title: str = "") -> Callable[..., Any]:
     return decorator
 
 
-def page_internal_admin(path: str, title: str = "") -> Callable[..., Any]:
+def page_internal_admin(path: str, title: str | None = None) -> Callable[..., Any]:
     """Decorator that registers an internal-org admin-only page in the global registry.
 
     The route is NOT registered with NiceGUI immediately. Call
@@ -534,6 +544,7 @@ def page_internal_admin(path: str, title: str = "") -> Callable[..., Any]:
     Args:
         path: The URL path for the page.
         title: The title passed to the frame function when the page is actualized.
+            Defaults to the project name from ``get_context()`` when omitted.
 
     Returns:
         A decorator that records the page function in the registry and returns
@@ -596,7 +607,7 @@ class GUINamespace:
     def public(
         self,
         path: str,
-        title: str = "",
+        title: str | None = None,
     ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
         """Decorator for public NiceGUI pages.
 
@@ -606,6 +617,7 @@ class GUINamespace:
         Args:
             path: The URL path for the page.
             title: The title passed to the frame function (if configured).
+                Defaults to the project name from ``get_context()`` when omitted.
 
         Returns:
             A decorator that wraps the page function.
@@ -615,7 +627,7 @@ class GUINamespace:
     def authenticated(
         self,
         path: str,
-        title: str = "",
+        title: str | None = None,
     ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
         """Decorator for authenticated NiceGUI pages.
 
@@ -625,6 +637,7 @@ class GUINamespace:
         Args:
             path: The URL path for the page.
             title: The title passed to the frame function (if configured).
+                Defaults to the project name from ``get_context()`` when omitted.
 
         Returns:
             A decorator that wraps the page function.
@@ -634,7 +647,7 @@ class GUINamespace:
     def admin(
         self,
         path: str,
-        title: str = "",
+        title: str | None = None,
     ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
         """Decorator for admin-only NiceGUI pages.
 
@@ -644,6 +657,7 @@ class GUINamespace:
         Args:
             path: The URL path for the page.
             title: The title passed to the frame function (if configured).
+                Defaults to the project name from ``get_context()`` when omitted.
 
         Returns:
             A decorator that wraps the page function.
@@ -653,7 +667,7 @@ class GUINamespace:
     def internal(
         self,
         path: str,
-        title: str = "",
+        title: str | None = None,
     ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
         """Decorator for internal-org-only NiceGUI pages.
 
@@ -663,6 +677,7 @@ class GUINamespace:
         Args:
             path: The URL path for the page.
             title: The title passed to the frame function (if configured).
+                Defaults to the project name from ``get_context()`` when omitted.
 
         Returns:
             A decorator that wraps the page function.
@@ -672,7 +687,7 @@ class GUINamespace:
     def internal_admin(
         self,
         path: str,
-        title: str = "",
+        title: str | None = None,
     ) -> Callable[..., Callable[[Request], Awaitable[None]]]:
         """Decorator for internal-org admin-only NiceGUI pages.
 
@@ -682,6 +697,7 @@ class GUINamespace:
         Args:
             path: The URL path for the page.
             title: The title passed to the frame function (if configured).
+                Defaults to the project name from ``get_context()`` when omitted.
 
         Returns:
             A decorator that wraps the page function.
