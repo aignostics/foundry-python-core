@@ -42,7 +42,7 @@ Example (namespace-based, legacy style)::
 import contextlib
 import inspect
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Generator
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -219,6 +219,19 @@ async def require_gui_user(request: Request, return_to: str | None = None) -> di
 # ---------------------------------------------------------------------------
 
 
+@contextlib.contextmanager
+def _frame_context(
+    frame_func: FrameFunc,
+    title: str,
+    user: dict[str, Any] | None,
+) -> Generator[None, None, None]:
+    if frame_func is not None:
+        with frame_func(title, user=user):
+            yield
+    else:
+        yield
+
+
 def _actualize_public(
     path: str,
     title: str | None = None,
@@ -238,7 +251,7 @@ def _actualize_public(
         async def wrapper(request: Request) -> None:
             resolved_title = title if title is not None else get_context().name.title()
             user = await get_gui_user(request)
-            with frame_func(resolved_title, user=user) if frame_func is not None else contextlib.nullcontext():
+            with _frame_context(frame_func, resolved_title, user):
                 await _invoke_page_func(func, user)
 
         wrapper.__name__ = func.__name__
@@ -271,7 +284,7 @@ def _actualize_authenticated(
             user = await require_gui_user(request)
             if not user:
                 return
-            with frame_func(resolved_title, user=user) if frame_func is not None else contextlib.nullcontext():
+            with _frame_context(frame_func, resolved_title, user):
                 await _invoke_page_func(func, user)
 
         wrapper.__name__ = func.__name__
@@ -308,11 +321,11 @@ def _actualize_admin(
             auth_settings = load_settings(AuthSettings)
             role = user.get(auth_settings.auth0_role_claim)
             if role != AUTH0_ROLE_ADMIN:
-                with frame_func(resolved_title, user=user) if frame_func is not None else contextlib.nullcontext():
+                with _frame_context(frame_func, resolved_title, user):
                     ui.label(f"{MSG_403_FORBIDDEN} - Admin access required").classes(CLASS_FORBIDDEN_ERROR)
                 return
 
-            with frame_func(resolved_title, user=user) if frame_func is not None else contextlib.nullcontext():
+            with _frame_context(frame_func, resolved_title, user):
                 await _invoke_page_func(func, user)
 
         wrapper.__name__ = func.__name__
@@ -349,11 +362,11 @@ def _actualize_internal(
             auth_settings = load_settings(AuthSettings)
             org_id = user.get("org_id")
             if org_id != auth_settings.internal_org_id:
-                with frame_func(resolved_title, user=user) if frame_func is not None else contextlib.nullcontext():
+                with _frame_context(frame_func, resolved_title, user):
                     ui.label(f"{MSG_403_FORBIDDEN} - Internal access required").classes(CLASS_FORBIDDEN_ERROR)
                 return
 
-            with frame_func(resolved_title, user=user) if frame_func is not None else contextlib.nullcontext():
+            with _frame_context(frame_func, resolved_title, user):
                 await _invoke_page_func(func, user)
 
         wrapper.__name__ = func.__name__
@@ -392,11 +405,11 @@ def _actualize_internal_admin(
             role = user.get(auth_settings.auth0_role_claim)
 
             if org_id != auth_settings.internal_org_id or role != AUTH0_ROLE_ADMIN:
-                with frame_func(resolved_title, user=user) if frame_func is not None else contextlib.nullcontext():
+                with _frame_context(frame_func, resolved_title, user):
                     ui.label(f"{MSG_403_FORBIDDEN} - Internal admin access required").classes(CLASS_FORBIDDEN_ERROR)
                 return
 
-            with frame_func(resolved_title, user=user) if frame_func is not None else contextlib.nullcontext():
+            with _frame_context(frame_func, resolved_title, user):
                 await _invoke_page_func(func, user)
 
         wrapper.__name__ = func.__name__
