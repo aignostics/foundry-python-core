@@ -2,13 +2,14 @@
 
 import logging
 import os
+from collections.abc import Generator
 from pathlib import Path
 
 import psutil
 import pytest
 
 from aignostics_foundry_core.database import DatabaseSettings
-from aignostics_foundry_core.foundry import FoundryContext, PackageMetadata
+from aignostics_foundry_core.foundry import FoundryContext, PackageMetadata, reset_context, set_context
 
 __all__ = ["make_context"]
 
@@ -59,6 +60,18 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     """
     if exitstatus == 5:
         session.exitstatus = 0
+
+
+@pytest.fixture(autouse=True)
+def _set_context() -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
+    """Reset the global context before and after every test for isolation.
+
+    Yields:
+        None
+    """
+    set_context(make_context())
+    yield
+    reset_context()
 
 
 def make_context(  # noqa: PLR0913

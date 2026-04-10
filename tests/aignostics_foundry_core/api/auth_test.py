@@ -19,9 +19,7 @@ from aignostics_foundry_core.api.auth import (
     require_internal,
     require_internal_admin,
 )
-from aignostics_foundry_core.foundry import reset_context, set_context
 from tests.aignostics_foundry_core.api import AUTH0_ROLE_CLAIM_VAR_NAME, INTERNAL_ORG_ID_VAR_NAME
-from tests.conftest import make_context
 
 _INTERNAL_ORG_ID = "org_internal_123"
 _OTHER_ORG_ID = "org_other_456"
@@ -38,13 +36,11 @@ def _auth_context() -> Generator[None, None, None]:  # pyright: ignore[reportUnu
     Yields:
         None
     """
-    set_context(make_context())
     os.environ[INTERNAL_ORG_ID_VAR_NAME] = _INTERNAL_ORG_ID
     os.environ[AUTH0_ROLE_CLAIM_VAR_NAME] = _TEST_ROLE_CLAIM
     yield
     os.environ.pop(INTERNAL_ORG_ID_VAR_NAME, None)
     os.environ.pop(AUTH0_ROLE_CLAIM_VAR_NAME, None)
-    reset_context()
 
 
 @pytest.mark.unit

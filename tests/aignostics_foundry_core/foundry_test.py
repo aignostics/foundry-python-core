@@ -7,7 +7,6 @@ import platform
 import subprocess
 import sys
 import textwrap
-from collections.abc import Generator
 from importlib.machinery import ModuleSpec
 from pathlib import Path
 
@@ -107,18 +106,6 @@ def test_from_package_metadata_is_package_metadata_instance() -> None:
     """from_package() sets .metadata to a PackageMetadata populated via from_name()."""
     ctx = FoundryContext.from_package(PACKAGE_NAME)
     assert ctx.metadata == PackageMetadata.from_name(PACKAGE_NAME)
-
-
-@pytest.fixture(autouse=True)
-def _reset_context() -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
-    """Reset global _context to None before and after every test.
-
-    Yields:
-        None
-    """
-    reset_context()
-    yield
-    reset_context()
 
 
 # ---------------------------------------------------------------------------
@@ -471,6 +458,7 @@ def test_set_context_makes_context_accessible() -> None:
 @pytest.mark.unit
 def test_context_raises_before_set_context() -> None:
     """get_context() before set_context() raises RuntimeError."""
+    reset_context()
     with pytest.raises(RuntimeError, match=ERROR_MSG_FRAGMENT):
         get_context()
 
