@@ -1,17 +1,14 @@
 """Tests for aignostics_foundry_core.gui.*."""
 
 import asyncio
-import os
 import sys
 import time
-from collections.abc import Generator
 from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from aignostics_foundry_core.foundry import reset_context, set_context
 from aignostics_foundry_core.gui.core import (
     BROWSER_RECONNECT_TIMEOUT,
     RESPONSE_TIMEOUT,
@@ -25,7 +22,6 @@ from aignostics_foundry_core.gui.nav import (
     NavItem,
     gui_get_nav_groups,
 )
-from tests.aignostics_foundry_core.api import AUTH0_ROLE_CLAIM_VAR_NAME, INTERNAL_ORG_ID_VAR_NAME
 from tests.conftest import TEST_PROJECT_NAME, make_context
 
 _PATCH_GET_GUI_USER = "aignostics_foundry_core.gui.auth.get_gui_user"
@@ -34,9 +30,7 @@ _PATH_NAV_LOCATE = "aignostics_foundry_core.gui.nav.locate_subclasses"
 _PATH_CORE_LOCATE = "aignostics_foundry_core.gui.core.locate_subclasses"
 
 _TEST_PATH = "/test-page"
-_INTERNAL_ORG = "org_internal"
 _OTHER_ORG = "org_other"
-_ROLE_CLAIM = "https://example.com/role"
 _FIXED_PORT = 9000
 _DOCS_PATH = "/docs"
 _USER_SUB = "auth0|x"
@@ -248,15 +242,6 @@ class TestConstants:
 class TestGuiRegisterPages:
     """Tests for gui_register_pages behaviour."""
 
-    @pytest.fixture(autouse=True)
-    def _clear_registry(self) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
-        """Ensure the page registry is clean before and after each test."""
-        from aignostics_foundry_core.gui import clear_page_registry
-
-        clear_page_registry()
-        yield
-        clear_page_registry()
-
     def test_calls_register_pages_on_each_builder(self) -> None:
         """gui_register_pages calls register_pages() on every discovered builder."""
         builder_a = MagicMock(spec=BasePageBuilder)
@@ -463,17 +448,6 @@ class TestGuiRun:
 class TestGetGuiUser:
     """Tests for get_gui_user behaviour."""
 
-    @pytest.fixture(autouse=True)
-    def _gui_context(self) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
-        """Install a minimal context and required AuthSettings env vars."""
-        set_context(make_context())
-        os.environ[INTERNAL_ORG_ID_VAR_NAME] = _INTERNAL_ORG
-        os.environ[AUTH0_ROLE_CLAIM_VAR_NAME] = _ROLE_CLAIM
-        yield
-        os.environ.pop(INTERNAL_ORG_ID_VAR_NAME, None)
-        os.environ.pop(AUTH0_ROLE_CLAIM_VAR_NAME, None)
-        reset_context()
-
     async def test_returns_none_when_auth_client_raises(self) -> None:
         """Returns None when get_auth_client raises (no auth configured)."""
         from aignostics_foundry_core.gui.auth import get_gui_user
@@ -549,17 +523,6 @@ class TestGetGuiUser:
 class TestRequireGuiUser:
     """Tests for require_gui_user behaviour."""
 
-    @pytest.fixture(autouse=True)
-    def _gui_context(self) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
-        """Install a minimal context and required AuthSettings env vars."""
-        set_context(make_context())
-        os.environ[INTERNAL_ORG_ID_VAR_NAME] = _INTERNAL_ORG
-        os.environ[AUTH0_ROLE_CLAIM_VAR_NAME] = _ROLE_CLAIM
-        yield
-        os.environ.pop(INTERNAL_ORG_ID_VAR_NAME, None)
-        os.environ.pop(AUTH0_ROLE_CLAIM_VAR_NAME, None)
-        reset_context()
-
     async def test_redirects_to_login_when_no_user(self) -> None:
         """Redirects to /auth/login when get_gui_user returns None."""
         from aignostics_foundry_core.gui.auth import require_gui_user
@@ -634,22 +597,6 @@ def _make_nicegui_mock() -> tuple[MagicMock, MagicMock]:
 @pytest.mark.unit
 class TestPageRegistryDecorators:
     """Tests for page_* registry decorators (deferred registration)."""
-
-    @pytest.fixture(autouse=True)
-    def _clear_registry(self) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
-        """Ensure registry is clean before and after each test."""
-        from aignostics_foundry_core.gui import clear_page_registry
-
-        clear_page_registry()
-        yield
-        clear_page_registry()
-
-    @pytest.fixture(autouse=True)
-    def _context(self) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
-        """Install a minimal FoundryContext so get_context() works inside page wrappers."""
-        set_context(make_context())
-        yield
-        reset_context()
 
     def _actualize_via_register_pages(self, frame_func: object = None) -> tuple[list[object], MagicMock]:
         """Run gui_register_pages and return (wrappers, nicegui_mock).
@@ -908,13 +855,6 @@ class TestPageRegistryDecorators:
 @pytest.mark.unit
 class TestGUINamespace:
     """Tests for GUINamespace and the gui singleton."""
-
-    @pytest.fixture(autouse=True)
-    def _context(self) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
-        """Install a minimal FoundryContext so get_context() works inside page wrappers."""
-        set_context(make_context())
-        yield
-        reset_context()
 
     def test_gui_exposes_all_decorator_methods(self) -> None:
         """The gui singleton exposes all page decorator methods as callables."""

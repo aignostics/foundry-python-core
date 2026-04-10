@@ -1,12 +1,11 @@
 """Tests for aignostics_foundry_core.sentry."""
 
-from collections.abc import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
 
-from aignostics_foundry_core.foundry import reset_context, set_context
+from aignostics_foundry_core.foundry import set_context
 from aignostics_foundry_core.sentry import SentrySettings, sentry_initialize, set_sentry_user
 from tests.conftest import TEST_PROJECT_NAME, TEST_PROJECT_PREFIX, make_context
 
@@ -22,12 +21,6 @@ _SENTRY_SDK_IGNORE_LOGGER = "sentry_sdk.integrations.logging.ignore_logger"
 @pytest.mark.integration
 class TestSentryInitialize:
     """Behavioural tests for sentry_initialize()."""
-
-    @pytest.fixture(autouse=True)
-    def _context(self) -> Generator[None, None, None]:
-        set_context(make_context())
-        yield
-        reset_context()
 
     def test_sentry_initialize_returns_false_when_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Returns False when TESTPROJECT_SENTRY_ENABLED is not set (default False)."""
@@ -110,12 +103,6 @@ class TestSentryInitialize:
 class TestSentrySettingsDsnValidation:
     """Tests for SentrySettings DSN edge-case validation paths."""
 
-    @pytest.fixture(autouse=True)
-    def _context(self) -> Generator[None, None, None]:
-        set_context(make_context())
-        yield
-        reset_context()
-
     def test_dsn_missing_scheme_raises(self) -> None:
         """DSN without a URL scheme raises ValidationError."""
         with pytest.raises(ValidationError):
@@ -135,12 +122,6 @@ class TestSentrySettingsDsnValidation:
 @pytest.mark.integration
 class TestSentrySettings:
     """Behavioural tests for SentrySettings validation."""
-
-    @pytest.fixture(autouse=True)
-    def _context(self) -> Generator[None, None, None]:
-        set_context(make_context())
-        yield
-        reset_context()
 
     def test_sentry_settings_rejects_invalid_dsn_http_scheme(self) -> None:
         """DSN with http:// scheme raises ValidationError."""

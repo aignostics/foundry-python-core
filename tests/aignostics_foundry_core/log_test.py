@@ -8,7 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from aignostics_foundry_core.log import InterceptHandler, LogSettings, logging_initialize
-from tests.conftest import TEST_PROJECT_PREFIX, make_context
+from tests.conftest import TEST_PROJECT_PREFIX
 
 _MARKER_MESSAGE = "log_test_unique_marker_4f2a"
 _STDLIB_MESSAGE = "stdlib_redirect_unique_marker_9b3c"
@@ -22,13 +22,6 @@ _SENTRY_MARKER = "sentry.io unique drop marker 2f4e"
 @pytest.mark.unit
 class TestLoggingInitialize:
     """Behavioural tests for logging_initialize()."""
-
-    @pytest.fixture(autouse=True)
-    def _stub_get_context(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(
-            "aignostics_foundry_core.log.get_context",
-            make_context,
-        )
 
     def test_logging_initialize_adds_stderr_handler(self, capsys: pytest.CaptureFixture[str]) -> None:
         """After initialization with defaults, a log message appears on stderr."""
@@ -117,10 +110,6 @@ class TestLoggingInitialize:
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """LogSettings reads env vars from the prefix of the active get_context()."""
-        monkeypatch.setattr(
-            "aignostics_foundry_core.log.get_context",
-            make_context,
-        )
         monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}LOG_STDERR_ENABLED", "false")
         logging_initialize()
         from loguru import logger
@@ -133,20 +122,9 @@ class TestLoggingInitialize:
 class TestLogSettings:
     """Behavioural tests for LogSettings validation."""
 
-    @pytest.fixture(autouse=True)
-    def _stub_get_context(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(
-            "aignostics_foundry_core.log.get_context",
-            make_context,
-        )
-
     @pytest.mark.unit
     def test_log_settings_uses_context_env_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """LogSettings reads env vars using the env_prefix from the active FoundryContext."""
-        monkeypatch.setattr(
-            "aignostics_foundry_core.log.get_context",
-            make_context,
-        )
         monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}LOG_STDERR_ENABLED", "false")
         settings = LogSettings()  # pyright: ignore[reportCallIssue]
         assert settings.stderr_enabled is False

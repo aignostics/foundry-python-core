@@ -2,31 +2,18 @@
 
 import importlib
 import sys
-from collections.abc import Generator
 
 import pytest
 from rich.console import Console
 
 from aignostics_foundry_core.console import console
-from aignostics_foundry_core.foundry import reset_context, set_context
+from aignostics_foundry_core.foundry import set_context
 from tests.conftest import make_context
 
 EXPECTED_THEME_KEYS = ["success", "info", "warning", "error", "debug", "logging.level.info"]
 CUSTOM_WIDTH = "120"
 EXPECTED_CUSTOM_WIDTH = 120
 CONSOLE_MODULE = "aignostics_foundry_core.console"
-
-
-@pytest.fixture(autouse=True)
-def _reset_context() -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
-    """Reset global _context to None before and after every test.
-
-    Yields:
-        None
-    """
-    reset_context()
-    yield
-    reset_context()
 
 
 class TestConsole:

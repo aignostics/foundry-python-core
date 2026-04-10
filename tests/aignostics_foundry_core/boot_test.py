@@ -11,7 +11,6 @@ from unittest.mock import MagicMock
 import pytest
 
 import aignostics_foundry_core.boot as boot_mod
-from aignostics_foundry_core.foundry import set_context
 from tests.conftest import TEST_PROJECT_NAME, TEST_PROJECT_PREFIX, make_context
 
 _OTHER_PROJECT = "otherapp"
@@ -93,7 +92,6 @@ def test_boot_uses_global_context_when_none_provided(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(boot_mod, "truststore", None)
     monkeypatch.setattr(boot_mod, "certifi", None)
 
-    set_context(make_context())
     boot_mod.boot(sentry_integrations=None)
 
     call_ctx = mock_logging.call_args.kwargs["context"]
@@ -110,7 +108,6 @@ def test_boot_explicit_context_overrides_global(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(boot_mod, "truststore", None)
     monkeypatch.setattr(boot_mod, "certifi", None)
 
-    set_context(make_context())
     explicit_ctx = make_context(_OTHER_PROJECT)
     boot_mod.boot(context=explicit_ctx, sentry_integrations=None)
 

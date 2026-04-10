@@ -1,6 +1,5 @@
 """Tests for DatabaseSettings."""
 
-from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -26,14 +25,6 @@ OVERRIDE_POOL_MAX_OVERFLOW = 20
 OVERRIDE_POOL_TIMEOUT = 60
 TEST_DB_PREFIX = "TEST_DB_"
 TEST_DB_NAME_ENV = "TEST_DB_NAME"
-
-
-@pytest.fixture(autouse=True)
-def _reset_context() -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
-    """Reset global context before and after every test."""
-    reset_context()
-    yield
-    reset_context()
 
 
 # ---------------------------------------------------------------------------
@@ -201,5 +192,6 @@ def test_database_settings_explicit_env_file_overrides_context(tmp_path: Path) -
 @pytest.mark.integration
 def test_database_settings_no_context_raises_without_prefix() -> None:
     """DatabaseSettings() raises RuntimeError when no context is installed and no prefix is given."""
+    reset_context()
     with pytest.raises(RuntimeError, match="get_context\\(\\) called before set_context"):
         DatabaseSettings()
