@@ -1,3 +1,9 @@
+## v0.11.0 (2026-04-10)
+
+### Feat
+
+- **scheduler**: add BaseJoblet to foundry-core ([a707e8c](https://github.com/aignostics/foundry-python-core/commit/a707e8c8e0f11b0456625cafe291a4adac46efcf))
+
 ## v0.10.0 (2026-04-10)
 
 ### Feat
