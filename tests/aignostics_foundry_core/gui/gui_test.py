@@ -26,11 +26,14 @@ from tests.conftest import TEST_PROJECT_NAME, make_context
 
 _PATCH_GET_GUI_USER = "aignostics_foundry_core.gui.auth.get_gui_user"
 _PATCH_REQUIRE_GUI_USER = "aignostics_foundry_core.gui.auth.require_gui_user"
+_PATCH_LOAD_SETTINGS = "aignostics_foundry_core.gui.auth.load_settings"
 _PATH_NAV_LOCATE = "aignostics_foundry_core.gui.nav.locate_subclasses"
 _PATH_CORE_LOCATE = "aignostics_foundry_core.gui.core.locate_subclasses"
 
 _TEST_PATH = "/test-page"
 _OTHER_ORG = "org_other"
+_INTERNAL_ORG_ID = "org_internal_test"
+_ROLE_CLAIM = "https://example.com/roles"
 _FIXED_PORT = 9000
 _DOCS_PATH = "/docs"
 _USER_SUB = "auth0|x"
@@ -845,6 +848,157 @@ class TestPageRegistryDecorators:
             asyncio.run(wrappers[0](request))  # type: ignore[arg-type]
 
         assert titles_received == ["My Page"]
+
+    def test_page_admin_renders_forbidden_when_role_is_missing(self) -> None:
+        """Authenticated user without admin role gets a 403 forbidden label."""
+        from aignostics_foundry_core.gui.auth import page_admin
+
+        user = {_ROLE_CLAIM: "other_role"}
+        fake_auth = MagicMock()
+        fake_auth.auth0_role_claim = _ROLE_CLAIM
+
+        page_admin(_TEST_PATH)(lambda u: None)  # pyright: ignore[reportUnknownLambdaType]
+        wrappers, nicegui_mock = self._actualize_via_register_pages()
+
+        with (
+            patch(_PATCH_REQUIRE_GUI_USER, new=AsyncMock(return_value=user)),
+            patch(_PATCH_LOAD_SETTINGS, return_value=fake_auth),
+        ):
+            asyncio.run(wrappers[0](MagicMock()))  # type: ignore[arg-type]
+
+        nicegui_mock.ui.label.assert_called_once_with("403 Forbidden - Admin access required")
+
+    def test_page_admin_invokes_page_func_when_user_is_admin(self) -> None:
+        """Authenticated user with admin role triggers the page function."""
+        from aignostics_foundry_core.gui.auth import page_admin
+
+        page_func_called: list[bool] = []
+
+        def my_page(user: object) -> None:
+            page_func_called.append(True)
+
+        user = {_ROLE_CLAIM: "admin"}
+        fake_auth = MagicMock()
+        fake_auth.auth0_role_claim = _ROLE_CLAIM
+
+        page_admin(_TEST_PATH)(my_page)
+        wrappers, _ = self._actualize_via_register_pages()
+
+        with (
+            patch(_PATCH_REQUIRE_GUI_USER, new=AsyncMock(return_value=user)),
+            patch(_PATCH_LOAD_SETTINGS, return_value=fake_auth),
+        ):
+            asyncio.run(wrappers[0](MagicMock()))  # type: ignore[arg-type]
+
+        assert page_func_called == [True]
+
+    def test_page_internal_renders_forbidden_when_org_id_does_not_match(self) -> None:
+        """User from a non-internal org gets a 403 forbidden label."""
+        from aignostics_foundry_core.gui.auth import page_internal
+
+        user = {"org_id": _OTHER_ORG}
+        fake_auth = MagicMock()
+        fake_auth.internal_org_id = _INTERNAL_ORG_ID
+
+        page_internal(_TEST_PATH)(lambda u: None)  # pyright: ignore[reportUnknownLambdaType]
+        wrappers, nicegui_mock = self._actualize_via_register_pages()
+
+        with (
+            patch(_PATCH_REQUIRE_GUI_USER, new=AsyncMock(return_value=user)),
+            patch(_PATCH_LOAD_SETTINGS, return_value=fake_auth),
+        ):
+            asyncio.run(wrappers[0](MagicMock()))  # type: ignore[arg-type]
+
+        nicegui_mock.ui.label.assert_called_once_with("403 Forbidden - Internal access required")
+
+    def test_page_internal_invokes_page_func_when_user_is_internal(self) -> None:
+        """User from the internal org triggers the page function."""
+        from aignostics_foundry_core.gui.auth import page_internal
+
+        page_func_called: list[bool] = []
+
+        def my_page(user: object) -> None:
+            page_func_called.append(True)
+
+        user = {"org_id": _INTERNAL_ORG_ID}
+        fake_auth = MagicMock()
+        fake_auth.internal_org_id = _INTERNAL_ORG_ID
+
+        page_internal(_TEST_PATH)(my_page)
+        wrappers, _ = self._actualize_via_register_pages()
+
+        with (
+            patch(_PATCH_REQUIRE_GUI_USER, new=AsyncMock(return_value=user)),
+            patch(_PATCH_LOAD_SETTINGS, return_value=fake_auth),
+        ):
+            asyncio.run(wrappers[0](MagicMock()))  # type: ignore[arg-type]
+
+        assert page_func_called == [True]
+
+    def test_page_internal_admin_renders_forbidden_when_only_org_matches(self) -> None:
+        """User from internal org but without admin role gets a 403 forbidden label."""
+        from aignostics_foundry_core.gui.auth import page_internal_admin
+
+        user = {"org_id": _INTERNAL_ORG_ID, _ROLE_CLAIM: "other_role"}
+        fake_auth = MagicMock()
+        fake_auth.internal_org_id = _INTERNAL_ORG_ID
+        fake_auth.auth0_role_claim = _ROLE_CLAIM
+
+        page_internal_admin(_TEST_PATH)(lambda u: None)  # pyright: ignore[reportUnknownLambdaType]
+        wrappers, nicegui_mock = self._actualize_via_register_pages()
+
+        with (
+            patch(_PATCH_REQUIRE_GUI_USER, new=AsyncMock(return_value=user)),
+            patch(_PATCH_LOAD_SETTINGS, return_value=fake_auth),
+        ):
+            asyncio.run(wrappers[0](MagicMock()))  # type: ignore[arg-type]
+
+        nicegui_mock.ui.label.assert_called_once_with("403 Forbidden - Internal admin access required")
+
+    def test_page_internal_admin_renders_forbidden_when_only_role_matches(self) -> None:
+        """Admin-role user from a non-internal org gets a 403 forbidden label."""
+        from aignostics_foundry_core.gui.auth import page_internal_admin
+
+        user = {"org_id": _OTHER_ORG, _ROLE_CLAIM: "admin"}
+        fake_auth = MagicMock()
+        fake_auth.internal_org_id = _INTERNAL_ORG_ID
+        fake_auth.auth0_role_claim = _ROLE_CLAIM
+
+        page_internal_admin(_TEST_PATH)(lambda u: None)  # pyright: ignore[reportUnknownLambdaType]
+        wrappers, nicegui_mock = self._actualize_via_register_pages()
+
+        with (
+            patch(_PATCH_REQUIRE_GUI_USER, new=AsyncMock(return_value=user)),
+            patch(_PATCH_LOAD_SETTINGS, return_value=fake_auth),
+        ):
+            asyncio.run(wrappers[0](MagicMock()))  # type: ignore[arg-type]
+
+        nicegui_mock.ui.label.assert_called_once_with("403 Forbidden - Internal admin access required")
+
+    def test_page_internal_admin_invokes_page_func_when_user_is_internal_admin(self) -> None:
+        """User from internal org with admin role triggers the page function."""
+        from aignostics_foundry_core.gui.auth import page_internal_admin
+
+        page_func_called: list[bool] = []
+
+        def my_page(user: object) -> None:
+            page_func_called.append(True)
+
+        user = {"org_id": _INTERNAL_ORG_ID, _ROLE_CLAIM: "admin"}
+        fake_auth = MagicMock()
+        fake_auth.internal_org_id = _INTERNAL_ORG_ID
+        fake_auth.auth0_role_claim = _ROLE_CLAIM
+
+        page_internal_admin(_TEST_PATH)(my_page)
+        wrappers, _ = self._actualize_via_register_pages()
+
+        with (
+            patch(_PATCH_REQUIRE_GUI_USER, new=AsyncMock(return_value=user)),
+            patch(_PATCH_LOAD_SETTINGS, return_value=fake_auth),
+        ):
+            asyncio.run(wrappers[0](MagicMock()))  # type: ignore[arg-type]
+
+        assert page_func_called == [True]
 
 
 # ---------------------------------------------------------------------------
