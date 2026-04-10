@@ -13,6 +13,7 @@ dependencies = [
     { name = "asyncpg" },
     { name = "auth0-fastapi" },
     { name = "certifi" },
+    { name = "chancy", extra = ["cron"] },
     { name = "fastapi" },
     { name = "loguru" },
     { name = "nicegui" },
@@ -63,6 +64,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.29,<1" },
     { name = "auth0-fastapi", specifier = ">=1.0.0b5,<2" },
     { name = "certifi", specifier = ">=2024" },
+    { name = "chancy", extras = ["cron"], specifier = ">=0.25.1,<1" },
     { name = "fastapi", specifier = ">=0.110,<1" },
     { name = "loguru", specifier = ">=0.7,<1" },
     { name = "nicegui", specifier = ">=3,<4" },
@@ -528,6 +530,23 @@ wheels = [
 ]
 
 [[package]]
+name = "chancy"
+version = "0.25.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "psycopg", extra = ["pool"] },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3c/1e/d30cc2ecc39cc6941ce7f1004c443777a28733d7a688538fe1ceb2a6b582/chancy-0.25.1.tar.gz", hash = "sha256:264ed4f732cb51c405b789e0727c4d045fdfa1dcee1e3eed6d762df6c44122d7", size = 2128541, upload-time = "2025-10-29T00:34:27.697Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f0/17/8d7be15484ad627c8b0a94d43c8b213f5d5fee54384fd124343102308388/chancy-0.25.1-py3-none-any.whl", hash = "sha256:bcc8cd296c3268dbebb156c658fe47417d4f67b0c2722ffd21cfd4c0f32f892f", size = 523914, upload-time = "2025-10-29T00:34:25.914Z" },
+]
+
+[package.optional-dependencies]
+cron = [
+    { name = "croniter" },
+]
+
+[[package]]
 name = "chardet"
 version = "5.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -783,6 +802,18 @@ wheels = [
 [package.optional-dependencies]
 toml = [
     { name = "tomli", marker = "python_full_version <= '3.11'" },
+]
+
+[[package]]
+name = "croniter"
+version = "6.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dateutil" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/df/de/5832661ed55107b8a09af3f0a2e71e0957226a59eb1dcf0a445cce6daf20/croniter-6.2.2.tar.gz", hash = "sha256:ba60832a5ec8e12e51b8691c3309a113d1cf6526bdf1a48150ce8ec7a532d0ab", size = 113762, upload-time = "2026-03-15T08:43:48.112Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d0/39/783980e78cb92c2d7bdb1fc7dbc86e94ccc6d58224d76a7f1f51b6c51e30/croniter-6.2.2-py3-none-any.whl", hash = "sha256:a5d17b1060974d36251ea4faf388233eca8acf0d09cbd92d35f4c4ac8f279960", size = 45422, upload-time = "2026-03-15T08:43:46.626Z" },
 ]
 
 [[package]]
@@ -2249,6 +2280,9 @@ wheels = [
 binary = [
     { name = "psycopg-binary", marker = "implementation_name != 'pypy'" },
 ]
+pool = [
+    { name = "psycopg-pool" },
+]
 
 [[package]]
 name = "psycopg-binary"
@@ -2299,6 +2333,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c7/2c/a4981bf42cf30ebba0424971d7ce70a222ae9b82594c42fc3f2105d7b525/psycopg_binary-3.3.3-cp314-cp314-musllinux_1_2_riscv64.whl", hash = "sha256:47f06fcbe8542b4d96d7392c476a74ada521c5aebdb41c3c0155f6595fc14c8d", size = 3944542, upload-time = "2026-02-18T16:52:04.266Z" },
     { url = "https://files.pythonhosted.org/packages/60/e9/b7c29b56aa0b85a4e0c4d89db691c1ceef08f46a356369144430c155a2f5/psycopg_binary-3.3.3-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:e7800e6c6b5dc4b0ca7cc7370f770f53ac83886b76afda0848065a674231e856", size = 4254339, upload-time = "2026-02-18T16:52:10.444Z" },
     { url = "https://files.pythonhosted.org/packages/98/5a/291d89f44d3820fffb7a04ebc8f3ef5dda4f542f44a5daea0c55a84abf45/psycopg_binary-3.3.3-cp314-cp314-win_amd64.whl", hash = "sha256:165f22ab5a9513a3d7425ffb7fcc7955ed8ccaeef6d37e369d6cc1dff1582383", size = 3652796, upload-time = "2026-02-18T16:52:14.02Z" },
+]
+
+[[package]]
+name = "psycopg-pool"
+version = "3.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/56/9a/9470d013d0d50af0da9c4251614aeb3c1823635cab3edc211e3839db0bcf/psycopg_pool-3.3.0.tar.gz", hash = "sha256:fa115eb2860bd88fce1717d75611f41490dec6135efb619611142b24da3f6db5", size = 31606, upload-time = "2025-12-01T11:34:33.11Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/c3/26b8a0908a9db249de3b4169692e1c7c19048a9bc41a4d3209cee7dbb758/psycopg_pool-3.3.0-py3-none-any.whl", hash = "sha256:2e44329155c410b5e8666372db44276a8b1ebd8c90f1c3026ebba40d4bc81063", size = 39995, upload-time = "2025-12-01T11:34:29.761Z" },
 ]
 
 [[package]]
