@@ -1,3 +1,14 @@
+## v0.10.0 (2026-04-10)
+
+### Feat
+
+- **gui**: default page title to context name ([928c4da](https://github.com/aignostics/foundry-python-core/commit/928c4dad7bced7513457c0b78837bb1364555b2f))
+
+### Refactor
+
+- **gui**: extract _frame_context to reduce cognitive complexity ([a4134d9](https://github.com/aignostics/foundry-python-core/commit/a4134d90e76f921d82a16f2245ec771ec76ad64f))
+- clean duplicate test helpers/fixtures ([3fa8882](https://github.com/aignostics/foundry-python-core/commit/3fa88827196d06eb6ae78209d85b8b33e88ec14f))
+
 ## v0.9.0 (2026-04-09)
 
 ### Feat
