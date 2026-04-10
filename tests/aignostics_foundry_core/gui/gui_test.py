@@ -644,6 +644,13 @@ class TestPageRegistryDecorators:
         yield
         clear_page_registry()
 
+    @pytest.fixture(autouse=True)
+    def _context(self) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
+        """Install a minimal FoundryContext so get_context() works inside page wrappers."""
+        set_context(make_context())
+        yield
+        reset_context()
+
     def _actualize_via_register_pages(self, frame_func: object = None) -> tuple[list[object], MagicMock]:
         """Run gui_register_pages and return (wrappers, nicegui_mock).
 
@@ -844,6 +851,54 @@ class TestPageRegistryDecorators:
 
         assert frame_entered == [True]
 
+    def test_default_title_uses_context_name(self) -> None:
+        """When title is omitted, frame_func receives get_context().name.title() at request time."""
+        from aignostics_foundry_core.gui.auth import page_public
+
+        titles_received: list[str] = []
+
+        @contextmanager
+        def fake_frame(title: str, **_kw: object):  # type: ignore[misc]
+            titles_received.append(title)
+            yield
+
+        def my_page(user: object) -> None: ...
+
+        page_public(_TEST_PATH)(my_page)
+
+        wrappers, _ = self._actualize_via_register_pages(frame_func=fake_frame)
+
+        assert len(wrappers) == 1
+        request = MagicMock()
+        with patch(_PATCH_GET_GUI_USER, new=AsyncMock(return_value=None)):
+            asyncio.run(wrappers[0](request))  # type: ignore[arg-type]
+
+        assert titles_received == [TEST_PROJECT_NAME.title()]
+
+    def test_explicit_title_is_passed_unchanged(self) -> None:
+        """When an explicit title is given, frame_func receives that exact string."""
+        from aignostics_foundry_core.gui.auth import page_public
+
+        titles_received: list[str] = []
+
+        @contextmanager
+        def fake_frame(title: str, **_kw: object):  # type: ignore[misc]
+            titles_received.append(title)
+            yield
+
+        def my_page(user: object) -> None: ...
+
+        page_public(_TEST_PATH, title="My Page")(my_page)
+
+        wrappers, _ = self._actualize_via_register_pages(frame_func=fake_frame)
+
+        assert len(wrappers) == 1
+        request = MagicMock()
+        with patch(_PATCH_GET_GUI_USER, new=AsyncMock(return_value=None)):
+            asyncio.run(wrappers[0](request))  # type: ignore[arg-type]
+
+        assert titles_received == ["My Page"]
+
 
 # ---------------------------------------------------------------------------
 # GUINamespace
@@ -853,6 +908,13 @@ class TestPageRegistryDecorators:
 @pytest.mark.unit
 class TestGUINamespace:
     """Tests for GUINamespace and the gui singleton."""
+
+    @pytest.fixture(autouse=True)
+    def _context(self) -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
+        """Install a minimal FoundryContext so get_context() works inside page wrappers."""
+        set_context(make_context())
+        yield
+        reset_context()
 
     def test_gui_exposes_all_decorator_methods(self) -> None:
         """The gui singleton exposes all page decorator methods as callables."""
@@ -930,3 +992,31 @@ class TestGUINamespace:
             patch(_PATH_CORE_LOCATE, return_value=[]),
         ):
             gui_run(context=make_context(), frame_func=fake_frame)  # must not raise
+
+    def test_gui_namespace_default_title_uses_context_name(self) -> None:
+        """GUINamespace.public with no title uses get_context().name.title() at request time."""
+        from aignostics_foundry_core.gui.auth import GUINamespace
+
+        titles_received: list[str] = []
+
+        @contextmanager
+        def fake_frame(title: str, **_kw: object):  # type: ignore[misc]
+            titles_received.append(title)
+            yield
+
+        namespace = GUINamespace(frame_func=fake_frame)
+        wrappers: list[object] = []
+        nicegui_mock = MagicMock()
+        nicegui_mock.ui.page.side_effect = (  # pyright: ignore[reportUnknownMemberType]
+            lambda *a, **kw: lambda f: wrappers.append(f) or f  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        )
+
+        with patch.dict(sys.modules, {"nicegui": nicegui_mock}):
+            namespace.public(_TEST_PATH)(lambda user: None)  # pyright: ignore[reportUnknownLambdaType]
+
+        assert len(wrappers) == 1
+        request = MagicMock()
+        with patch(_PATCH_GET_GUI_USER, new=AsyncMock(return_value=None)):
+            asyncio.run(wrappers[0](request))  # type: ignore[arg-type]
+
+        assert titles_received == [TEST_PROJECT_NAME.title()]

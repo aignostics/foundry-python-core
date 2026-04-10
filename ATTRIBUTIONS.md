@@ -6684,7 +6684,7 @@ multidict implementation
 
 ```
 
-## nicegui (3.9.0) - UNKNOWN
+## nicegui (3.10.0) - UNKNOWN
 
 Create web-based user interfaces with Python. The nice way.
 
