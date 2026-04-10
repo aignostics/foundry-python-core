@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from aignostics_foundry_core.gui.auth import FrameFunc
 
 WINDOW_SIZE = (1280, 768)
-BROWSER_RECONNECT_TIMEOUT = 60 * 60 * 24 * 7  # 7 days
+BROWSER_RECONNECT_TIMEOUT = 30  # default is 3 seconds, was 7 days previously
 RESPONSE_TIMEOUT = 30
 
 
