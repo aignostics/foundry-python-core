@@ -1,3 +1,9 @@
+## v0.11.1 (2026-04-10)
+
+### Fix
+
+- **gui**: decrease BROWSER_RECONNECT_TIMEOUT ([04d2e5e](https://github.com/aignostics/foundry-python-core/commit/04d2e5e9d45718655b3784505e7e872cced3d8cc))
+
 ## v0.11.0 (2026-04-10)
 
 ### Feat
