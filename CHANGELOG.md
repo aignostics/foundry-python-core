@@ -1,3 +1,9 @@
+## v0.12.0 (2026-04-13)
+
+### Feat
+
+- add py.typed file ([05b27fc](https://github.com/aignostics/foundry-python-core/commit/05b27fc943b1595656d0794e61bc68fb83758981))
+
 ## v0.11.1 (2026-04-10)
 
 ### Fix
