@@ -1,3 +1,9 @@
+## v0.12.1 (2026-04-14)
+
+### Fix
+
+- **api.auth**: pass ctx.env_file to AuthSettings ([587fcf7](https://github.com/aignostics/foundry-python-core/commit/587fcf77c9a06289dbaa5b72bfcbefd5d0f43b85))
+
 ## v0.12.0 (2026-04-13)
 
 ### Feat
