@@ -31,13 +31,14 @@ USER_NOT_AUTHENTICATED = "User is not authenticated"
 
 
 class AuthSettings(OpaqueSettings):
-    """Auth settings whose env prefix is derived from the active FoundryContext.
+    """Auth settings whose env prefix and env files are derived from the active FoundryContext.
 
-    The effective prefix is ``{FoundryContext.env_prefix}AUTH_``, resolved at
-    instantiation time via :func:`aignostics_foundry_core.foundry.get_context`.
+    The effective prefix is ``{FoundryContext.env_prefix}AUTH_`` and the env files are
+    ``FoundryContext.env_file``, both resolved at instantiation time via
+    :func:`aignostics_foundry_core.foundry.get_context`.
 
     Both ``internal_org_id`` and ``auth0_role_claim`` are required — they must be
-    provided via the corresponding environment variables (no defaults).
+    provided via environment variables or ``.env`` files (no defaults).
     """
 
     model_config = SettingsConfigDict(extra="ignore")
@@ -46,8 +47,9 @@ class AuthSettings(OpaqueSettings):
     auth0_role_claim: str
 
     def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
-        """Initialise settings, deriving env_prefix from the active FoundryContext."""
-        super().__init__(_env_prefix=f"{get_context().env_prefix}AUTH_", **kwargs)  # pyright: ignore[reportCallIssue]
+        """Initialise settings, deriving env_prefix and env files from the active FoundryContext."""
+        ctx = get_context()
+        super().__init__(_env_prefix=f"{ctx.env_prefix}AUTH_", _env_file=ctx.env_file, **kwargs)  # pyright: ignore[reportCallIssue]
 
 
 class UnauthenticatedError(Exception):
