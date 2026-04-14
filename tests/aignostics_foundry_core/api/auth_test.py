@@ -3,6 +3,7 @@
 import os
 import time
 from collections.abc import Generator
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -19,7 +20,9 @@ from aignostics_foundry_core.api.auth import (
     require_internal,
     require_internal_admin,
 )
+from aignostics_foundry_core.foundry import set_context
 from tests.aignostics_foundry_core.api import AUTH0_ROLE_CLAIM_VAR_NAME, INTERNAL_ORG_ID_VAR_NAME
+from tests.conftest import make_context
 
 _INTERNAL_ORG_ID = "org_internal_123"
 _OTHER_ORG_ID = "org_other_456"
@@ -110,6 +113,30 @@ class TestAuthSettings:
         monkeypatch.delenv(AUTH0_ROLE_CLAIM_VAR_NAME, raising=False)
         with pytest.raises(pydantic.ValidationError):
             AuthSettings()
+
+
+@pytest.mark.integration
+class TestAuthSettingsEnvFile:
+    """Tests for AuthSettings env file loading."""
+
+    def test_auth_settings_reads_fields_from_env_file_via_context(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AuthSettings reads required fields from a .env file listed in the active FoundryContext."""
+        env_file = tmp_path / ".env"
+        env_file.write_text(
+            f"{INTERNAL_ORG_ID_VAR_NAME}=org_from_env_file\n{AUTH0_ROLE_CLAIM_VAR_NAME}=claim_from_env_file\n"
+        )
+
+        set_context(make_context(env_file=[env_file]))
+
+        monkeypatch.delenv(INTERNAL_ORG_ID_VAR_NAME, raising=False)
+        monkeypatch.delenv(AUTH0_ROLE_CLAIM_VAR_NAME, raising=False)
+
+        settings = AuthSettings()
+
+        assert settings.internal_org_id == "org_from_env_file"
+        assert settings.auth0_role_claim == "claim_from_env_file"
 
 
 @pytest.mark.integration

@@ -9202,12 +9202,12 @@ SOFTWARE.
 
 ```
 
-## pytest (9.0.2) - UNKNOWN
+## pytest (9.0.3) - UNKNOWN
 
 pytest: simple powerful testing with Python
 
 * URL: https://docs.pytest.org/en/latest/
-* Author(s): Holger Krekel, Bruno Oliveira, Ronny Pfannschmidt, Floris Bruynooghe, Brianna Laugher, Florian Bruhin, Others (See AUTHORS)
+* Author(s): Holger Krekel, Bruno Oliveira, Ronny Pfannschmidt, Floris Bruynooghe, Brianna Laugher, Freya Bruhin, Others (See AUTHORS)
 
 ### License Text
 
