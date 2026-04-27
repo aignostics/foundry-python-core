@@ -1,3 +1,9 @@
+## v0.13.0 (2026-04-27)
+
+### Feat
+
+- **foundry**: add python_version_minor computed field (#56) ([8532af8](https://github.com/aignostics/foundry-python-core/commit/8532af80914a29bc3f4b7d4e1ffeb2d8aecd9c8b))
+
 ## v0.12.1 (2026-04-14)
 
 ### Fix
