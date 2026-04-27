@@ -121,6 +121,28 @@ def test_from_package_python_version_matches_platform() -> None:
 
 
 @pytest.mark.unit
+def test_foundry_context_python_version_minor_from_full_version() -> None:
+    """python_version_minor returns major.minor when python_version is a full x.y.z string."""
+    ctx = make_context(python_version="3.11.9")
+    assert ctx.python_version_minor == "3.11"
+
+
+@pytest.mark.unit
+def test_foundry_context_python_version_minor_empty_when_version_unset() -> None:
+    """python_version_minor returns '' when python_version is not set."""
+    ctx = make_context()
+    assert not ctx.python_version_minor
+
+
+@pytest.mark.unit
+def test_foundry_context_python_version_minor_from_package() -> None:
+    """from_package() produces python_version_minor consistent with platform.python_version()."""
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    expected = ".".join(platform.python_version().split(".")[:2])
+    assert ctx.python_version_minor == expected
+
+
+@pytest.mark.unit
 def test_from_package_returns_correct_name() -> None:
     """from_package() sets .name to the package_name argument."""
     ctx = FoundryContext.from_package(PACKAGE_NAME)

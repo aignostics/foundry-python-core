@@ -85,6 +85,7 @@ def make_context(  # noqa: PLR0913
     database: DatabaseSettings | None = None,
     env_file: list[Path] | None = None,
     metadata: PackageMetadata | None = None,
+    python_version: str = "",
     **kwargs: bool,
 ) -> FoundryContext:
     """Create a minimal FoundryContext for testing.
@@ -103,6 +104,8 @@ def make_context(  # noqa: PLR0913
         metadata: Optional :class:`~aignostics_foundry_core.foundry.PackageMetadata`
             to attach to the context.  When ``None``, a ``PackageMetadata`` with
             ``repository_url`` set from the *repository_url* argument is used.
+        python_version: Python runtime version string (e.g. ``"3.11.9"``).  Defaults to
+            ``""`` so contexts constructed in tests work without specifying a version.
         **kwargs: Optional boolean flags forwarded to :class:`FoundryContext`
             (``is_test``, ``is_cli``, ``is_container``, ``is_library``).
     """
@@ -118,5 +121,6 @@ def make_context(  # noqa: PLR0913
         database=database,
         env_file=env_file or [],
         metadata=resolved_metadata,
+        python_version=python_version,
         **kwargs,  # type: ignore[arg-type]
     )

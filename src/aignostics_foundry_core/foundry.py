@@ -28,7 +28,7 @@ from importlib import metadata
 from pathlib import Path
 
 from dotenv import dotenv_values
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 from aignostics_foundry_core.database import DatabaseSettings
 
@@ -127,6 +127,21 @@ class FoundryContext(BaseModel):
     is_test: bool = False
     is_library: bool = False
     python_version: str = ""
+
+    @computed_field
+    @property
+    def python_version_minor(self) -> str:
+        """Python runtime version limited to major and minor components (e.g. ``'3.11'``).
+
+        Derived from :attr:`python_version`.  Returns ``""`` when :attr:`python_version`
+        is not set (e.g. when the context is constructed directly in tests without
+        specifying a version).
+        """
+        if not self.python_version:
+            return ""
+        major_minor_part_count = 2
+        return ".".join(self.python_version.split(".")[:major_minor_part_count])
+
     project_path: Path | None = None
     metadata: PackageMetadata = Field(default_factory=PackageMetadata)
     """Package-derived author and description metadata.
