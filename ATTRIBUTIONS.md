@@ -7296,7 +7296,7 @@ SOFTWARE.
 
 ```
 
-## pip (26.0.1) - UNKNOWN
+## pip (26.1) - UNKNOWN
 
 The PyPA recommended tool for installing Python packages.
 

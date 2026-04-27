@@ -139,9 +139,8 @@ class FoundryContext(BaseModel):
         """
         if not self.python_version:
             return ""
-        parts = self.python_version.split(".")
         major_minor_part_count = 2
-        return ".".join(parts[:major_minor_part_count]) if len(parts) >= major_minor_part_count else self.python_version
+        return ".".join(self.python_version.split(".")[:major_minor_part_count])
 
     project_path: Path | None = None
     metadata: PackageMetadata = Field(default_factory=PackageMetadata)
