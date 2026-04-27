@@ -50,7 +50,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
     Defaults to empty values for direct construction (e.g. in tests).
   - `FoundryContext(BaseModel)` — frozen; fields: `name`, `version`, `version_full`, `version_with_vcs_ref`, `environment`,
     `env_file: list[Path]`, `env_prefix`, `python_version` (Python runtime version string,
-    e.g. `"3.11.9"`), `metadata: PackageMetadata` (all package-derived fields: description,
+    e.g. `"3.11.9"`), `python_version_minor` (computed; major and minor only, e.g. `"3.11"`), `metadata: PackageMetadata` (all package-derived fields: description,
     author, URLs; populated by `from_package()` via `PackageMetadata.from_name()`; defaults to
     empty `PackageMetadata()`), plus four runtime mode bool flags: `is_container`, `is_cli`,
     `is_test`, `is_library` (all default `False`), and `database: DatabaseSettings | None`
