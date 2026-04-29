@@ -1,3 +1,9 @@
+## v0.14.0 (2026-04-29)
+
+### Feat
+
+- **auth**: consolidate auth config in AuthSettings (#57) ([4e3b540](https://github.com/aignostics/foundry-python-core/commit/4e3b5403674a4afc342776acfe2eb491bf37c05b))
+
 ## v0.13.0 (2026-04-27)
 
 ### Feat
