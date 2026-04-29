@@ -210,13 +210,20 @@ ctx = make_context(database=DatabaseSettings(_env_prefix="TEST_DB_", url="sqlite
 
 #### Authentication (`{PREFIX}AUTH_`)
 
-Settings class: `AuthSettings`. Both fields are required — no defaults. Only needed when using
+Settings class: `AuthSettings`. All fields are optional with defaults unless `enabled=True`, which
+activates several cross-field requirements. Only needed when using
 `aignostics_foundry_core.api.auth` dependencies.
 
-| Variable | Required | Description |
-|---|---|---|
-| `{PREFIX}AUTH_INTERNAL_ORG_ID` | yes | Auth0 organization ID identifying the internal org (used by `require_internal`). |
-| `{PREFIX}AUTH_AUTH0_ROLE_CLAIM` | yes | JWT claim name containing the user's role (e.g. `https://myapp.example.com/roles`). |
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `{PREFIX}AUTH_ENABLED` | no | `false` | Enable Auth0 authentication. When `true`, several other fields become required. |
+| `{PREFIX}AUTH_SESSION_SECRET` | when enabled | `""` | Secret to sign session cookies. Required when `AUTH_ENABLED=true`. |
+| `{PREFIX}AUTH_SESSION_EXPIRATION` | no | `86400` | Session cookie expiration in seconds (range: 61–31536000). |
+| `{PREFIX}AUTH_DOMAIN` | when enabled | `""` | Auth0 domain (e.g. `myapp.eu.auth0.com`). Required when `AUTH_ENABLED=true`. |
+| `{PREFIX}AUTH_CLIENT_ID` | when enabled | `""` | Auth0 client ID (max 32 chars). Required when `AUTH_ENABLED=true`. |
+| `{PREFIX}AUTH_CLIENT_SECRET` | when enabled | `""` | Auth0 client secret (64 chars). Required when `AUTH_ENABLED=true`. |
+| `{PREFIX}AUTH_INTERNAL_ORG_ID` | when enabled | `""` | Auth0 organization ID identifying the internal org (used by `require_internal`). Required when `AUTH_ENABLED=true`. |
+| `{PREFIX}AUTH_ROLE_CLAIM` | when enabled | `""` | JWT claim name containing the user's role (e.g. `https://myapp.example.com/roles`). Required when `AUTH_ENABLED=true`. |
 
 #### Console
 

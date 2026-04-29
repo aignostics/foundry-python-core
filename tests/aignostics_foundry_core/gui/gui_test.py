@@ -847,7 +847,7 @@ class TestPageRegistryDecorators:
 
         user = {_ROLE_CLAIM: "other_role"}
         fake_auth = MagicMock()
-        fake_auth.auth0_role_claim = _ROLE_CLAIM
+        fake_auth.role_claim = _ROLE_CLAIM
 
         page_admin(_TEST_PATH)(lambda u: None)  # pyright: ignore[reportUnknownLambdaType]
         wrappers, nicegui_mock = self._actualize_via_register_pages()
@@ -871,7 +871,7 @@ class TestPageRegistryDecorators:
 
         user = {_ROLE_CLAIM: "admin"}
         fake_auth = MagicMock()
-        fake_auth.auth0_role_claim = _ROLE_CLAIM
+        fake_auth.role_claim = _ROLE_CLAIM
 
         page_admin(_TEST_PATH)(my_page)
         wrappers, _ = self._actualize_via_register_pages()
@@ -934,7 +934,7 @@ class TestPageRegistryDecorators:
         user = {"org_id": _INTERNAL_ORG_ID, _ROLE_CLAIM: "other_role"}
         fake_auth = MagicMock()
         fake_auth.internal_org_id = _INTERNAL_ORG_ID
-        fake_auth.auth0_role_claim = _ROLE_CLAIM
+        fake_auth.role_claim = _ROLE_CLAIM
 
         page_internal_admin(_TEST_PATH)(lambda u: None)  # pyright: ignore[reportUnknownLambdaType]
         wrappers, nicegui_mock = self._actualize_via_register_pages()
@@ -954,7 +954,7 @@ class TestPageRegistryDecorators:
         user = {"org_id": _OTHER_ORG, _ROLE_CLAIM: "admin"}
         fake_auth = MagicMock()
         fake_auth.internal_org_id = _INTERNAL_ORG_ID
-        fake_auth.auth0_role_claim = _ROLE_CLAIM
+        fake_auth.role_claim = _ROLE_CLAIM
 
         page_internal_admin(_TEST_PATH)(lambda u: None)  # pyright: ignore[reportUnknownLambdaType]
         wrappers, nicegui_mock = self._actualize_via_register_pages()
@@ -979,7 +979,7 @@ class TestPageRegistryDecorators:
         user = {"org_id": _INTERNAL_ORG_ID, _ROLE_CLAIM: "admin"}
         fake_auth = MagicMock()
         fake_auth.internal_org_id = _INTERNAL_ORG_ID
-        fake_auth.auth0_role_claim = _ROLE_CLAIM
+        fake_auth.role_claim = _ROLE_CLAIM
 
         page_internal_admin(_TEST_PATH)(my_page)
         wrappers, _ = self._actualize_via_register_pages()
