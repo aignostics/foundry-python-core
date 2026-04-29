@@ -28,7 +28,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           TAG_VERSION=${GITHUB_REF#refs/tags/v}
-          TOML_VERSION=$(uv run python -c "import tomli; print(tomli.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          TOML_VERSION=$(grep -m 1 '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
           if [ "$TAG_VERSION" != "$TOML_VERSION" ]; then
             echo "Release version mismatch: Tag $TAG_VERSION != pyproject.toml $TOML_VERSION"
             exit 1
@@ -37,7 +37,7 @@ jobs:
       - name: Print development version info
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         run: |
-          TOML_VERSION=$(uv run python -c "import tomli; print(tomli.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          TOML_VERSION=$(grep -m 1 '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
           echo "Development build - Current version in pyproject.toml: $TOML_VERSION"
 
       - name: Create .env file
