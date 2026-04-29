@@ -41,7 +41,6 @@ class AuthSettings(OpaqueSettings):
 
     Fields:
         enabled: Enable Auth0 authentication (AUTH_ENABLED).
-        session_enabled: Enable session cookies (AUTH_SESSION_ENABLED).
         session_secret: Secret used to sign session cookies (AUTH_SESSION_SECRET).
         session_expiration: Session cookie expiration in seconds (AUTH_SESSION_EXPIRATION).
         domain: Auth0 domain (AUTH_DOMAIN).
@@ -51,16 +50,13 @@ class AuthSettings(OpaqueSettings):
         role_claim: JWT claim name containing the user's role (AUTH_ROLE_CLAIM).
 
     Cross-field rules (validated after field assignment):
-        - enabled=True requires session_enabled=True
-        - session_enabled=True requires session_secret not None
-        - enabled=True requires client_secret not None, non-empty domain, client_id,
-          internal_org_id, and role_claim
+        - enabled=True requires session_secret not None, client_secret not None,
+          non-empty domain, client_id, internal_org_id, and role_claim
     """
 
     model_config = SettingsConfigDict(extra="ignore")
 
     enabled: bool = Field(default=False)
-    session_enabled: bool = Field(default=False)
     session_secret: Annotated[
         SecretStr | None,
         PlainSerializer(func=OpaqueSettings.serialize_sensitive_info, return_type=str, when_used="always"),
@@ -90,11 +86,8 @@ class AuthSettings(OpaqueSettings):
         Raises:
             ValueError: If any cross-field dependency is violated.
         """
-        if self.enabled and not self.session_enabled:
-            msg = "AUTH_SESSION_ENABLED must be True when AUTH_ENABLED is True"
-            raise ValueError(msg)
-        if self.session_enabled and self.session_secret is None:
-            msg = "AUTH_SESSION_SECRET must not be None when AUTH_SESSION_ENABLED is True"
+        if self.enabled and self.session_secret is None:
+            msg = "AUTH_SESSION_SECRET must not be None when AUTH_ENABLED is True"
             raise ValueError(msg)
         if self.enabled and self.client_secret is None:
             msg = "AUTH_CLIENT_SECRET must not be None when AUTH_ENABLED is True"

@@ -217,8 +217,7 @@ activates several cross-field requirements. Only needed when using
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `{PREFIX}AUTH_ENABLED` | no | `false` | Enable Auth0 authentication. When `true`, several other fields become required. |
-| `{PREFIX}AUTH_SESSION_ENABLED` | when enabled | `false` | Enable session cookies. Required when `AUTH_ENABLED=true`. |
-| `{PREFIX}AUTH_SESSION_SECRET` | when session enabled | `""` | Secret to sign session cookies. Required when `AUTH_SESSION_ENABLED=true`. |
+| `{PREFIX}AUTH_SESSION_SECRET` | when enabled | `""` | Secret to sign session cookies. Required when `AUTH_ENABLED=true`. |
 | `{PREFIX}AUTH_SESSION_EXPIRATION` | no | `86400` | Session cookie expiration in seconds (range: 61–31536000). |
 | `{PREFIX}AUTH_DOMAIN` | when enabled | `""` | Auth0 domain (e.g. `myapp.eu.auth0.com`). Required when `AUTH_ENABLED=true`. |
 | `{PREFIX}AUTH_CLIENT_ID` | when enabled | `""` | Auth0 client ID (max 32 chars). Required when `AUTH_ENABLED=true`. |

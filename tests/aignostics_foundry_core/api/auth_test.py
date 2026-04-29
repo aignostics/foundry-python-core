@@ -92,7 +92,6 @@ class TestAuthSettings:
         """AuthSettings has correct defaults when no env vars are set."""
         settings = AuthSettings()
         assert settings.enabled is False
-        assert settings.session_enabled is False
         assert not settings.internal_org_id
         assert not settings.role_claim
         assert not settings.domain
@@ -111,22 +110,16 @@ class TestAuthSettings:
         settings = AuthSettings()
         assert settings.role_claim == "https://custom/role"
 
-    def test_enabled_requires_session_enabled(self) -> None:
-        """enabled=True with session_enabled=False raises ValidationError."""
+    def test_enabled_requires_session_secret(self) -> None:
+        """enabled=True with session_secret=None raises ValidationError."""
         with pytest.raises(pydantic.ValidationError):
-            AuthSettings(enabled=True, session_enabled=False)
-
-    def test_session_enabled_requires_session_secret(self) -> None:
-        """session_enabled=True with session_secret=None raises ValidationError."""
-        with pytest.raises(pydantic.ValidationError):
-            AuthSettings(session_enabled=True, session_secret=None)
+            AuthSettings(enabled=True, session_secret=None)
 
     def test_enabled_requires_client_secret(self) -> None:
         """enabled=True with client_secret=None raises ValidationError."""
         with pytest.raises(pydantic.ValidationError):
             AuthSettings(
                 enabled=True,
-                session_enabled=True,
                 session_secret=_TEST_SESSION_SECRET,
                 client_secret=None,
             )
@@ -136,7 +129,6 @@ class TestAuthSettings:
         with pytest.raises(pydantic.ValidationError):
             AuthSettings(
                 enabled=True,
-                session_enabled=True,
                 session_secret=_TEST_SESSION_SECRET,
                 client_secret=_TEST_CLIENT_SECRET,
                 domain="",
@@ -147,7 +139,6 @@ class TestAuthSettings:
         with pytest.raises(pydantic.ValidationError):
             AuthSettings(
                 enabled=True,
-                session_enabled=True,
                 session_secret=_TEST_SESSION_SECRET,
                 client_secret=_TEST_CLIENT_SECRET,
                 domain=_TEST_DOMAIN,
@@ -159,7 +150,6 @@ class TestAuthSettings:
         with pytest.raises(pydantic.ValidationError):
             AuthSettings(
                 enabled=True,
-                session_enabled=True,
                 session_secret=_TEST_SESSION_SECRET,
                 client_secret=_TEST_CLIENT_SECRET,
                 domain=_TEST_DOMAIN,
@@ -172,7 +162,6 @@ class TestAuthSettings:
         with pytest.raises(pydantic.ValidationError):
             AuthSettings(
                 enabled=True,
-                session_enabled=True,
                 session_secret=_TEST_SESSION_SECRET,
                 client_secret=_TEST_CLIENT_SECRET,
                 domain=_TEST_DOMAIN,
