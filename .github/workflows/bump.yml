@@ -32,7 +32,7 @@ jobs:
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
 
       - name: Install Python, venv and dependencies
-        run: uv sync --all-extras --frozen --link-mode=copy
+        run: uv sync --all-extras --frozen --no-build --link-mode=copy
 
       - name: Configure git identity
         run: |
