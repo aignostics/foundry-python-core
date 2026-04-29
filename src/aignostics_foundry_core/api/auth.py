@@ -5,7 +5,7 @@ This module provides:
 - Authentication dependencies (require_authenticated, require_admin, etc.)
 - get_user: Get authenticated user from session
 - get_auth_client: Get Auth0 client from app state
-- AuthSettings: Auth settings whose env prefix is derived from the active FoundryContext
+- AuthSettings: Full auth configuration (enabled, session, domain, credentials, org, role claim)
 """
 
 import time
@@ -15,6 +15,7 @@ from auth0_fastapi.auth.auth_client import AuthClient
 from fastapi import Request, Security
 from fastapi.security import APIKeyCookie
 from loguru import logger
+from pydantic import Field, PlainSerializer, SecretStr, StringConstraints, model_validator
 from pydantic_settings import SettingsConfigDict
 
 from aignostics_foundry_core.foundry import get_context
@@ -28,6 +29,7 @@ AUTH0_COOKIE_SCHEME_NAME = "Auth0Cookie"
 AUTH0_COOKIE_SCHEME_DESCRIPTION = "Auth0 session cookie authentication scheme."
 AUTH0_ROLE_ADMIN = "admin"
 USER_NOT_AUTHENTICATED = "User is not authenticated"
+AUTH_SESSION_EXPIRATION_DEFAULT = 60 * 60 * 24  # 1 day in seconds
 
 
 class AuthSettings(OpaqueSettings):
@@ -37,19 +39,79 @@ class AuthSettings(OpaqueSettings):
     ``FoundryContext.env_file``, both resolved at instantiation time via
     :func:`aignostics_foundry_core.foundry.get_context`.
 
-    Both ``internal_org_id`` and ``auth0_role_claim`` are required — they must be
-    provided via environment variables or ``.env`` files (no defaults).
+    Fields:
+        enabled: Enable Auth0 authentication (AUTH_ENABLED).
+        session_enabled: Enable session cookies (AUTH_SESSION_ENABLED).
+        session_secret: Secret used to sign session cookies (AUTH_SESSION_SECRET).
+        session_expiration: Session cookie expiration in seconds (AUTH_SESSION_EXPIRATION).
+        domain: Auth0 domain (AUTH_DOMAIN).
+        client_id: Auth0 client ID (AUTH_CLIENT_ID).
+        client_secret: Auth0 client secret (AUTH_CLIENT_SECRET).
+        internal_org_id: Auth0 org ID for the internal organisation (AUTH_INTERNAL_ORG_ID).
+        role_claim: JWT claim name containing the user's role (AUTH_ROLE_CLAIM).
+
+    Cross-field rules (validated after field assignment):
+        - enabled=True requires session_enabled=True
+        - session_enabled=True requires session_secret not None
+        - enabled=True requires client_secret not None, non-empty domain, client_id,
+          internal_org_id, and role_claim
     """
 
     model_config = SettingsConfigDict(extra="ignore")
 
-    internal_org_id: str
-    auth0_role_claim: str
+    enabled: bool = Field(default=False)
+    session_enabled: bool = Field(default=False)
+    session_secret: Annotated[
+        SecretStr | None,
+        PlainSerializer(func=OpaqueSettings.serialize_sensitive_info, return_type=str, when_used="always"),
+    ] = Field(default=None)
+    session_expiration: int = Field(default=AUTH_SESSION_EXPIRATION_DEFAULT, gt=60, le=31536000)
+    domain: Annotated[str, StringConstraints(max_length=255)] = Field(default="")
+    client_id: Annotated[str, StringConstraints(max_length=32)] = Field(default="")
+    client_secret: Annotated[
+        SecretStr | None,
+        PlainSerializer(func=OpaqueSettings.serialize_sensitive_info, return_type=str, when_used="always"),
+    ] = Field(default=None, min_length=64, max_length=64)
+    internal_org_id: str = ""
+    role_claim: str = ""
 
     def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
         """Initialise settings, deriving env_prefix and env files from the active FoundryContext."""
         ctx = get_context()
         super().__init__(_env_prefix=f"{ctx.env_prefix}AUTH_", _env_file=ctx.env_file, **kwargs)  # pyright: ignore[reportCallIssue]
+
+    @model_validator(mode="after")
+    def validate_auth_dependencies(self) -> "AuthSettings":
+        """Validate cross-field auth dependencies.
+
+        Returns:
+            AuthSettings: The validated settings instance.
+
+        Raises:
+            ValueError: If any cross-field dependency is violated.
+        """
+        if self.enabled and not self.session_enabled:
+            msg = "AUTH_SESSION_ENABLED must be True when AUTH_ENABLED is True"
+            raise ValueError(msg)
+        if self.session_enabled and self.session_secret is None:
+            msg = "AUTH_SESSION_SECRET must not be None when AUTH_SESSION_ENABLED is True"
+            raise ValueError(msg)
+        if self.enabled and self.client_secret is None:
+            msg = "AUTH_CLIENT_SECRET must not be None when AUTH_ENABLED is True"
+            raise ValueError(msg)
+        if self.enabled and not self.domain:
+            msg = "AUTH_DOMAIN must not be empty when AUTH_ENABLED is True"
+            raise ValueError(msg)
+        if self.enabled and not self.client_id:
+            msg = "AUTH_CLIENT_ID must not be empty when AUTH_ENABLED is True"
+            raise ValueError(msg)
+        if self.enabled and not self.internal_org_id:
+            msg = "AUTH_INTERNAL_ORG_ID must not be empty when AUTH_ENABLED is True"
+            raise ValueError(msg)
+        if self.enabled and not self.role_claim:
+            msg = "AUTH_ROLE_CLAIM must not be empty when AUTH_ENABLED is True"
+            raise ValueError(msg)
+        return self
 
 
 class UnauthenticatedError(Exception):
@@ -104,7 +166,7 @@ auth0_admin_scheme = APIKeyCookie(
     name=AUTH0_SESSION_COOKIE_NAME,
     scheme_name="Auth0AdminCookie",
     description="Auth0 session cookie authentication with admin role requirement. "
-    f"User must have '{AUTH0_ROLE_ADMIN}' role in their configured auth0_role_claim.",
+    f"User must have '{AUTH0_ROLE_ADMIN}' role in their configured role_claim.",
     auto_error=False,
 )  # Security scheme specifically for admin endpoints
 
@@ -138,7 +200,7 @@ async def _require_authenticated_impl(
         request: The incoming request.
         _cookie: The session cookie.
         role: Optional role required (e.g., "admin"). If specified, user must have
-            this role in their configured auth0_role_claim.
+            this role in their configured role_claim.
 
     Raises:
         UnauthenticatedError: If the session is not valid or missing.
@@ -154,7 +216,7 @@ async def _require_authenticated_impl(
 
     # Check role if specified
     if role is not None:
-        user_role = user.get(auth_settings.auth0_role_claim)
+        user_role = user.get(auth_settings.role_claim)
         if user_role != role:
             msg = f"User role '{user_role}' does not match required role '{role}'"
             logger.warning(msg)
@@ -237,7 +299,7 @@ async def require_internal_admin(
 
     Checks if the authenticated user is both:
     1. A member of the configured internal organization (FOUNDRY_AUTH_INTERNAL_ORG_ID)
-    2. Has the admin role in their configured auth0_role_claim
+    2. Has the admin role in their configured role_claim
 
     Args:
         request: The incoming request.
@@ -263,7 +325,7 @@ async def require_internal_admin(
         raise ForbiddenError(msg)
 
     # Check admin role
-    user_role = user.get(auth_settings.auth0_role_claim)
+    user_role = user.get(auth_settings.role_claim)
     if user_role != AUTH0_ROLE_ADMIN:
         msg = f"User role '{user_role}' does not match required role '{AUTH0_ROLE_ADMIN}'"
         logger.warning(msg)
@@ -315,7 +377,7 @@ async def get_user(
         return None
     user: dict[str, Any] = raw_user  # pyright: ignore[reportUnknownVariableType]
 
-    set_sentry_user(user, role_claim=auth_settings.auth0_role_claim)
+    set_sentry_user(user, role_claim=auth_settings.role_claim)
 
     # Check if expired
     exp = user.get("exp")

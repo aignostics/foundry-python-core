@@ -170,7 +170,7 @@ async def get_gui_user(request: Request) -> dict[str, Any] | None:
         return None
     user: dict[str, Any] = raw_user  # pyright: ignore[reportUnknownVariableType]
 
-    set_sentry_user(user, role_claim=auth_settings.auth0_role_claim)  # pyright: ignore[reportUnknownArgumentType]
+    set_sentry_user(user, role_claim=auth_settings.role_claim)  # pyright: ignore[reportUnknownArgumentType]
 
     exp = user.get("exp")
     if not exp:
@@ -319,7 +319,7 @@ def _actualize_admin(
                 return
 
             auth_settings = load_settings(AuthSettings)
-            role = user.get(auth_settings.auth0_role_claim)
+            role = user.get(auth_settings.role_claim)
             if role != AUTH0_ROLE_ADMIN:
                 with _frame_context(frame_func, resolved_title, user):
                     ui.label(f"{MSG_403_FORBIDDEN} - Admin access required").classes(CLASS_FORBIDDEN_ERROR)
@@ -402,7 +402,7 @@ def _actualize_internal_admin(
 
             auth_settings = load_settings(AuthSettings)
             org_id = user.get("org_id")
-            role = user.get(auth_settings.auth0_role_claim)
+            role = user.get(auth_settings.role_claim)
 
             if org_id != auth_settings.internal_org_id or role != AUTH0_ROLE_ADMIN:
                 with _frame_context(frame_func, resolved_title, user):

@@ -1,15 +1,15 @@
 """Tests for aignostics_foundry_core.api.auth."""
 
-import os
 import time
-from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
+import pydantic
 import pytest
 
 from aignostics_foundry_core.api.auth import (
     AUTH0_ROLE_ADMIN,
+    AUTH_SESSION_EXPIRATION_DEFAULT,
     AuthSettings,
     ForbiddenError,
     UnauthenticatedError,
@@ -21,7 +21,7 @@ from aignostics_foundry_core.api.auth import (
     require_internal_admin,
 )
 from aignostics_foundry_core.foundry import set_context
-from tests.aignostics_foundry_core.api import AUTH0_ROLE_CLAIM_VAR_NAME, INTERNAL_ORG_ID_VAR_NAME
+from tests.aignostics_foundry_core.api import INTERNAL_ORG_ID_VAR_NAME, ROLE_CLAIM_VAR_NAME
 from tests.conftest import make_context
 
 _INTERNAL_ORG_ID = "org_internal_123"
@@ -30,20 +30,10 @@ _TEST_ROLE_CLAIM = "https://aignostics-platform-bridge/role"
 _USER_NOT_AUTHENTICATED = "User is not authenticated"
 _USER_SUB = "auth0|x"
 _USER_EMAIL = "x@x.com"
-
-
-@pytest.fixture(autouse=True)
-def _auth_context() -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
-    """Set a real FoundryContext and required AuthSettings env vars for all auth tests.
-
-    Yields:
-        None
-    """
-    os.environ[INTERNAL_ORG_ID_VAR_NAME] = _INTERNAL_ORG_ID
-    os.environ[AUTH0_ROLE_CLAIM_VAR_NAME] = _TEST_ROLE_CLAIM
-    yield
-    os.environ.pop(INTERNAL_ORG_ID_VAR_NAME, None)
-    os.environ.pop(AUTH0_ROLE_CLAIM_VAR_NAME, None)
+_TEST_SESSION_SECRET = "test-session-secret"  # noqa: S105
+_TEST_CLIENT_SECRET = "x" * 64
+_TEST_CLIENT_ID = "x" * 32
+_TEST_DOMAIN = "example.auth0.com"
 
 
 @pytest.mark.unit
@@ -98,21 +88,98 @@ class TestGetAuthClient:
 class TestAuthSettings:
     """Tests for AuthSettings."""
 
-    def test_auth_settings_uses_context_env_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """AuthSettings reads both required fields from env vars using the context's prefix."""
-        monkeypatch.setenv(AUTH0_ROLE_CLAIM_VAR_NAME, "https://custom/role")
+    def test_auth_settings_defaults(self) -> None:
+        """AuthSettings has correct defaults when no env vars are set."""
         settings = AuthSettings()
-        assert settings.auth0_role_claim == "https://custom/role"
-        assert settings.internal_org_id == _INTERNAL_ORG_ID
+        assert settings.enabled is False
+        assert settings.session_enabled is False
+        assert not settings.internal_org_id
+        assert not settings.role_claim
+        assert not settings.domain
+        assert not settings.client_id
+        assert settings.session_expiration == AUTH_SESSION_EXPIRATION_DEFAULT
 
-    def test_auth_settings_raises_when_required_fields_absent(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """AuthSettings raises ValidationError when required env vars are absent."""
-        import pydantic
+    def test_auth_settings_reads_env_vars(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """AuthSettings reads field values from env vars using the context's env prefix."""
+        monkeypatch.setenv(INTERNAL_ORG_ID_VAR_NAME, "myorg")
+        settings = AuthSettings()
+        assert settings.internal_org_id == "myorg"
 
-        monkeypatch.delenv(INTERNAL_ORG_ID_VAR_NAME, raising=False)
-        monkeypatch.delenv(AUTH0_ROLE_CLAIM_VAR_NAME, raising=False)
+    def test_auth_settings_uses_context_env_prefix(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """AuthSettings reads fields from env vars using the context's prefix."""
+        monkeypatch.setenv(ROLE_CLAIM_VAR_NAME, "https://custom/role")
+        settings = AuthSettings()
+        assert settings.role_claim == "https://custom/role"
+
+    def test_enabled_requires_session_enabled(self) -> None:
+        """enabled=True with session_enabled=False raises ValidationError."""
         with pytest.raises(pydantic.ValidationError):
-            AuthSettings()
+            AuthSettings(enabled=True, session_enabled=False)
+
+    def test_session_enabled_requires_session_secret(self) -> None:
+        """session_enabled=True with session_secret=None raises ValidationError."""
+        with pytest.raises(pydantic.ValidationError):
+            AuthSettings(session_enabled=True, session_secret=None)
+
+    def test_enabled_requires_client_secret(self) -> None:
+        """enabled=True with client_secret=None raises ValidationError."""
+        with pytest.raises(pydantic.ValidationError):
+            AuthSettings(
+                enabled=True,
+                session_enabled=True,
+                session_secret=_TEST_SESSION_SECRET,
+                client_secret=None,
+            )
+
+    def test_enabled_requires_non_empty_domain(self) -> None:
+        """enabled=True with empty domain raises ValidationError."""
+        with pytest.raises(pydantic.ValidationError):
+            AuthSettings(
+                enabled=True,
+                session_enabled=True,
+                session_secret=_TEST_SESSION_SECRET,
+                client_secret=_TEST_CLIENT_SECRET,
+                domain="",
+            )
+
+    def test_enabled_requires_non_empty_client_id(self) -> None:
+        """enabled=True with empty client_id raises ValidationError."""
+        with pytest.raises(pydantic.ValidationError):
+            AuthSettings(
+                enabled=True,
+                session_enabled=True,
+                session_secret=_TEST_SESSION_SECRET,
+                client_secret=_TEST_CLIENT_SECRET,
+                domain=_TEST_DOMAIN,
+                client_id="",
+            )
+
+    def test_enabled_requires_non_empty_internal_org_id(self) -> None:
+        """enabled=True with empty internal_org_id raises ValidationError."""
+        with pytest.raises(pydantic.ValidationError):
+            AuthSettings(
+                enabled=True,
+                session_enabled=True,
+                session_secret=_TEST_SESSION_SECRET,
+                client_secret=_TEST_CLIENT_SECRET,
+                domain=_TEST_DOMAIN,
+                client_id=_TEST_CLIENT_ID,
+                internal_org_id="",
+            )
+
+    def test_enabled_requires_non_empty_role_claim(self) -> None:
+        """enabled=True with empty role_claim raises ValidationError."""
+        with pytest.raises(pydantic.ValidationError):
+            AuthSettings(
+                enabled=True,
+                session_enabled=True,
+                session_secret=_TEST_SESSION_SECRET,
+                client_secret=_TEST_CLIENT_SECRET,
+                domain=_TEST_DOMAIN,
+                client_id=_TEST_CLIENT_ID,
+                internal_org_id=_INTERNAL_ORG_ID,
+                role_claim="",
+            )
 
 
 @pytest.mark.integration
@@ -122,21 +189,21 @@ class TestAuthSettingsEnvFile:
     def test_auth_settings_reads_fields_from_env_file_via_context(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """AuthSettings reads required fields from a .env file listed in the active FoundryContext."""
+        """AuthSettings reads fields from a .env file listed in the active FoundryContext."""
         env_file = tmp_path / ".env"
         env_file.write_text(
-            f"{INTERNAL_ORG_ID_VAR_NAME}=org_from_env_file\n{AUTH0_ROLE_CLAIM_VAR_NAME}=claim_from_env_file\n"
+            f"{INTERNAL_ORG_ID_VAR_NAME}=org_from_env_file\n{ROLE_CLAIM_VAR_NAME}=claim_from_env_file\n"
         )
 
         set_context(make_context(env_file=[env_file]))
 
         monkeypatch.delenv(INTERNAL_ORG_ID_VAR_NAME, raising=False)
-        monkeypatch.delenv(AUTH0_ROLE_CLAIM_VAR_NAME, raising=False)
+        monkeypatch.delenv(ROLE_CLAIM_VAR_NAME, raising=False)
 
         settings = AuthSettings()
 
         assert settings.internal_org_id == "org_from_env_file"
-        assert settings.auth0_role_claim == "claim_from_env_file"
+        assert settings.role_claim == "claim_from_env_file"
 
 
 @pytest.mark.integration
@@ -247,7 +314,7 @@ class TestRequireAdmin:
 
     async def test_no_user_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_admin raises ForbiddenError when no session is available."""
-        monkeypatch.setenv(AUTH0_ROLE_CLAIM_VAR_NAME, _TEST_ROLE_CLAIM)
+        monkeypatch.setenv(ROLE_CLAIM_VAR_NAME, _TEST_ROLE_CLAIM)
         request = MagicMock()
         request.app.state = MagicMock(spec=[])  # no auth_client → get_user returns None
 
@@ -256,7 +323,7 @@ class TestRequireAdmin:
 
     async def test_wrong_role_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_admin raises ForbiddenError when user has a non-admin role."""
-        monkeypatch.setenv(AUTH0_ROLE_CLAIM_VAR_NAME, _TEST_ROLE_CLAIM)
+        monkeypatch.setenv(ROLE_CLAIM_VAR_NAME, _TEST_ROLE_CLAIM)
         request = MagicMock()
         user = {"sub": _USER_SUB, _TEST_ROLE_CLAIM: "viewer", "exp": int(time.time()) + 3600}
         fake_client = MagicMock()
@@ -268,7 +335,7 @@ class TestRequireAdmin:
 
     async def test_admin_role_passes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_admin returns None without raising when user has the admin role."""
-        monkeypatch.setenv(AUTH0_ROLE_CLAIM_VAR_NAME, _TEST_ROLE_CLAIM)
+        monkeypatch.setenv(ROLE_CLAIM_VAR_NAME, _TEST_ROLE_CLAIM)
         request = MagicMock()
         user = {"sub": _USER_SUB, _TEST_ROLE_CLAIM: AUTH0_ROLE_ADMIN, "exp": int(time.time()) + 3600}
         fake_client = MagicMock()
@@ -340,6 +407,8 @@ class TestRequireInternalAdmin:
 
     async def test_correct_org_wrong_role_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal_admin raises ForbiddenError when user is in internal org but lacks admin role."""
+        monkeypatch.setenv(INTERNAL_ORG_ID_VAR_NAME, _INTERNAL_ORG_ID)
+        monkeypatch.setenv(ROLE_CLAIM_VAR_NAME, _TEST_ROLE_CLAIM)
         request = MagicMock()
         user = {
             "sub": _USER_SUB,
@@ -356,6 +425,8 @@ class TestRequireInternalAdmin:
 
     async def test_internal_admin_passes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal_admin returns None without raising when user is internal org admin."""
+        monkeypatch.setenv(INTERNAL_ORG_ID_VAR_NAME, _INTERNAL_ORG_ID)
+        monkeypatch.setenv(ROLE_CLAIM_VAR_NAME, _TEST_ROLE_CLAIM)
         request = MagicMock()
         user = {
             "sub": _USER_SUB,
