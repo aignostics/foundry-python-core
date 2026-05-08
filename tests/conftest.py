@@ -45,7 +45,7 @@ def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
             "Set number of xdist workers to '%s' based on logical CPU count of %s.", num_workers, logical_cpu_count
         )
         return num_workers
-    return config.getoption("numprocesses")
+    return int(config.getoption("numprocesses") or 1)
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:

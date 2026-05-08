@@ -4,7 +4,7 @@
 
 This project includes code from the following third-party open source projects:
 
-## Authlib (1.6.11) - BSD License
+## Authlib (1.7.2) - BSD License
 
 The ultimate Python library in building OAuth and OpenID Connect servers and clients.
 
@@ -328,7 +328,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ```
 
-## SQLAlchemy (2.0.48) - MIT
+## SQLAlchemy (2.0.49) - MIT
 
 Database Abstraction Library
 
@@ -1950,7 +1950,7 @@ SOFTWARE.
 
 ```
 
-## auth0-fastapi (1.0.0b6) - MIT License
+## auth0-fastapi (1.0.0b7) - MIT License
 
 Auth0 FastAPI Python SDK
 
@@ -1983,7 +1983,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## auth0-server-python (1.0.0b8) - MIT License
+## auth0-server-python (1.0.0b10) - MIT License
 
 Auth0 server-side Python SDK
 
@@ -2441,7 +2441,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ```
 
-## certifi (2026.2.25) - Mozilla Public License 2.0 (MPL 2.0)
+## certifi (2026.4.22) - Mozilla Public License 2.0 (MPL 2.0)
 
 Python package for providing Mozilla's CA Bundle.
 
@@ -3089,7 +3089,7 @@ That's all there is to it!
 
 ```
 
-## charset-normalizer (3.4.6) - MIT
+## charset-normalizer (3.4.7) - MIT
 
 The Real First Universal Charset Detector. Open, modern and actively maintained alternative to Chardet.
 
@@ -3124,7 +3124,7 @@ SOFTWARE.
 
 ```
 
-## click (8.3.1) - UNKNOWN
+## click (8.3.3) - UNKNOWN
 
 Composable command line interface toolkit
 
@@ -3238,13 +3238,40 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ```
 
-## commitizen (4.13.9) - MIT License
+## commitizen (4.15.1) - UNKNOWN
 
 Python commitizen client tool
 
 * URL: https://github.com/commitizen-tools/commitizen
 * Author(s): Santiago Fraire
 * Maintainer(s): Wei Lee, Axel H., Tim Hsiung
+
+### License Text
+
+```
+MIT License
+
+Copyright (c) 2017 Santiago
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+```
 
 ## coverage (7.13.5) - Apache-2.0
 
@@ -3455,7 +3482,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-## cryptography (46.0.7) - UNKNOWN
+## cryptography (48.0.0) - UNKNOWN
 
 cryptography is a package which provides cryptographic recipes and primitives to Python developers.
 
@@ -3471,7 +3498,7 @@ under the terms of *both* these licenses.
 
 ```
 
-## cyclonedx-bom (7.2.2) - Apache Software License
+## cyclonedx-bom (7.3.0) - Apache Software License
 
 CycloneDX Software Bill of Materials (SBOM) generator for Python projects and environments
 
@@ -4933,7 +4960,7 @@ execnet: rapid multi-Python deployment
 
 ```
 
-## fastapi (0.135.2) - UNKNOWN
+## fastapi (0.136.1) - UNKNOWN
 
 FastAPI framework, high performance, easy to learn, fast to code, ready for production
 
@@ -4967,7 +4994,7 @@ THE SOFTWARE.
 
 ```
 
-## filelock (3.25.2) - MIT License
+## filelock (3.29.0) - MIT License
 
 A platform independent file lock.
 
@@ -5601,7 +5628,7 @@ Apache License
 
 ```
 
-## greenlet (3.3.2) - UNKNOWN
+## greenlet (3.5.0) - UNKNOWN
 
 Lightweight in-process concurrent programming
 
@@ -5813,7 +5840,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ```
 
-## identify (2.6.18) - MIT
+## identify (2.6.19) - MIT
 
 File identification library for Python
 
@@ -5845,7 +5872,7 @@ THE SOFTWARE.
 
 ```
 
-## idna (3.11) - UNKNOWN
+## idna (3.13) - UNKNOWN
 
 Internationalized Domain Names in Applications (IDNA)
 
@@ -5857,7 +5884,7 @@ Internationalized Domain Names in Applications (IDNA)
 ```
 BSD 3-Clause License
 
-Copyright (c) 2013-2025, Kim Davies and contributors.
+Copyright (c) 2013-2026, Kim Davies and contributors.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -6024,6 +6051,47 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ```
 
+## joserfc (1.6.5) - BSD License
+
+The ultimate Python library for JOSE RFCs, including JWS, JWE, JWK, JWA, JWT
+
+* URL: https://github.com/authlib/joserfc
+* Author(s): Hsiaoming Yang <me@lepture.com>
+
+### License Text
+
+```
+BSD 3-Clause License
+
+Copyright (c) 2023, Hsiaoming Yang
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+```
+
 ## jsonpointer (3.1.1) - BSD License
 
 Identify specific nodes in a JSON document (RFC 6901) 
@@ -6127,7 +6195,7 @@ THE SOFTWARE.
 
 ```
 
-## jwcrypto (1.5.6) - LGPLv3+
+## jwcrypto (1.5.7) - UNKNOWN
 
 Implementation of JOSE Web standards
 
@@ -6480,7 +6548,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ```
 
-## markdown-it-py (4.0.0) - MIT License
+## markdown-it-py (4.2.0) - MIT License
 
 Python port of markdown-it. Markdown parsing, done right!
 
@@ -6587,7 +6655,7 @@ as follows:
 
 ```
 
-## mbstrdecoder (1.1.4) - MIT License
+## mbstrdecoder (1.1.5) - MIT License
 
 mbstrdecoder is a Python library for multi-byte character string decoder
 
@@ -6733,7 +6801,7 @@ multidict implementation
 
 ```
 
-## nicegui (3.10.0) - UNKNOWN
+## nicegui (3.11.1) - UNKNOWN
 
 Create web-based user interfaces with Python. The nice way.
 
@@ -6812,7 +6880,7 @@ DAMAGE.
 
 ```
 
-## nox (2026.2.9) - UNKNOWN
+## nox (2026.4.10) - UNKNOWN
 
 Flexible test automation.
 
@@ -7026,7 +7094,7 @@ Flexible test automation.
 
 ```
 
-## orjson (3.11.7) - Apache Software License; MIT License; Mozilla Public License 2.0 (MPL 2.0)
+## orjson (3.11.9) - Apache Software License; MIT License; Mozilla Public License 2.0 (MPL 2.0)
 
 Fast, correct Python JSON library supporting dataclasses, datetimes, and numpy
 
@@ -7246,7 +7314,7 @@ A purl aka. Package URL parser and builder
 * URL: https://github.com/package-url/packageurl-python
 * Author(s): the purl authors
 
-## packaging (26.0) - UNKNOWN
+## packaging (26.2) - UNKNOWN
 
 Core utilities for Python packages
 
@@ -7296,7 +7364,7 @@ SOFTWARE.
 
 ```
 
-## pip (26.1) - UNKNOWN
+## pip (26.1.1) - UNKNOWN
 
 The PyPA recommended tool for installing Python packages.
 
@@ -7747,7 +7815,7 @@ A tool for scanning Python environments for known vulnerabilities
 
 ```
 
-## platformdirs (4.9.4) - MIT License
+## platformdirs (4.9.6) - MIT License
 
 A small Python package for determining appropriate platform-specific dirs, e.g. a `user data dir`.
 
@@ -7815,7 +7883,7 @@ SOFTWARE.
 
 ```
 
-## pre_commit (4.5.1) - MIT
+## pre_commit (4.6.0) - MIT
 
 A framework for managing and maintaining multi-language pre-commit hooks.
 
@@ -8166,9 +8234,9 @@ Accelerated property cache
 
 ```
 
-## psutil (6.1.1) - BSD License
+## psutil (7.2.2) - BSD-3-Clause
 
-Cross-platform lib for process and system monitoring in Python.
+Cross-platform lib for process and system monitoring.
 
 * URL: https://github.com/giampaolo/psutil
 * Author(s): Giampaolo Rodola
@@ -8208,7 +8276,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ```
 
-## psycopg (3.3.3) - UNKNOWN
+## psycopg (3.3.4) - UNKNOWN
 
 PostgreSQL database adapter for Python
 
@@ -8386,7 +8454,7 @@ Library.
 
 ```
 
-## psycopg-binary (3.3.3) - UNKNOWN
+## psycopg-binary (3.3.4) - UNKNOWN
 
 PostgreSQL database adapter for Python -- C optimisation distribution
 
@@ -8564,7 +8632,7 @@ Library.
 
 ```
 
-## psycopg-pool (3.3.0) - UNKNOWN
+## psycopg-pool (3.3.1) - UNKNOWN
 
 Connection Pool for Psycopg
 
@@ -8998,12 +9066,12 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ```
 
-## pydantic (2.12.5) - UNKNOWN
+## pydantic (2.13.4) - UNKNOWN
 
 Data validation using Python type hints
 
 * URL: https://github.com/pydantic/pydantic
-* Author(s): Samuel Colvin <s@muelcolvin.com>, Eric Jolibois <em.jolibois@gmail.com>, Hasan Ramezani <hasan.r67@gmail.com>, Adrian Garcia Badaracco <1755071+adriangb@users.noreply.github.com>, Terrence Dorsey <terry@pydantic.dev>, David Montague <david@pydantic.dev>, Serge Matveenko <lig@countzero.co>, Marcelo Trylesinski <marcelotryle@gmail.com>, Sydney Runkle <sydneymarierunkle@gmail.com>, David Hewitt <mail@davidhewitt.io>, Alex Hall <alex.mojaki@gmail.com>, Victorien Plot <contact@vctrn.dev>, Douwe Maan <hi@douwe.me>
+* Author(s): Samuel Colvin <s@muelcolvin.com>, Eric Jolibois <em.jolibois@gmail.com>, Hasan Ramezani <hasan.r67@gmail.com>, Adrian Garcia Badaracco <1755071+adriangb@users.noreply.github.com>, Terrence Dorsey <terry@pydantic.dev>, David Montague <david@pydantic.dev>, Serge Matveenko <lig@countzero.co>, Marcelo Trylesinski <marcelotryle@gmail.com>, Sydney Runkle <sydneymarierunkle@gmail.com>, David Hewitt <mail@davidhewitt.dev>, Alex Hall <alex.mojaki@gmail.com>, Victorien Plot <contact@vctrn.dev>
 
 ### License Text
 
@@ -9032,7 +9100,7 @@ SOFTWARE.
 
 ```
 
-## pydantic-settings (2.13.1) - MIT License
+## pydantic-settings (2.14.0) - MIT License
 
 Settings management using Pydantic
 
@@ -9066,11 +9134,11 @@ SOFTWARE.
 
 ```
 
-## pydantic_core (2.41.5) - UNKNOWN
+## pydantic_core (2.46.4) - UNKNOWN
 
 Core functionality for Pydantic validation and serialization
 
-* URL: https://github.com/pydantic/pydantic-core
+* URL: https://github.com/pydantic/pydantic
 * Author(s): Samuel Colvin <s@muelcolvin.com>, Adrian Garcia Badaracco <1755071+adriangb@users.noreply.github.com>, David Montague <david@pydantic.dev>, David Hewitt <mail@davidhewitt.dev>, Sydney Runkle <sydneymarierunkle@gmail.com>, Victorien Plot <contact@vctrn.dev>
 
 ### License Text
@@ -9133,7 +9201,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ```
 
-## pyright (1.1.408) - MIT
+## pyright (1.1.409) - MIT
 
 Command line wrapper for pyright
 
@@ -9552,7 +9620,7 @@ SOFTWARE.
 
 ```
 
-## pytest-md-report (0.7.0) - MIT License
+## pytest-md-report (0.8.0) - MIT License
 
 A pytest plugin to generate test outcomes reports with markdown table format.
 
@@ -9564,7 +9632,7 @@ A pytest plugin to generate test outcomes reports with markdown table format.
 ```
 MIT License
 
-Copyright (c) 2020-2025 Tsuyoshi Hombashi
+Copyright (c) 2020-2026 Tsuyoshi Hombashi
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -9862,7 +9930,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 The above BSD License Applies to all code, even that also covered by Apache 2.0.
 ```
 
-## python-discovery (1.2.0) - MIT License
+## python-discovery (1.3.0) - MIT License
 
 Python interpreter discovery
 
@@ -9966,7 +10034,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ```
 
-## python-multipart (0.0.26) - Apache Software License
+## python-multipart (0.0.27) - Apache Software License
 
 A streaming multipart parser for Python
 
@@ -10215,7 +10283,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ```
 
-## pytz (2026.1.post1) - MIT License
+## pytz (2026.2) - MIT License
 
 World timezone definitions, modern and historical
 
@@ -10370,7 +10438,7 @@ THE SOFTWARE.
 
 ```
 
-## requests (2.33.0) - Apache Software License
+## requests (2.33.1) - Apache Software License
 
 Python HTTP for Humans.
 
@@ -10671,7 +10739,7 @@ SOFTWARE.
 
 ```
 
-## rich (14.3.3) - MIT License
+## rich (14.3.4) - MIT License
 
 Render rich text, tables, progress bars, syntax highlighting, markdown and more to the terminal
 
@@ -10735,7 +10803,7 @@ THE SOFTWARE.
 
 ```
 
-## ruff (0.15.7) - MIT License
+## ruff (0.15.12) - UNKNOWN
 
 An extremely fast Python linter and code formatter, written in Rust.
 
@@ -11178,7 +11246,7 @@ are:
 
 ```
 
-## sentry-sdk (2.56.0) - BSD License
+## sentry-sdk (2.59.0) - UNKNOWN
 
 Python client for Sentry (https://sentry.io)
 
@@ -11517,7 +11585,50 @@ THE SOFTWARE.
 
 ```
 
-## tomli (2.4.0) - UNKNOWN
+## tinycss2 (1.5.1) - BSD License
+
+A tiny CSS parser
+
+* URL: https://www.courtbouillon.org/tinycss2
+* Author(s): Simon Sapin <simon.sapin@exyr.org>
+* Maintainer(s): CourtBouillon <contact@courtbouillon.org>
+
+### License Text
+
+```
+BSD 3-Clause License
+
+Copyright (c) 2013-2020, Simon Sapin and contributors.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+```
+
+## tomli (2.4.1) - UNKNOWN
 
 A lil' TOML parser
 
@@ -11652,7 +11763,7 @@ THE SOFTWARE.
 
 ```
 
-## typepy (1.3.4) - MIT License
+## typepy (1.3.5) - MIT License
 
 typepy is a Python library for variable type checker/validator/converter at a run time.
 
@@ -11686,7 +11797,7 @@ SOFTWARE.
 
 ```
 
-## typer (0.24.1) - UNKNOWN
+## typer (0.25.1) - UNKNOWN
 
 Typer, build great CLIs. Easy to code. Based on Python type hints.
 
@@ -11720,7 +11831,7 @@ THE SOFTWARE.
 
 ```
 
-## types-PyYAML (6.0.12.20250915) - UNKNOWN
+## types-PyYAML (6.0.12.20260508) - UNKNOWN
 
 Typing stubs for PyYAML
 
@@ -11969,7 +12080,7 @@ DEALINGS IN THE SOFTWARE.
 
 ```
 
-## types-requests (2.32.4.20260324) - UNKNOWN
+## types-requests (2.33.0.20260508) - UNKNOWN
 
 Typing stubs for requests
 
@@ -12544,7 +12655,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 ```
 
-## tzdata (2025.3) - Apache-2.0
+## tzdata (2026.2) - Apache-2.0
 
 Provider of IANA time zone data
 
@@ -12606,7 +12717,7 @@ SOFTWARE.
 
 ```
 
-## urllib3 (2.6.3) - UNKNOWN
+## urllib3 (2.7.0) - UNKNOWN
 
 HTTP library with thread-safe connection pooling, file post, and more.
 
@@ -12641,7 +12752,7 @@ SOFTWARE.
 
 ```
 
-## uvicorn (0.42.0) - UNKNOWN
+## uvicorn (0.46.0) - UNKNOWN
 
 The lightning-fast ASGI server.
 
@@ -12898,12 +13009,12 @@ Copyright (C) 2016-present the uvloop authors and contributors.
 
 ```
 
-## virtualenv (21.2.0) - MIT License
+## virtualenv (21.3.1) - MIT License
 
 Virtual Python Environment builder
 
 * URL: https://github.com/pypa/virtualenv
-* Maintainer(s): Bernat Gabor <gaborjbernat@gmail.com>
+* Maintainer(s): Bernat Gabor <gaborjbernat@gmail.com>, Rahul Devikar <rahuldevikar5512@gmail.com>
 
 ### License Text
 
@@ -12994,7 +13105,7 @@ SOFTWARE.
 
 ```
 
-## wcwidth (0.6.0) - UNKNOWN
+## wcwidth (0.7.0) - UNKNOWN
 
 Measures the displayed width of unicode strings in a terminal
 
@@ -13074,6 +13185,13 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ```
+
+## webencodings (0.5.1) - BSD License
+
+Character encoding aliases for legacy web content
+
+* URL: https://github.com/SimonSapin/python-webencodings
+* Author(s): Geoffrey Sneddon
 
 ## websockets (16.0) - UNKNOWN
 
