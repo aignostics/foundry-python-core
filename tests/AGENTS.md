@@ -190,6 +190,9 @@ mise run test_e2e               # E2E tests (may require .env)
 mise run test_scheduled         # Scheduled tests only
 mise run test_sequential        # Sequential tests only
 
+# Lower-bound dependency check (library only)
+mise run test_lowest_direct     # Unit tests with lowest-direct resolution
+
 # Coverage reset
 mise run test_coverage_reset
 ```

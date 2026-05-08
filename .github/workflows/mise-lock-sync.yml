@@ -1,0 +1,44 @@
+name: Mise lockfile sync
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'mise.toml'
+      - '.mise.toml'
+      - 'mise.lock'
+      - '.mise.lock'
+      - 'mise.*.toml'
+      - '.mise.*.toml'
+      - 'mise/config.toml'
+      - '.mise/config.toml'
+      - '.config/mise.toml'
+      - '.config/mise/config.toml'
+      - '.config/mise/conf.d/*.toml'
+
+jobs:
+  sync-lockfile:
+    name: Sync mise lockfile
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Install mise
+        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+        with:
+          install: false
+
+      - name: Regenerate mise.lock
+        run: mise lock
+
+      - name: Commit if changed
+        uses: stefanzweifel/git-auto-commit-action@04702edda442b2e678b25b537cec683a1493fcb9 # v7.1.0
+        with:
+          commit_message: 'chore: regenerate mise.lock'
+          file_pattern: 'mise.lock'

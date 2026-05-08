@@ -1,16 +1,11 @@
 name: "+ CI/CD"
 
 on:
-  # Pull requests to main trigger feature deployment
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, closed]
-
-  # Pushes/merges to main and version tags trigger deployment
   push:
     branches: ["main"]
-    tags:
-      - "v*"
 
   # Manual trigger for any branch
   workflow_dispatch:
@@ -22,32 +17,43 @@ concurrency:
 jobs:
 
   lint:
-    if: (!contains(github.event.head_commit.message, '[skip ci]'))
+    # Skip on pull_request:closed as merge commits also triggeres this and they share the same concurrency group
+    if: |
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      !(github.event_name == 'pull_request' && github.event.action == 'closed')
     uses: ./.github/workflows/_lint.yml
     permissions:
       contents: read
       id-token: write
       packages: read
-    secrets: inherit
 
   audit:
-    if: (!contains(github.event.head_commit.message, '[skip ci]'))
+    # Skip on pull_request:closed as merge commits also triggeres this and they share the same concurrency group
+    if: |
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      !(github.event_name == 'pull_request' && github.event.action == 'closed')
     uses: ./.github/workflows/_audit.yml
     permissions:
       contents: read
       id-token: write
       packages: read
-    secrets: inherit
 
   test:
-    if: (!contains(github.event.head_commit.message, '[skip ci]'))
+    # Skip on pull_request:closed as merge commits also triggeres this and they share the same concurrency group
+    if: |
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      !(github.event_name == 'pull_request' && github.event.action == 'closed')
     uses: ./.github/workflows/_test.yml
     permissions:
       attestations: write
       contents: read
       id-token: write
       packages: write
-    secrets: inherit
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      AIGNOSTICS_FOUNDRY_CORE_LOGFIRE_TOKEN: ${{ secrets.AIGNOSTICS_FOUNDRY_CORE_LOGFIRE_TOKEN }}
+      AIGNOSTICS_FOUNDRY_CORE_SENTRY_DSN: ${{ secrets.AIGNOSTICS_FOUNDRY_CORE_SENTRY_DSN }}
 
   publish_package:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -57,4 +63,5 @@ jobs:
       contents: write
       id-token: write
       packages: read
-    secrets: inherit
+    secrets:
+      SLACK_RELEASE_BOT_TOKEN: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}

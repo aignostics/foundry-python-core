@@ -36,7 +36,7 @@ jobs:
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         shell: bash
         run: |
-          TOML_VERSION=$(grep -m 1 '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          TOML_VERSION=$(uv run python -c "import tomli; print(tomli.load(open('pyproject.toml', 'rb'))['project']['version'])")
           echo "Development build - Current version in pyproject.toml: $TOML_VERSION"
 
       - name: Validate and set environment suffix
@@ -46,14 +46,14 @@ jobs:
         shell: bash
         run: |
           # Validate deploy_env is one of the allowed values
-          case "$DEPLOY_ENV" in
+          case "${DEPLOY_ENV}" in
             dev|test|staging|production)
               # Convert to uppercase
-              SUFFIX=$(echo "$DEPLOY_ENV" | tr '[:lower:]' '[:upper:]')
+              SUFFIX=$(echo "${DEPLOY_ENV}" | tr '[:lower:]' '[:upper:]')
               echo "suffix=${SUFFIX}" >> $GITHUB_OUTPUT
               ;;
             *)
-              echo "Error: Invalid deploy_env value '$DEPLOY_ENV'. Must be one of: dev, test, staging, production"
+              echo "Error: Invalid deploy_env value '${DEPLOY_ENV}'. Must be one of: dev, test, staging, production"
               exit 1
               ;;
           esac
@@ -220,7 +220,7 @@ jobs:
 
       - name: SonarQube Scan
         if: ${{ !cancelled() && (env.GITHUB_WORKFLOW_RUNTIME != 'ACT') }}
-        uses: SonarSource/sonarqube-scan-action@59db25f34e16620e48ab4bb9e4a5dce155cb5432 # v8
+        uses: SonarSource/sonarqube-scan-action@59db25f34e16620e48ab4bb9e4a5dce155cb5432 # v8.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

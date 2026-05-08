@@ -4,9 +4,12 @@ description: 'Checkout, GCP auth, mise, uv, and dev tools'
 runs:
   using: 'composite'
   steps:
+
     - name: Install mise
       uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
 
     - name: Initialize mise and install Python dependencies
       shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
       run: mise run install

@@ -23,8 +23,6 @@ jobs:
       - name: Setup Dev Environment
         uses: ./.github/actions/setup-dev-env
 
-      - name: Build documentation
-        run: mise run docs
 
       - name: Build distribution
         run: uv build
@@ -45,10 +43,15 @@ jobs:
 
           # Export release notes for Slack notification
           # Convert markdown links [text](url) to Slack format <url|text>
-          # Truncate to 2900 chars for Slack's ~3000 char limit
+          # If notes exceed Slack's ~3000 char limit, truncate and add link to full release notes
           # Escape for JSON (backslashes, quotes, newlines)
-          NOTES=$(sed -E 's/\[([^]]+)\]\(([^)]+)\)/<\2|\1>/g' RELEASE_NOTES.md | head -c 2900 | \
-            sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          NOTES_CONVERTED=$(sed -E 's/\[([^]]+)\]\(([^)]+)\)/<\2|\1>/g' RELEASE_NOTES.md)
+          RELEASE_URL="${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+          if [ "$(printf '%s' "$NOTES_CONVERTED" | wc -c)" -gt 2700 ]; then
+            NOTES_TRUNCATED=$(printf '%s' "$NOTES_CONVERTED" | head -c 2700)
+            NOTES_CONVERTED="${NOTES_TRUNCATED}"$'\n'"...<${RELEASE_URL}|Read full release notes>"
+          fi
+          NOTES=$(printf '%s' "$NOTES_CONVERTED" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
           echo "RELEASE_NOTES_CONTENT=$NOTES" >> $GITHUB_ENV
 
 
@@ -69,8 +72,8 @@ jobs:
 
       - name: Send Slack release notification
         if: success()
-        uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
+        uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
         with:
           method: chat.postMessage
           token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
-          payload: '{"channel":"#announce-foundry","text":"🚀 aignostics-foundry-core ${{ github.ref_name }} released","blocks":[{"type":"section","text":{"type":"mrkdwn","text":"🚀 *aignostics-foundry-core* <${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}|${{ github.ref_name }}> released"}},{"type":"section","text":{"type":"mrkdwn","text":"${{ env.RELEASE_NOTES_CONTENT }}"}}]}'
+          payload: '{"channel":"#announce-foundry","text":"🚀 Foundry Python Core ${{ github.ref_name }} released","blocks":[{"type":"section","text":{"type":"mrkdwn","text":"🚀 *Foundry Python Core* <${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}|${{ github.ref_name }}> released"}},{"type":"section","text":{"type":"mrkdwn","text":"${{ env.RELEASE_NOTES_CONTENT }}"}}]}'

@@ -55,7 +55,7 @@ If you write code yourself, it is a strict requirement to validate before comple
 
 **Foundry Python Core** - Foundational infrastructure for Foundry components.
 
-See the Toolchain Overview section in [FOUNDRY_README.md](FOUNDRY_README.md) for the complete toolchain.
+See [docs/foundry/README.md](docs/foundry/README.md) for the complete toolchain and project documentation.
 
 ## Python Version
 
@@ -69,6 +69,8 @@ See the Toolchain Overview section in [FOUNDRY_README.md](FOUNDRY_README.md) for
 mise run test_unit              # Fast, isolated
 mise run test_integration       # Real local services
 mise run test_e2e               # End-to-end
+
+mise run test_lowest_direct     # Unit tests with lowest-direct deps (lower-boundary check)
 ```
 
 **Coverage**: Goal 100%, minimum 85%.
@@ -118,22 +120,22 @@ uv build                      # Build wheel and sdist
 * `dependencies` - Runtime
 * `dependency-groups.dev` - Development tools
 
-**Build system**: Hatchling
+**Build system**: uv build
 
 ## mise & Nox
 
 **Primary tasks**:
 ```bash
-mise run all              # Run all checks (lint + test + docs + audit)
+mise run all              # Run all checks (lint + test + attributions + audit)
 mise run install          # Setup dev environment
 mise run clean            # Remove artifacts
 mise run lint             # Ruff, pyright
 mise run test_*           # Various test suites
-mise run docs             # Build documentation
+mise run attributions     # Generate reports/ATTRIBUTIONS.md locally
 mise run audit            # Security and license checks
 ```
 
-**Nox sessions**: `lint`, `test`, `docs`, `audit` - See `noxfile.py` for details.
+**Nox sessions**: `test`, `audit` - See `noxfile.py` for details.
 
 **Pre-commit hooks**: Auto-format with ruff, type check with pyright, detect secrets. Run manually: `mise run pre_commit_run_all`
 
@@ -169,11 +171,11 @@ See [.github/CLAUDE.md](.github/CLAUDE.md) for complete CI/CD documentation.
 * [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
 * [CODE_STYLE.md](CODE_STYLE.md) - Code style guide
 * [SECURITY.md](SECURITY.md) - Security policy
-* [FOUNDRY_README.md](FOUNDRY_README.md) - Comprehensive project guide and toolchain overview
+* [docs/foundry/README.md](docs/foundry/README.md) - Toolchain, testing, CI/CD, infrastructure, and project setup guides
 * [RELEASE_WORKFLOW.md](RELEASE_WORKFLOW.md) - Release process
 
-### Auto-generated
-* [ATTRIBUTIONS.md](ATTRIBUTIONS.md) - Third-party licenses
+### Auto-generated (CI artifacts, not committed)
+* `reports/ATTRIBUTIONS.md` - Third-party licenses (generate locally: `mise run attributions`)
 
 ## Quick Reference
 
