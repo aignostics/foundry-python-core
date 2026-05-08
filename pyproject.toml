@@ -118,7 +118,7 @@ Issues = "https://github.com/aignostics/foundry-python-core/issues"
 
 
 [build-system]
-requires = ["uv_build>=0.10.8,<0.11.0"]
+requires = ["uv_build>=0.11.7,<0.12.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
