@@ -61,11 +61,7 @@ class BaseService(ABC):
             return cast("Callable[[], Generator[Self]]", cached)
 
         def dependency() -> Generator[Self]:
-            service = cls()
-            try:
-                yield service
-            finally:
-                pass  # Cleanup hook for subclasses if needed
+            yield cls()
 
         setattr(cls, cache_attr, dependency)
         return dependency
