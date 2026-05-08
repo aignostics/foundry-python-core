@@ -3,9 +3,17 @@
   "extends": ["config:recommended"],
   "timezone": "Europe/Berlin",
   "schedule": ["at any time"],
+  "minimumReleaseAge": "14 days",
+  "internalChecksFilter": "strict",
   "labels": ["bot", "renovate", "dependencies", "skip:codecov"],
   "ignorePaths": ["plugins/manifest/package.json"],
-  "enabledManagers": ["pep621", "github-actions"],
+  "pre-commit": {
+    "enabled": true
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "automerge": true
+  },
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["before 5am on monday"]
@@ -20,6 +28,29 @@
       "groupName": "GitHub Actions",
       "matchManagers": ["github-actions"],
       "separateMajorMinor": false
+    },
+    {
+      "groupName": "pre-commit hooks",
+      "matchManagers": ["pre-commit"],
+      "separateMajorMinor": false
+    },
+    {
+      "groupName": "mise tools",
+      "matchManagers": ["mise"],
+      "separateMajorMinor": false
+    },
+    {
+      "description": "Bypass delay for security tools",
+      "matchPackageNames": [
+        "trivy",
+        "pip-audit",
+        "aquasecurity/trivy-action",
+        "pypa/pip-audit"
+      ],
+      "minimumReleaseAge": null,
+      "automerge": true,
+      "automergeType": "pr",
+      "groupName": "security-tool-updates"
     }
   ]
 }

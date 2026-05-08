@@ -39,14 +39,14 @@ jobs:
         shell: bash
         run: |
           # Validate deploy_env is one of the allowed values
-          case "$DEPLOY_ENV" in
+          case "${DEPLOY_ENV}" in
             dev|test|staging|production)
               # Convert to uppercase
-              SUFFIX=$(echo "$DEPLOY_ENV" | tr '[:lower:]' '[:upper:]')
+              SUFFIX=$(echo "${DEPLOY_ENV}" | tr '[:lower:]' '[:upper:]')
               echo "suffix=${SUFFIX}" >> $GITHUB_OUTPUT
               ;;
             *)
-              echo "Error: Invalid deploy_env value '$DEPLOY_ENV'. Must be one of: dev, test, staging, production"
+              echo "Error: Invalid deploy_env value '${DEPLOY_ENV}'. Must be one of: dev, test, staging, production"
               exit 1
               ;;
           esac

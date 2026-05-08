@@ -8,18 +8,20 @@ on:
         required: false
         type: string
         default: ""
+  workflow_call:
 
 jobs:
   bump:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
     steps:
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
         with:
-          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          client-id: ${{ secrets.RELEASE_BOT_APP_ID }}
           private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
 
       - name: Checkout
@@ -28,11 +30,8 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 0
 
-      - name: Install mise
-        uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
-
-      - name: Install Python, venv and dependencies
-        run: uv sync --all-extras --frozen --no-build --link-mode=copy
+      - name: Setup Dev Environment
+        uses: ./.github/actions/setup-dev-env
 
       - name: Configure git identity
         run: |

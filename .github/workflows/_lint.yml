@@ -20,4 +20,4 @@ jobs:
         uses: ./.github/actions/setup-dev-env
 
       - name: Lint
-        run: mise run lint
+        run: mise run pre_commit_run_all

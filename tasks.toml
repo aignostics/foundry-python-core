@@ -1,10 +1,17 @@
 [all]
-description = "Run all checks: lint, test, docs, audit"
+description = "Run all checks: lint, test, attributions, audit"
 depends = ["lint"]
 run = """
 mise run test
-mise run docs
+mise run attributions
 mise run audit
+"""
+
+[format]
+description = "Fix formatting and code autofixes ruff can apply"
+run = """
+uv run --all-extras ruff format .
+uv run ruff check --fix .
 """
 
 [lint]
@@ -13,6 +20,7 @@ run = """
 uv run ruff check .
 uv run ruff format --check .
 uv run pyright --pythonversion $(cat .python-version) --threads
+uv run deptry src
 """
 
 [install]
@@ -64,7 +72,6 @@ description = "Update from copier template"
 run = """
 copier update --trust --skip-answered --skip-tasks
 mise run lint
-mise run docs
 mise run audit
 """
 
@@ -96,6 +103,10 @@ run = "uv run nox -s test -p $(cat .python-version) -- -m scheduled --cov-append
 description = "Run sequential tests"
 run = "uv run nox -s test -p $(cat .python-version) -- -m sequential --cov-append"
 
+[test_lowest_direct]
+description = "Run unit tests against lowest-direct dependency resolution (lower-boundary check)"
+run = "XDIST_WORKER_FACTOR=0.0 uv run nox -s test -P $(mise run python_min_version) -- -m unit --resolution lowest-direct --cov-append"
+
 [test_coverage_reset]
 description = "Reset test coverage data"
 run = "rm -rf .coverage reports/coverage*"
@@ -104,11 +115,9 @@ run = "rm -rf .coverage reports/coverage*"
 description = "Run security and license compliance audit"
 run = "uv run nox -s audit"
 
-[docs]
-
-description = "Generate ATTRIBUTIONS.md from license data"
-
-run = "uv run nox -s docs"
+[attributions]
+description = "Generate reports/ATTRIBUTIONS.md from installed package licenses"
+run = "uv run python .mise/scripts/generate_attributions.py"
 
 [bump]
 description = "Trigger the Release Bump workflow on GitHub Actions"

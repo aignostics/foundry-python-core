@@ -35,7 +35,7 @@ runs:
       shell: bash
       run: |
         set +e
-        mise run $MISE_TASK
+        mise run "${MISE_TASK}"
         EXIT_CODE=$?
         # Show test execution in GitHub Job summary
         found_files=0
@@ -47,7 +47,7 @@ runs:
         fi
         done
         if [ $found_files -eq 0 ]; then
-          echo "# $SUMMARY_TITLE" >> $GITHUB_STEP_SUMMARY
+          echo "# ${SUMMARY_TITLE}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
         fi
         # Show test coverage in GitHub Job summary

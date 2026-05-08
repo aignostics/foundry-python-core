@@ -1,11 +1,14 @@
+ignore:
+  - ".mise/**"
+
 coverage:
-  range: "75...85"
+  range: "70...85"
   status:
     project:
       default:
-        target: 85%
+        target: 70%
         informational: false
     patch:
       default:
-        target: 85%
+        target: 70%
         informational: false

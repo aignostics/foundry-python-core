@@ -2,6 +2,15 @@ name: "> Test"
 
 on:
   workflow_call:
+    secrets:
+      CODECOV_TOKEN:
+        required: true
+      SONAR_TOKEN:
+        required: true
+      AIGNOSTICS_FOUNDRY_CORE_LOGFIRE_TOKEN:
+        required: false
+      AIGNOSTICS_FOUNDRY_CORE_SENTRY_DSN:
+        required: false
 
 concurrency:
   group: test-${{ github.ref }}
@@ -15,6 +24,7 @@ jobs:
       contents: read
       id-token: write
       packages: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -39,13 +49,6 @@ jobs:
         run: |
           TOML_VERSION=$(grep -m 1 '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
           echo "Development build - Current version in pyproject.toml: $TOML_VERSION"
-
-      - name: Create .env file
-        uses: SpicyPizza/create-envfile@ace6d4f5d7802b600276c23ca417e669f1a06f6f # v2.0.3
-        with:
-          envkey_AIGNOSTICS_FOUNDRY_CORE_LOGFIRE_TOKEN: "${{ secrets.AIGNOSTICS_FOUNDRY_CORE_LOGFIRE_TOKEN }}"
-          envkey_AIGNOSTICS_FOUNDRY_CORE_SENTRY_DSN: "${{ secrets.AIGNOSTICS_FOUNDRY_CORE_SENTRY_DSN }}"
-          fail_on_empty: false
 
       - name: Test / Unit
         uses: ./.github/actions/run-tests
@@ -72,6 +75,15 @@ jobs:
           mise-task: test_e2e
           skip-marker: skip:test:e2e
           summary-title: All e2e tests passed
+          commit-message: ${{ github.event.head_commit.message }}
+
+      - name: Test / Unit (lowest-direct)
+        uses: ./.github/actions/run-tests
+        with:
+          test-type: unit
+          mise-task: test_lowest_direct
+          skip-marker: skip:test:lowest-direct
+          summary-title: All unit tests passed with lowest-direct dependencies
           commit-message: ${{ github.event.head_commit.message }}
 
       - name: Upload test results
@@ -102,7 +114,7 @@ jobs:
 
       - name: SonarQube Scan
         if: ${{ !cancelled() && (env.GITHUB_WORKFLOW_RUNTIME != 'ACT') }}
-        uses: SonarSource/sonarqube-scan-action@59db25f34e16620e48ab4bb9e4a5dce155cb5432 # v8
+        uses: SonarSource/sonarqube-scan-action@59db25f34e16620e48ab4bb9e4a5dce155cb5432 # v8.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
