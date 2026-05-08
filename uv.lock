@@ -82,7 +82,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1,<2" },
     { name = "rich", specifier = ">=15,<16" },
     { name = "sentry-sdk", specifier = ">=2,<3" },
-    { name = "sqlalchemy", extras = ["postgresql-psycopgbinary", "asyncio"], specifier = ">=2,<3" },
+    { name = "sqlalchemy", extras = ["postgresql-psycopgbinary", "asyncio"], specifier = ">=2.0.31,<3" },
     { name = "starlette", specifier = ">=1.0.0" },
     { name = "truststore", specifier = ">=0.9,<1" },
     { name = "typer", specifier = ">=0.14,<1" },

@@ -101,7 +101,7 @@ class InterceptHandler(logging.Handler):
             if record.threadName and record.thread:
                 record_dict["thread"].id = record.thread
                 record_dict["thread"].name = record.threadName
-            if record.taskName:
+            if getattr(record, "taskName", None):  # taskName added in Python 3.12
                 record_dict["extra"]["logging.taskName"] = record.taskName
             record_dict["name"] = record.name
             record_dict["function"] = record.funcName

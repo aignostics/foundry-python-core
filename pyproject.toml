@@ -61,7 +61,7 @@ dependencies = [
     "python-dotenv>=1,<2",
     "rich>=15,<16",
     "sentry-sdk>=2,<3",
-    "sqlalchemy[postgresql-psycopgbinary,asyncio]>=2,<3",
+    "sqlalchemy[postgresql-psycopgbinary,asyncio]>=2.0.31,<3",  # >=2.0.31: first version with postgresql-psycopgbinary extra
     "chancy[cron]>=0.25.1,<1",
     "nicegui>=3,<4",
     "truststore>=0.9,<1",
