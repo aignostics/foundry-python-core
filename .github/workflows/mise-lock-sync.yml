@@ -1,4 +1,4 @@
-name: Mise lockfile sync
+name: Mise lockfile verify
 
 on:
   pull_request:
@@ -17,11 +17,10 @@ on:
       - '.config/mise/conf.d/*.toml'
 
 jobs:
-  sync-lockfile:
-    name: Sync mise lockfile
+  verify-lockfile:
+    name: Verify mise lockfile in sync
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    # default permissions (contents: read) — no write needed
 
     steps:
       - name: Checkout
@@ -33,12 +32,26 @@ jobs:
         uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
           install: false
+          version: "2026.4.20"
 
       - name: Regenerate mise.lock
         run: mise lock
 
-      - name: Commit if changed
-        uses: stefanzweifel/git-auto-commit-action@04702edda442b2e678b25b537cec683a1493fcb9 # v7.1.0
-        with:
-          commit_message: 'chore: regenerate mise.lock'
-          file_pattern: 'mise.lock'
+      - name: Verify mise.lock is up to date
+        run: |
+          if ! git diff --exit-code -- mise.lock; then
+            {
+              echo "### \`mise.lock\` is out of date"
+              echo ""
+              echo "Regenerate locally and commit the result:"
+              echo ""
+              echo '```bash'
+              echo "mise lock"
+              echo "git add mise.lock"
+              echo "git commit -m 'chore: regenerate mise.lock'"
+              echo "git push"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error file=mise.lock::mise.lock is out of date — see job summary for fix"
+            exit 1
+          fi

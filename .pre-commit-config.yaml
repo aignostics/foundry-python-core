@@ -66,6 +66,15 @@ repos:
         pass_filenames: false
         files: ^mise\.toml$
         stages: [pre-commit]
+
+      - id: mise-lock-push
+        name: Verify mise.lock is up-to-date
+        entry: bash -c 'mise lock && git add mise.lock && git diff --cached --quiet mise.lock || (echo "mise.lock was updated — commit it and re-push" && exit 1)'
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
       - id: uv-lock
         name: Update uv.lock
         entry: bash -c 'uv lock && git add uv.lock'

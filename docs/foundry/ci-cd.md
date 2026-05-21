@@ -9,7 +9,7 @@
 |----------|----------|---------|
 | `ci-cd.yml` | PR, push to `main`, version tags | lint → audit → test → publish |
 | `git-conventions.yml` | PR | Validates branch names, commit messages, and PR titles |
-| `mise-lock-sync.yml` | PR (mise config changes) | Auto-regenerates `mise.lock` and commits it back to the PR branch |
+| `mise-lock-sync.yml` | PR (mise config changes) | Verifies `mise.lock` is up to date; fails with remediation instructions if not (no auto-commit) |
 | `check-action-pins.yml` | PR (workflow file changes) | Ensures all action pins have SHA + version comment |
 | `labels-sync.yml` | Push to main | Syncs GitHub labels from `.github/labels.yml` |
 | `claude-code-automation-pr-review.yml` | PR with `claude` label | AI-powered PR review |
