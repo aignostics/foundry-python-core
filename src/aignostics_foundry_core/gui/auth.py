@@ -205,7 +205,7 @@ async def require_gui_user(request: Request, return_to: str | None = None) -> di
 
     user = await get_gui_user(request)
     if not user:
-        redirect_path = return_to or request.url.path
+        redirect_path = return_to or request.scope["path"]
         login_url = f"/auth/login?returnTo={redirect_path}"
         ui.navigate.to(login_url)
         return None

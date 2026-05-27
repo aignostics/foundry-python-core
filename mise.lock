@@ -125,6 +125,7 @@ url_api = "https://api.github.com/repos/minamijoyo/hcledit/releases/assets/22835
 checksum = "sha256:dc7de4514c6b63e9e601c640a68cab73949b9061b3c181f1e38f3e105f6fcbfb"
 url = "https://github.com/minamijoyo/hcledit/releases/download/v0.2.17/hcledit_0.2.17_darwin_arm64.tar.gz"
 url_api = "https://api.github.com/repos/minamijoyo/hcledit/releases/assets/228357402"
+github_attestations = "unavailable"
 
 [tools."github:minamijoyo/hcledit"."platforms.macos-x64"]
 checksum = "sha256:63e122b039af7a1641c41e47f6ad40afaa1a400330c6c54086d7fde9a090bd57"
