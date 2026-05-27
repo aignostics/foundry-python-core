@@ -2,7 +2,7 @@
 
 import time
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pydantic
 import pytest
@@ -13,6 +13,10 @@ from aignostics_foundry_core.api.auth import (
     AuthSettings,
     ForbiddenError,
     UnauthenticatedError,
+    _fetch_jwks,
+    _jwks_cache,
+    _JwksCacheEntry,
+    _validate_jwt,
     get_auth_client,
     get_user,
     require_admin,
@@ -22,7 +26,11 @@ from aignostics_foundry_core.api.auth import (
 )
 from aignostics_foundry_core.foundry import set_context
 from tests.aignostics_foundry_core.api import INTERNAL_ORG_ID_VAR_NAME, ROLE_CLAIM_VAR_NAME
-from tests.conftest import make_context
+from tests.conftest import TEST_PROJECT_PREFIX, make_context
+
+_JWT_ENABLED_VAR_NAME = f"{TEST_PROJECT_PREFIX}AUTH_JWT_ENABLED"
+_JWT_AUDIENCE_VAR_NAME = f"{TEST_PROJECT_PREFIX}AUTH_JWT_AUDIENCE"
+_DOMAIN_VAR_NAME = f"{TEST_PROJECT_PREFIX}AUTH_DOMAIN"
 
 _INTERNAL_ORG_ID = "org_internal_123"
 _OTHER_ORG_ID = "org_other_456"
@@ -34,6 +42,10 @@ _TEST_SESSION_SECRET = "test-session-secret"  # noqa: S105
 _TEST_CLIENT_SECRET = "x" * 64
 _TEST_CLIENT_ID = "x" * 32
 _TEST_DOMAIN = "example.auth0.com"
+_TEST_JWT_AUDIENCE = "https://api.example.com"
+_TEST_BEARER_TOKEN = "eyJhbGciOiJSUzI1NiIsImtpZCI6InRlc3QifQ.test.test"  # noqa: S105
+_TEST_KID = "test-kid"
+_FETCH_JWKS_PATH = "aignostics_foundry_core.api.auth._fetch_jwks"
 
 
 @pytest.mark.unit
@@ -91,7 +103,10 @@ class TestAuthSettings:
     def test_auth_settings_defaults(self) -> None:
         """AuthSettings has correct defaults when no env vars are set."""
         settings = AuthSettings()
+        assert settings.cookie_enabled is False
         assert settings.enabled is False
+        assert settings.jwt_enabled is False
+        assert not settings.jwt_audience
         assert not settings.internal_org_id
         assert not settings.role_claim
         assert not settings.domain
@@ -109,6 +124,16 @@ class TestAuthSettings:
         monkeypatch.setenv(ROLE_CLAIM_VAR_NAME, "https://custom/role")
         settings = AuthSettings()
         assert settings.role_claim == "https://custom/role"
+
+    def test_cookie_enabled_requires_session_secret(self) -> None:
+        """cookie_enabled=True with session_secret=None raises ValidationError."""
+        with pytest.raises(pydantic.ValidationError):
+            AuthSettings(cookie_enabled=True, session_secret=None)
+
+    def test_deprecated_enabled_still_triggers_validation(self) -> None:
+        """enabled=True (deprecated flag) still enforces all cookie auth validations."""
+        with pytest.raises(pydantic.ValidationError):
+            AuthSettings(enabled=True, session_secret=None)
 
     def test_enabled_requires_session_secret(self) -> None:
         """enabled=True with session_secret=None raises ValidationError."""
@@ -170,6 +195,40 @@ class TestAuthSettings:
                 role_claim="",
             )
 
+    def test_cookie_enabled_with_all_required_fields_passes(self) -> None:
+        """cookie_enabled=True with all required fields set validates successfully."""
+        settings = AuthSettings(
+            cookie_enabled=True,
+            session_secret=_TEST_SESSION_SECRET,
+            client_secret=_TEST_CLIENT_SECRET,
+            domain=_TEST_DOMAIN,
+            client_id=_TEST_CLIENT_ID,
+            internal_org_id=_INTERNAL_ORG_ID,
+            role_claim=_TEST_ROLE_CLAIM,
+        )
+        assert settings.cookie_enabled is True
+
+    def test_jwt_enabled_requires_domain(self) -> None:
+        """jwt_enabled=True with empty domain raises ValidationError."""
+        with pytest.raises(pydantic.ValidationError, match="AUTH_DOMAIN"):
+            AuthSettings(jwt_enabled=True, domain="", jwt_audience=_TEST_JWT_AUDIENCE)
+
+    def test_jwt_enabled_requires_audience(self) -> None:
+        """jwt_enabled=True with empty jwt_audience raises ValidationError."""
+        with pytest.raises(pydantic.ValidationError, match="AUTH_JWT_AUDIENCE"):
+            AuthSettings(jwt_enabled=True, domain=_TEST_DOMAIN, jwt_audience="")
+
+    def test_jwt_enabled_with_all_fields_passes(self) -> None:
+        """jwt_enabled=True with domain and jwt_audience set does not raise."""
+        settings = AuthSettings(jwt_enabled=True, domain=_TEST_DOMAIN, jwt_audience=_TEST_JWT_AUDIENCE)
+        assert settings.jwt_enabled is True
+
+    def test_jwt_enabled_independent_of_cookie_enabled(self) -> None:
+        """jwt_enabled=True can be set without cookie_enabled=True."""
+        settings = AuthSettings(jwt_enabled=True, domain=_TEST_DOMAIN, jwt_audience=_TEST_JWT_AUDIENCE)
+        assert settings.cookie_enabled is False
+        assert settings.enabled is False
+
 
 @pytest.mark.integration
 class TestAuthSettingsEnvFile:
@@ -195,6 +254,13 @@ class TestAuthSettingsEnvFile:
         assert settings.role_claim == "claim_from_env_file"
 
 
+def _make_bearer(token: str = _TEST_BEARER_TOKEN) -> MagicMock:
+    """Create a mock HTTPAuthorizationCredentials with the given token."""
+    bearer = MagicMock()
+    bearer.credentials = token
+    return bearer
+
+
 @pytest.mark.integration
 class TestGetUser:
     """Tests for get_user FastAPI dependency."""
@@ -205,7 +271,7 @@ class TestGetUser:
         request.app.state = MagicMock(spec=[])  # no auth_client → get_auth_client raises naturally
         cookie = None
 
-        result = await get_user(request, cookie)
+        result = await get_user(request, cookie, None)
 
         assert result is None
 
@@ -219,7 +285,7 @@ class TestGetUser:
         fake_client.require_session = AsyncMock(return_value={"user": expired_user})
         request.app.state.auth_client = fake_client
 
-        result = await get_user(request, cookie)
+        result = await get_user(request, cookie, None)
 
         assert result is None
 
@@ -231,7 +297,7 @@ class TestGetUser:
         fake_client.require_session = AsyncMock(return_value={})
         request.app.state.auth_client = fake_client
 
-        result = await get_user(request, cookie)
+        result = await get_user(request, cookie, None)
 
         assert result is None
 
@@ -243,7 +309,7 @@ class TestGetUser:
         fake_client.require_session = AsyncMock(return_value={"user": {"sub": "x"}})
         request.app.state.auth_client = fake_client
 
-        result = await get_user(request, cookie)
+        result = await get_user(request, cookie, None)
 
         assert result is None
 
@@ -255,7 +321,7 @@ class TestGetUser:
         fake_client.require_session = AsyncMock(return_value="not-a-dict")
         request.app.state.auth_client = fake_client
 
-        result = await get_user(request, cookie)
+        result = await get_user(request, cookie, None)
 
         assert result is None
 
@@ -268,9 +334,161 @@ class TestGetUser:
         fake_client.require_session = AsyncMock(return_value={"user": user})
         request.app.state.auth_client = fake_client
 
-        result = await get_user(request, cookie)
+        result = await get_user(request, cookie, None)
 
         assert result == user
+
+    async def test_get_user_bearer_takes_priority_over_cookie(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_user returns JWT user when both bearer and cookie are valid."""
+        monkeypatch.setenv(_JWT_ENABLED_VAR_NAME, "true")
+        monkeypatch.setenv(_DOMAIN_VAR_NAME, _TEST_DOMAIN)
+        monkeypatch.setenv(_JWT_AUDIENCE_VAR_NAME, _TEST_JWT_AUDIENCE)
+
+        jwt_user = {"sub": "jwt|user", "email": "jwt@example.com", "exp": int(time.time()) + 3600}
+        cookie_user = {"sub": _USER_SUB, "email": _USER_EMAIL, "exp": int(time.time()) + 3600}
+
+        request = MagicMock()
+        fake_client = MagicMock()
+        fake_client.require_session = AsyncMock(return_value={"user": cookie_user})
+        request.app.state.auth_client = fake_client
+
+        with patch("aignostics_foundry_core.api.auth._validate_jwt", AsyncMock(return_value=jwt_user)):
+            result = await get_user(request, "cookie-value", _make_bearer())
+
+        assert result == jwt_user
+
+    async def test_get_user_falls_back_to_cookie_when_bearer_absent(self) -> None:
+        """get_user uses cookie when _bearer is None."""
+        user = {"sub": _USER_SUB, "email": _USER_EMAIL, "exp": int(time.time()) + 3600}
+        request = MagicMock()
+        fake_client = MagicMock()
+        fake_client.require_session = AsyncMock(return_value={"user": user})
+        request.app.state.auth_client = fake_client
+
+        result = await get_user(request, "cookie-value", None)
+
+        assert result == user
+
+    async def test_get_user_falls_back_to_cookie_when_jwt_disabled(self) -> None:
+        """get_user uses cookie when jwt_enabled=False even if bearer token is present."""
+        user = {"sub": _USER_SUB, "email": _USER_EMAIL, "exp": int(time.time()) + 3600}
+        request = MagicMock()
+        fake_client = MagicMock()
+        fake_client.require_session = AsyncMock(return_value={"user": user})
+        request.app.state.auth_client = fake_client
+
+        # jwt_enabled defaults to False; bearer is present but should be ignored
+        result = await get_user(request, "cookie-value", _make_bearer())
+
+        assert result == user
+
+    async def test_get_user_falls_back_to_cookie_when_bearer_invalid(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_user falls back to cookie when JWT validation fails."""
+        monkeypatch.setenv(_JWT_ENABLED_VAR_NAME, "true")
+        monkeypatch.setenv(_DOMAIN_VAR_NAME, _TEST_DOMAIN)
+        monkeypatch.setenv(_JWT_AUDIENCE_VAR_NAME, _TEST_JWT_AUDIENCE)
+
+        cookie_user = {"sub": _USER_SUB, "email": _USER_EMAIL, "exp": int(time.time()) + 3600}
+        request = MagicMock()
+        fake_client = MagicMock()
+        fake_client.require_session = AsyncMock(return_value={"user": cookie_user})
+        request.app.state.auth_client = fake_client
+
+        with patch("aignostics_foundry_core.api.auth._validate_jwt", AsyncMock(return_value=None)):
+            result = await get_user(request, "cookie-value", _make_bearer())
+
+        assert result == cookie_user
+
+
+@pytest.mark.unit
+class TestValidateJwt:
+    """Unit tests for _validate_jwt (JWT validation helper)."""
+
+    @pytest.fixture
+    def mock_jwks(self) -> dict:
+        """A minimal JWKS response with one RSA key entry."""
+        return {"keys": [{"kid": _TEST_KID, "kty": "RSA", "use": "sig"}]}
+
+    async def test_validate_jwt_returns_none_when_kid_absent_after_refresh(self) -> None:
+        """_validate_jwt returns None when kid is absent from JWKS even after a force-refresh."""
+        jwks_without_kid: dict = {"keys": []}
+        settings = AuthSettings(jwt_enabled=True, domain=_TEST_DOMAIN, jwt_audience=_TEST_JWT_AUDIENCE)
+
+        with patch(_FETCH_JWKS_PATH, AsyncMock(return_value=jwks_without_kid)):
+            import jwt
+
+            with patch.object(jwt, "get_unverified_header", return_value={"kid": _TEST_KID, "alg": "RS256"}):
+                result = await _validate_jwt(_TEST_BEARER_TOKEN, settings)
+
+        assert result is None
+
+    async def test_validate_jwt_force_refreshes_on_kid_miss_and_succeeds(self) -> None:
+        """_validate_jwt retries with a force-refreshed JWKS when the kid is missing from cache."""
+        import jwt
+        from jwt.algorithms import RSAAlgorithm
+
+        stale_jwks: dict = {"keys": []}
+        fresh_jwks: dict = {"keys": [{"kid": _TEST_KID, "kty": "RSA", "use": "sig"}]}
+        expected_payload = {"sub": _USER_SUB, "exp": int(time.time()) + 3600}
+        settings = AuthSettings(jwt_enabled=True, domain=_TEST_DOMAIN, jwt_audience=_TEST_JWT_AUDIENCE)
+
+        fetch_mock = AsyncMock(side_effect=[stale_jwks, fresh_jwks])
+        with (
+            patch(_FETCH_JWKS_PATH, fetch_mock),
+            patch.object(jwt, "get_unverified_header", return_value={"kid": _TEST_KID, "alg": "RS256"}),
+            patch.object(RSAAlgorithm, "from_jwk", return_value=MagicMock()),
+            patch.object(jwt, "decode", return_value=expected_payload),
+        ):
+            result = await _validate_jwt(_TEST_BEARER_TOKEN, settings)
+
+        assert result == expected_payload
+        assert fetch_mock.call_count == 2
+        _, kwargs = fetch_mock.call_args
+        assert kwargs.get("force_refresh") is True
+
+    async def test_validate_jwt_returns_none_on_fetch_failure(self) -> None:
+        """_validate_jwt returns None when JWKS fetch raises an exception."""
+        settings = AuthSettings(jwt_enabled=True, domain=_TEST_DOMAIN, jwt_audience=_TEST_JWT_AUDIENCE)
+
+        with patch(_FETCH_JWKS_PATH, AsyncMock(side_effect=RuntimeError("network error"))):
+            result = await _validate_jwt(_TEST_BEARER_TOKEN, settings)
+
+        assert result is None
+
+    async def test_validate_jwt_returns_none_for_invalid_token(self, mock_jwks: dict) -> None:
+        """_validate_jwt returns None when jwt.decode raises (e.g., expired or bad signature)."""
+        import jwt
+        from jwt.algorithms import RSAAlgorithm
+
+        settings = AuthSettings(jwt_enabled=True, domain=_TEST_DOMAIN, jwt_audience=_TEST_JWT_AUDIENCE)
+
+        with (
+            patch(_FETCH_JWKS_PATH, AsyncMock(return_value=mock_jwks)),
+            patch.object(jwt, "get_unverified_header", return_value={"kid": _TEST_KID, "alg": "RS256"}),
+            patch.object(RSAAlgorithm, "from_jwk", return_value=MagicMock()),
+            patch.object(jwt, "decode", side_effect=jwt.ExpiredSignatureError("expired")),
+        ):
+            result = await _validate_jwt(_TEST_BEARER_TOKEN, settings)
+
+        assert result is None
+
+    async def test_validate_jwt_returns_payload_for_valid_token(self, mock_jwks: dict) -> None:
+        """_validate_jwt returns decoded payload when token is valid."""
+        import jwt
+        from jwt.algorithms import RSAAlgorithm
+
+        expected_payload = {"sub": _USER_SUB, "email": _USER_EMAIL, "exp": int(time.time()) + 3600}
+        settings = AuthSettings(jwt_enabled=True, domain=_TEST_DOMAIN, jwt_audience=_TEST_JWT_AUDIENCE)
+
+        with (
+            patch(_FETCH_JWKS_PATH, AsyncMock(return_value=mock_jwks)),
+            patch.object(jwt, "get_unverified_header", return_value={"kid": _TEST_KID, "alg": "RS256"}),
+            patch.object(RSAAlgorithm, "from_jwk", return_value=MagicMock()),
+            patch.object(jwt, "decode", return_value=expected_payload),
+        ):
+            result = await _validate_jwt(_TEST_BEARER_TOKEN, settings)
+
+        assert result == expected_payload
 
 
 @pytest.mark.integration
@@ -283,7 +501,7 @@ class TestRequireAuthenticated:
         request.app.state = MagicMock(spec=[])  # no auth_client → get_user returns None
 
         with pytest.raises(ForbiddenError, match=_USER_NOT_AUTHENTICATED):
-            await require_authenticated(request, None)
+            await require_authenticated(request, None, None)
 
     async def test_authenticated_user_passes(self) -> None:
         """require_authenticated returns None without raising when user is authenticated."""
@@ -293,7 +511,7 @@ class TestRequireAuthenticated:
         fake_client.require_session = AsyncMock(return_value={"user": user})
         request.app.state.auth_client = fake_client
 
-        result = await require_authenticated(request, None)
+        result = await require_authenticated(request, None, None)
         assert result is None
 
 
@@ -308,7 +526,7 @@ class TestRequireAdmin:
         request.app.state = MagicMock(spec=[])  # no auth_client → get_user returns None
 
         with pytest.raises(ForbiddenError):
-            await require_admin(request, None)
+            await require_admin(request, None, None)
 
     async def test_wrong_role_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_admin raises ForbiddenError when user has a non-admin role."""
@@ -320,7 +538,7 @@ class TestRequireAdmin:
         request.app.state.auth_client = fake_client
 
         with pytest.raises(ForbiddenError, match="does not match required role"):
-            await require_admin(request, None)
+            await require_admin(request, None, None)
 
     async def test_admin_role_passes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_admin returns None without raising when user has the admin role."""
@@ -331,7 +549,7 @@ class TestRequireAdmin:
         fake_client.require_session = AsyncMock(return_value={"user": user})
         request.app.state.auth_client = fake_client
 
-        result = await require_admin(request, None)
+        result = await require_admin(request, None, None)
         assert result is None
 
 
@@ -339,15 +557,15 @@ class TestRequireAdmin:
 class TestRequireInternal:
     """Tests for require_internal FastAPI dependency."""
 
-    async def test_unauthenticated_user_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_unauthenticated_user_raises_forbidden_error(self) -> None:
         """require_internal raises ForbiddenError when no session is available."""
         request = MagicMock()
         request.app.state = MagicMock(spec=[])  # no auth_client → get_user returns None
 
         with pytest.raises(ForbiddenError, match=_USER_NOT_AUTHENTICATED):
-            await require_internal(request, None)
+            await require_internal(request, None, None)
 
-    async def test_wrong_org_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_wrong_org_raises_forbidden_error(self) -> None:
         """require_internal raises ForbiddenError when user belongs to a different org."""
         request = MagicMock()
         user = {"sub": _USER_SUB, "org_id": _OTHER_ORG_ID, "exp": int(time.time()) + 3600}
@@ -356,7 +574,7 @@ class TestRequireInternal:
         request.app.state.auth_client = fake_client
 
         with pytest.raises(ForbiddenError, match="not a member of the internal organization"):
-            await require_internal(request, None)
+            await require_internal(request, None, None)
 
     async def test_internal_org_member_passes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal returns None without raising when user is in the internal org."""
@@ -367,7 +585,7 @@ class TestRequireInternal:
         fake_client.require_session = AsyncMock(return_value={"user": user})
         request.app.state.auth_client = fake_client
 
-        result = await require_internal(request, None)
+        result = await require_internal(request, None, None)
         assert result is None
 
 
@@ -375,15 +593,15 @@ class TestRequireInternal:
 class TestRequireInternalAdmin:
     """Tests for require_internal_admin FastAPI dependency."""
 
-    async def test_unauthenticated_user_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_unauthenticated_user_raises_forbidden_error(self) -> None:
         """require_internal_admin raises ForbiddenError when no session is available."""
         request = MagicMock()
         request.app.state = MagicMock(spec=[])  # no auth_client → get_user returns None
 
         with pytest.raises(ForbiddenError, match=_USER_NOT_AUTHENTICATED):
-            await require_internal_admin(request, None)
+            await require_internal_admin(request, None, None)
 
-    async def test_wrong_org_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_wrong_org_raises_forbidden_error(self) -> None:
         """require_internal_admin raises ForbiddenError when user belongs to a different org."""
         request = MagicMock()
         user = {"sub": _USER_SUB, "org_id": _OTHER_ORG_ID, "exp": int(time.time()) + 3600}
@@ -392,7 +610,7 @@ class TestRequireInternalAdmin:
         request.app.state.auth_client = fake_client
 
         with pytest.raises(ForbiddenError, match="not a member of the internal organization"):
-            await require_internal_admin(request, None)
+            await require_internal_admin(request, None, None)
 
     async def test_correct_org_wrong_role_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal_admin raises ForbiddenError when user is in internal org but lacks admin role."""
@@ -410,7 +628,7 @@ class TestRequireInternalAdmin:
         request.app.state.auth_client = fake_client
 
         with pytest.raises(ForbiddenError, match="does not match required role"):
-            await require_internal_admin(request, None)
+            await require_internal_admin(request, None, None)
 
     async def test_internal_admin_passes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal_admin returns None without raising when user is internal org admin."""
@@ -427,5 +645,85 @@ class TestRequireInternalAdmin:
         fake_client.require_session = AsyncMock(return_value={"user": user})
         request.app.state.auth_client = fake_client
 
-        result = await require_internal_admin(request, None)
+        result = await require_internal_admin(request, None, None)
         assert result is None
+
+
+@pytest.mark.unit
+class TestFetchJwks:
+    """Unit tests for _fetch_jwks (JWKS fetching and caching helper)."""
+
+    def setup_method(self) -> None:
+        """Clear the JWKS cache before each test for isolation."""
+        _jwks_cache.clear()
+
+    async def test_returns_cached_jwks_when_fresh(self) -> None:
+        """_fetch_jwks returns the in-memory cached JWKS without an HTTP call when fresh."""
+        cached_jwks: dict = {"keys": [{"kid": _TEST_KID}]}
+        _jwks_cache[_TEST_DOMAIN] = _JwksCacheEntry(jwks=cached_jwks, fetched_at=time.time())
+
+        result = await _fetch_jwks(_TEST_DOMAIN)
+
+        assert result is cached_jwks
+
+    async def test_fetches_and_caches_on_cache_miss(self) -> None:
+        """_fetch_jwks makes an HTTP request, stores the result in cache, and returns it."""
+        fetched_jwks: dict = {"keys": [{"kid": _TEST_KID, "kty": "RSA"}]}
+        mock_response = MagicMock()
+        mock_response.json.return_value = fetched_jwks
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _fetch_jwks(_TEST_DOMAIN)
+
+        assert result == fetched_jwks
+        assert _TEST_DOMAIN in _jwks_cache
+        assert _jwks_cache[_TEST_DOMAIN].jwks == fetched_jwks
+
+    async def test_force_refresh_bypasses_fresh_cache(self) -> None:
+        """_fetch_jwks hits the network even when a fresh cache entry exists if force_refresh=True."""
+        stale_jwks: dict = {"keys": [{"kid": "old-kid"}]}
+        fresh_jwks: dict = {"keys": [{"kid": _TEST_KID, "kty": "RSA"}]}
+        _jwks_cache[_TEST_DOMAIN] = _JwksCacheEntry(jwks=stale_jwks, fetched_at=time.time())
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = fresh_jwks
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _fetch_jwks(_TEST_DOMAIN, force_refresh=True)
+
+        assert result == fresh_jwks
+        mock_client.get.assert_called_once()
+
+    async def test_stale_cache_returned_on_fetch_failure(self) -> None:
+        """_fetch_jwks returns the stale cached JWKS when the network request fails."""
+        stale_jwks: dict = {"keys": [{"kid": _TEST_KID}]}
+        _jwks_cache[_TEST_DOMAIN] = _JwksCacheEntry(jwks=stale_jwks, fetched_at=0.0)  # expired
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=RuntimeError("network error"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _fetch_jwks(_TEST_DOMAIN)
+
+        assert result is stale_jwks
+
+    async def test_raises_when_fetch_fails_and_no_cache(self) -> None:
+        """_fetch_jwks re-raises the exception when the network request fails and no cache exists."""
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=RuntimeError("network error"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("httpx.AsyncClient", return_value=mock_client), pytest.raises(RuntimeError, match="network error"):
+            await _fetch_jwks(_TEST_DOMAIN)
