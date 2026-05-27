@@ -523,7 +523,7 @@ class TestRequireGuiUser:
         from aignostics_foundry_core.gui.auth import require_gui_user
 
         request = MagicMock()
-        request.url.path = "/protected"
+        request.scope = {"path": "/protected"}
         request.app.state = MagicMock(spec=[])  # no auth_client → get_gui_user returns None
 
         navigate_mock = MagicMock()
@@ -557,7 +557,7 @@ class TestRequireGuiUser:
         from aignostics_foundry_core.gui.auth import require_gui_user
 
         request = MagicMock()
-        request.url.path = "/original"
+        request.scope = {"path": "/original"}
         request.app.state = MagicMock(spec=[])  # no auth_client → get_gui_user returns None
 
         navigate_mock = MagicMock()
