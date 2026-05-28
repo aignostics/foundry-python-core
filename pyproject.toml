@@ -53,7 +53,9 @@ dependencies = [
     "auth0-fastapi>=1.0.0b5,<2",
     "certifi>=2024",
     "fastapi>=0.110,<1",
+    "httpx2>=2.2.0,<3",
     "loguru>=0.7,<1",
+    "PyJWT[cryptography]>=2.10,<3",
     "platformdirs>=4,<5",
     "psutil>=6",
     "pydantic>=2,<3",
@@ -301,7 +303,11 @@ style = [
 # Changelog template configuration
 template = ".cz-templates/CHANGELOG.md.j2"
 
+[tool.deptry]
+package_module_name_map = { "httpx2" = ["httpx"] }
+
 [tool.deptry.per_rule_ignores]
 "DEP002" = [
     "asyncpg",
+    "auth0-fastapi",
 ]
