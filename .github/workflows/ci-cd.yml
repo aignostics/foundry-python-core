@@ -65,3 +65,4 @@ jobs:
       packages: read
     secrets:
       SLACK_RELEASE_BOT_TOKEN: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
+      UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}
