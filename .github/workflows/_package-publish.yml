@@ -5,6 +5,8 @@ on:
     secrets:
       SLACK_RELEASE_BOT_TOKEN:
         required: true
+      UV_PUBLISH_TOKEN:
+        required: true
 
 
 jobs:
