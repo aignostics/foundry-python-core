@@ -1,3 +1,13 @@
+## v0.14.1 (2026-05-28)
+
+### Fix
+
+- **gui**: mitigate CVE-2026-48710 (BadHost) (#73) ([97a876d](https://github.com/aignostics/foundry-python-core/commit/97a876d4c1b75c7c3c2c6a292f47216f2b8914ac))
+- **deps**: update dependency rich to v15 ([825675d](https://github.com/aignostics/foundry-python-core/commit/825675dad7390e6c612a41b41afa2c01bfbfb7ec))
+- **lint**: resolve ruff and pyright errors ([bc09790](https://github.com/aignostics/foundry-python-core/commit/bc09790f8631484e319479712522e2b73f0d8912))
+- **ci**: add --no-build to uv sync in bump workflow ([e41467c](https://github.com/aignostics/foundry-python-core/commit/e41467c42929540d13bd4492e035618e2d249fd8))
+- **ci**: use grep/sed for version extraction in workflows ([815be6f](https://github.com/aignostics/foundry-python-core/commit/815be6fa337b13ed94b1e00f568a44dcb5d9c754))
+
 ## v0.14.0 (2026-04-29)
 
 ### Feat
