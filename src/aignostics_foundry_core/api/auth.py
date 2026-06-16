@@ -40,6 +40,7 @@ AUTH0_COOKIE_SCHEME_NAME = "Auth0Cookie"
 AUTH0_COOKIE_SCHEME_DESCRIPTION = "Auth0 session cookie authentication scheme."
 AUTH0_BEARER_SCHEME_NAME = "Auth0Bearer"
 AUTH0_ROLE_ADMIN = "admin"
+AUTH0_ROLE_SUPERADMIN = "superadmin"
 USER_NOT_AUTHENTICATED = "User is not authenticated"
 AUTH_SESSION_EXPIRATION_DEFAULT = 60 * 60 * 24  # 1 day in seconds
 AUTH0_JWKS_ALGORITHMS = ["RS256"]
@@ -258,6 +259,25 @@ auth0_internal_admin_bearer_scheme = HTTPBearer(
     auto_error=False,
 )
 
+auth0_internal_superadmin_scheme = APIKeyCookie(
+    name=AUTH0_SESSION_COOKIE_NAME,
+    scheme_name="Auth0InternalSuperadminCookie",
+    description=(
+        "Auth0 session cookie authentication with internal organization membership AND superadmin role requirements. "
+        f"User must be a member of the internal organization AND have '{AUTH0_ROLE_SUPERADMIN}' role."
+    ),
+    auto_error=False,
+)  # Security scheme for internal superadmin endpoints
+
+auth0_internal_superadmin_bearer_scheme = HTTPBearer(
+    scheme_name=AUTH0_BEARER_SCHEME_NAME,
+    description=(
+        "Auth0 JWT Bearer token authentication with internal organization membership AND superadmin role requirements. "
+        f"User must be a member of the internal organization AND have '{AUTH0_ROLE_SUPERADMIN}' role."
+    ),
+    auto_error=False,
+)
+
 
 async def _fetch_jwks(domain: str, *, force_refresh: bool = False) -> dict[str, Any]:
     """Fetch JWKS from Auth0, caching the result per domain for AUTH0_JWKS_CACHE_TTL seconds.
@@ -339,6 +359,11 @@ async def _validate_jwt(token: str, auth_settings: AuthSettings) -> dict[str, An
         return None
 
 
+def _is_auth_disabled(auth_settings: AuthSettings) -> bool:
+    """Return True when all authentication mechanisms are disabled."""
+    return not (auth_settings.cookie_enabled or auth_settings.enabled or auth_settings.jwt_enabled)
+
+
 async def _require_authenticated_impl(
     request: Request,
     _cookie: str | None,
@@ -359,6 +384,10 @@ async def _require_authenticated_impl(
         ForbiddenError: If role is specified and user doesn't have the required role.
     """
     auth_settings = load_settings(AuthSettings)
+
+    if _is_auth_disabled(auth_settings):
+        logger.debug("Auth is disabled; bypassing authentication check")
+        return
 
     user = await get_user(request, _cookie, _bearer)
     if not user:
@@ -438,6 +467,10 @@ async def require_internal(
     """
     auth_settings = load_settings(AuthSettings)
 
+    if _is_auth_disabled(auth_settings):
+        logger.debug("Auth is disabled; bypassing internal organization check")
+        return
+
     user = await get_user(request, _cookie, _bearer)
     if not user:
         logger.critical(USER_NOT_AUTHENTICATED)
@@ -476,6 +509,10 @@ async def require_internal_admin(
     """
     auth_settings = load_settings(AuthSettings)
 
+    if _is_auth_disabled(auth_settings):
+        logger.debug("Auth is disabled; bypassing internal admin check")
+        return
+
     user = await get_user(request, _cookie, _bearer)
     if not user:
         logger.critical(USER_NOT_AUTHENTICATED)
@@ -496,6 +533,54 @@ async def require_internal_admin(
         raise ForbiddenError(msg)
 
     log.debug("Internal admin check passed")
+
+
+async def require_internal_superadmin(
+    request: Request,
+    _cookie: Annotated[str | None, Security(auth0_internal_superadmin_scheme)],
+    _bearer: Annotated[HTTPAuthorizationCredentials | None, Security(auth0_internal_superadmin_bearer_scheme)],
+) -> None:
+    """Require internal organization membership AND superadmin role (FastAPI dependency).
+
+    Checks if the authenticated user is both:
+    1. A member of the configured internal organization (FOUNDRY_AUTH_INTERNAL_ORG_ID)
+    2. Has the superadmin role in their configured role_claim
+    Accepts either an Auth0 session cookie or a valid JWT Bearer token.
+
+    Args:
+        request: The incoming request.
+        _cookie: The session cookie (auto-injected by FastAPI).
+        _bearer: JWT Bearer credentials (auto-injected by FastAPI).
+
+    Raises:
+        ForbiddenError: If user is not internal or doesn't have superadmin role.
+    """
+    auth_settings = load_settings(AuthSettings)
+
+    if _is_auth_disabled(auth_settings):
+        logger.debug("Auth is disabled; bypassing internal superadmin check")
+        return
+
+    user = await get_user(request, _cookie, _bearer)
+    if not user:
+        logger.critical(USER_NOT_AUTHENTICATED)
+        raise ForbiddenError(USER_NOT_AUTHENTICATED)
+
+    user_org_id = user.get("org_id")
+    user_role = user.get(auth_settings.role_claim)
+    log = logger.bind(user_id=user.get("sub"), user_org=user_org_id, user_role=user_role)
+
+    if user_org_id != auth_settings.internal_org_id:
+        log.warning("Org membership check failed")
+        msg = f"User is not a member of the internal organization (org_id: {user_org_id})"
+        raise ForbiddenError(msg)
+
+    if user_role != AUTH0_ROLE_SUPERADMIN:
+        log.warning("Role check failed", required_role=AUTH0_ROLE_SUPERADMIN)
+        msg = f"User role '{user_role}' does not match required role '{AUTH0_ROLE_SUPERADMIN}'"
+        raise ForbiddenError(msg)
+
+    log.debug("Internal superadmin check passed")
 
 
 async def get_user(

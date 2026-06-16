@@ -9,6 +9,7 @@ import pytest
 
 from aignostics_foundry_core.api.auth import (
     AUTH0_ROLE_ADMIN,
+    AUTH0_ROLE_SUPERADMIN,
     AUTH_SESSION_EXPIRATION_DEFAULT,
     AuthSettings,
     ForbiddenError,
@@ -23,6 +24,7 @@ from aignostics_foundry_core.api.auth import (
     require_authenticated,
     require_internal,
     require_internal_admin,
+    require_internal_superadmin,
 )
 from aignostics_foundry_core.foundry import set_context
 from tests.aignostics_foundry_core.api import INTERNAL_ORG_ID_VAR_NAME, ROLE_CLAIM_VAR_NAME
@@ -495,8 +497,11 @@ class TestValidateJwt:
 class TestRequireAuthenticated:
     """Tests for require_authenticated FastAPI dependency."""
 
-    async def test_unauthenticated_user_raises_forbidden_error(self) -> None:
+    async def test_unauthenticated_user_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_authenticated raises ForbiddenError when no session is available."""
+        monkeypatch.setenv(_JWT_ENABLED_VAR_NAME, "true")
+        monkeypatch.setenv(_DOMAIN_VAR_NAME, _TEST_DOMAIN)
+        monkeypatch.setenv(_JWT_AUDIENCE_VAR_NAME, _TEST_JWT_AUDIENCE)
         request = MagicMock()
         request.app.state = MagicMock(spec=[])  # no auth_client → get_user returns None
 
@@ -521,6 +526,9 @@ class TestRequireAdmin:
 
     async def test_no_user_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_admin raises ForbiddenError when no session is available."""
+        monkeypatch.setenv(_JWT_ENABLED_VAR_NAME, "true")
+        monkeypatch.setenv(_DOMAIN_VAR_NAME, _TEST_DOMAIN)
+        monkeypatch.setenv(_JWT_AUDIENCE_VAR_NAME, _TEST_JWT_AUDIENCE)
         monkeypatch.setenv(ROLE_CLAIM_VAR_NAME, _TEST_ROLE_CLAIM)
         request = MagicMock()
         request.app.state = MagicMock(spec=[])  # no auth_client → get_user returns None
@@ -530,6 +538,9 @@ class TestRequireAdmin:
 
     async def test_wrong_role_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_admin raises ForbiddenError when user has a non-admin role."""
+        monkeypatch.setenv(_JWT_ENABLED_VAR_NAME, "true")
+        monkeypatch.setenv(_DOMAIN_VAR_NAME, _TEST_DOMAIN)
+        monkeypatch.setenv(_JWT_AUDIENCE_VAR_NAME, _TEST_JWT_AUDIENCE)
         monkeypatch.setenv(ROLE_CLAIM_VAR_NAME, _TEST_ROLE_CLAIM)
         request = MagicMock()
         user = {"sub": _USER_SUB, _TEST_ROLE_CLAIM: "viewer", "exp": int(time.time()) + 3600}
@@ -557,16 +568,22 @@ class TestRequireAdmin:
 class TestRequireInternal:
     """Tests for require_internal FastAPI dependency."""
 
-    async def test_unauthenticated_user_raises_forbidden_error(self) -> None:
+    async def test_unauthenticated_user_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal raises ForbiddenError when no session is available."""
+        monkeypatch.setenv(_JWT_ENABLED_VAR_NAME, "true")
+        monkeypatch.setenv(_DOMAIN_VAR_NAME, _TEST_DOMAIN)
+        monkeypatch.setenv(_JWT_AUDIENCE_VAR_NAME, _TEST_JWT_AUDIENCE)
         request = MagicMock()
         request.app.state = MagicMock(spec=[])  # no auth_client → get_user returns None
 
         with pytest.raises(ForbiddenError, match=_USER_NOT_AUTHENTICATED):
             await require_internal(request, None, None)
 
-    async def test_wrong_org_raises_forbidden_error(self) -> None:
+    async def test_wrong_org_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal raises ForbiddenError when user belongs to a different org."""
+        monkeypatch.setenv(_JWT_ENABLED_VAR_NAME, "true")
+        monkeypatch.setenv(_DOMAIN_VAR_NAME, _TEST_DOMAIN)
+        monkeypatch.setenv(_JWT_AUDIENCE_VAR_NAME, _TEST_JWT_AUDIENCE)
         request = MagicMock()
         user = {"sub": _USER_SUB, "org_id": _OTHER_ORG_ID, "exp": int(time.time()) + 3600}
         fake_client = MagicMock()
@@ -593,16 +610,22 @@ class TestRequireInternal:
 class TestRequireInternalAdmin:
     """Tests for require_internal_admin FastAPI dependency."""
 
-    async def test_unauthenticated_user_raises_forbidden_error(self) -> None:
+    async def test_unauthenticated_user_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal_admin raises ForbiddenError when no session is available."""
+        monkeypatch.setenv(_JWT_ENABLED_VAR_NAME, "true")
+        monkeypatch.setenv(_DOMAIN_VAR_NAME, _TEST_DOMAIN)
+        monkeypatch.setenv(_JWT_AUDIENCE_VAR_NAME, _TEST_JWT_AUDIENCE)
         request = MagicMock()
         request.app.state = MagicMock(spec=[])  # no auth_client → get_user returns None
 
         with pytest.raises(ForbiddenError, match=_USER_NOT_AUTHENTICATED):
             await require_internal_admin(request, None, None)
 
-    async def test_wrong_org_raises_forbidden_error(self) -> None:
+    async def test_wrong_org_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal_admin raises ForbiddenError when user belongs to a different org."""
+        monkeypatch.setenv(_JWT_ENABLED_VAR_NAME, "true")
+        monkeypatch.setenv(_DOMAIN_VAR_NAME, _TEST_DOMAIN)
+        monkeypatch.setenv(_JWT_AUDIENCE_VAR_NAME, _TEST_JWT_AUDIENCE)
         request = MagicMock()
         user = {"sub": _USER_SUB, "org_id": _OTHER_ORG_ID, "exp": int(time.time()) + 3600}
         fake_client = MagicMock()
@@ -614,6 +637,9 @@ class TestRequireInternalAdmin:
 
     async def test_correct_org_wrong_role_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """require_internal_admin raises ForbiddenError when user is in internal org but lacks admin role."""
+        monkeypatch.setenv(_JWT_ENABLED_VAR_NAME, "true")
+        monkeypatch.setenv(_DOMAIN_VAR_NAME, _TEST_DOMAIN)
+        monkeypatch.setenv(_JWT_AUDIENCE_VAR_NAME, _TEST_JWT_AUDIENCE)
         monkeypatch.setenv(INTERNAL_ORG_ID_VAR_NAME, _INTERNAL_ORG_ID)
         monkeypatch.setenv(ROLE_CLAIM_VAR_NAME, _TEST_ROLE_CLAIM)
         request = MagicMock()
@@ -727,3 +753,136 @@ class TestFetchJwks:
 
         with patch("httpx.AsyncClient", return_value=mock_client), pytest.raises(RuntimeError, match="network error"):
             await _fetch_jwks(_TEST_DOMAIN)
+
+
+@pytest.mark.integration
+class TestRequireInternalSuperadmin:
+    """Tests for require_internal_superadmin FastAPI dependency."""
+
+    async def test_unauthenticated_user_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """require_internal_superadmin raises ForbiddenError when no session is available."""
+        monkeypatch.setenv(_JWT_ENABLED_VAR_NAME, "true")
+        monkeypatch.setenv(_DOMAIN_VAR_NAME, _TEST_DOMAIN)
+        monkeypatch.setenv(_JWT_AUDIENCE_VAR_NAME, _TEST_JWT_AUDIENCE)
+        request = MagicMock()
+        request.app.state = MagicMock(spec=[])  # no auth_client → get_user returns None
+
+        with pytest.raises(ForbiddenError, match=_USER_NOT_AUTHENTICATED):
+            await require_internal_superadmin(request, None, None)
+
+    async def test_wrong_org_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """require_internal_superadmin raises ForbiddenError when user belongs to a different org."""
+        monkeypatch.setenv(_JWT_ENABLED_VAR_NAME, "true")
+        monkeypatch.setenv(_DOMAIN_VAR_NAME, _TEST_DOMAIN)
+        monkeypatch.setenv(_JWT_AUDIENCE_VAR_NAME, _TEST_JWT_AUDIENCE)
+        request = MagicMock()
+        user = {"sub": _USER_SUB, "org_id": _OTHER_ORG_ID, "exp": int(time.time()) + 3600}
+        fake_client = MagicMock()
+        fake_client.require_session = AsyncMock(return_value={"user": user})
+        request.app.state.auth_client = fake_client
+
+        with pytest.raises(ForbiddenError, match="not a member of the internal organization"):
+            await require_internal_superadmin(request, None, None)
+
+    async def test_correct_org_wrong_role_raises_forbidden_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """require_internal_superadmin raises ForbiddenError when user is in internal org but lacks superadmin role."""
+        monkeypatch.setenv(_JWT_ENABLED_VAR_NAME, "true")
+        monkeypatch.setenv(_DOMAIN_VAR_NAME, _TEST_DOMAIN)
+        monkeypatch.setenv(_JWT_AUDIENCE_VAR_NAME, _TEST_JWT_AUDIENCE)
+        monkeypatch.setenv(INTERNAL_ORG_ID_VAR_NAME, _INTERNAL_ORG_ID)
+        monkeypatch.setenv(ROLE_CLAIM_VAR_NAME, _TEST_ROLE_CLAIM)
+        request = MagicMock()
+        user = {
+            "sub": _USER_SUB,
+            "org_id": _INTERNAL_ORG_ID,
+            _TEST_ROLE_CLAIM: AUTH0_ROLE_ADMIN,
+            "exp": int(time.time()) + 3600,
+        }
+        fake_client = MagicMock()
+        fake_client.require_session = AsyncMock(return_value={"user": user})
+        request.app.state.auth_client = fake_client
+
+        with pytest.raises(ForbiddenError, match="does not match required role"):
+            await require_internal_superadmin(request, None, None)
+
+    async def test_internal_superadmin_passes(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """require_internal_superadmin returns None without raising when user is internal org superadmin."""
+        monkeypatch.setenv(INTERNAL_ORG_ID_VAR_NAME, _INTERNAL_ORG_ID)
+        monkeypatch.setenv(ROLE_CLAIM_VAR_NAME, _TEST_ROLE_CLAIM)
+        request = MagicMock()
+        user = {
+            "sub": _USER_SUB,
+            "org_id": _INTERNAL_ORG_ID,
+            _TEST_ROLE_CLAIM: AUTH0_ROLE_SUPERADMIN,
+            "exp": int(time.time()) + 3600,
+        }
+        fake_client = MagicMock()
+        fake_client.require_session = AsyncMock(return_value={"user": user})
+        request.app.state.auth_client = fake_client
+
+        result = await require_internal_superadmin(request, None, None)
+        assert result is None
+
+
+_COOKIE_ENABLED_VAR_NAME = f"{TEST_PROJECT_PREFIX}AUTH_COOKIE_ENABLED"
+
+
+@pytest.mark.integration
+class TestAuthDisabledBypass:
+    """Tests that all require_* dependencies bypass checks when auth is fully disabled."""
+
+    async def test_require_authenticated_bypasses_when_auth_disabled(self) -> None:
+        """require_authenticated passes without checking session when all auth is disabled."""
+        request = MagicMock()
+        request.app.state = MagicMock(spec=[])  # no auth_client → would fail if auth were active
+
+        result = await require_authenticated(request, None, None)
+        assert result is None
+
+    async def test_require_admin_bypasses_when_auth_disabled(self) -> None:
+        """require_admin passes without checking session or role when all auth is disabled."""
+        request = MagicMock()
+        request.app.state = MagicMock(spec=[])
+
+        result = await require_admin(request, None, None)
+        assert result is None
+
+    async def test_require_internal_bypasses_when_auth_disabled(self) -> None:
+        """require_internal passes without checking org membership when all auth is disabled."""
+        request = MagicMock()
+        request.app.state = MagicMock(spec=[])
+
+        result = await require_internal(request, None, None)
+        assert result is None
+
+    async def test_require_internal_admin_bypasses_when_auth_disabled(self) -> None:
+        """require_internal_admin passes without checking org or role when all auth is disabled."""
+        request = MagicMock()
+        request.app.state = MagicMock(spec=[])
+
+        result = await require_internal_admin(request, None, None)
+        assert result is None
+
+    async def test_require_internal_superadmin_bypasses_when_auth_disabled(self) -> None:
+        """require_internal_superadmin passes without checking org or role when all auth is disabled."""
+        request = MagicMock()
+        request.app.state = MagicMock(spec=[])
+
+        result = await require_internal_superadmin(request, None, None)
+        assert result is None
+
+    async def test_require_authenticated_enforces_when_cookie_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """require_authenticated still enforces auth when cookie_enabled=True."""
+        monkeypatch.setenv(_COOKIE_ENABLED_VAR_NAME, "true")
+        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}AUTH_SESSION_SECRET", "test-session-secret")
+        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}AUTH_CLIENT_SECRET", "x" * 64)
+        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}AUTH_DOMAIN", _TEST_DOMAIN)
+        monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}AUTH_CLIENT_ID", "x" * 32)
+        monkeypatch.setenv(INTERNAL_ORG_ID_VAR_NAME, _INTERNAL_ORG_ID)
+        monkeypatch.setenv(ROLE_CLAIM_VAR_NAME, _TEST_ROLE_CLAIM)
+
+        request = MagicMock()
+        request.app.state = MagicMock(spec=[])  # no auth_client → get_user returns None
+
+        with pytest.raises(ForbiddenError):
+            await require_authenticated(request, None, None)
