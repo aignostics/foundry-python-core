@@ -1,3 +1,9 @@
+## v0.15.2 (2026-06-16)
+
+### Fix
+
+- **ci**: run CI workflow on version tags (#90) ([3d54756](https://github.com/aignostics/foundry-python-core/commit/3d54756c0141496d5f937b37bf0fe34eea35d676))
+
 ## v0.15.1 (2026-06-16)
 
 ## v0.15.0 (2026-06-16)
