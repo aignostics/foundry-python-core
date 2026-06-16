@@ -1,7 +1,7 @@
 """Health models and status definitions for service health checks."""
 
 from enum import StrEnum
-from typing import Any, ClassVar, Self
+from typing import ClassVar, Self
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -36,7 +36,6 @@ class Health(BaseModel):
     status: HealthStatus
     reason: str | None = None
     components: dict[str, "Health"] = Field(default_factory=dict)
-    uptime_statistics: dict[str, dict[str, Any]] | None = None  # Optional uptime stats
 
     def compute_health_from_components(self) -> Self:
         """Recursively compute health status from components.

@@ -289,7 +289,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 - **Purpose**: Provides `Health` and `HealthStatus` for modelling UP / DEGRADED / DOWN status across a tree of service components
 - **Key Features**:
   - `HealthStatus(StrEnum)` — `UP`, `DEGRADED`, `DOWN` values
-  - `Health(BaseModel)` — pydantic model with `status`, `reason`, `components`, `uptime_statistics`
+  - `Health(BaseModel)` — pydantic model with `status`, `reason`, `components`
   - `compute_health_from_components()` — recursively propagates DOWN/DEGRADED from children to parent (DOWN trumps DEGRADED)
   - `validate_health_state()` — model validator: DOWN/DEGRADED require a reason; UP must not have one
   - `__str__` — returns `"UP"`, `"DEGRADED: <reason>"`, or `"DOWN: <reason>"`
