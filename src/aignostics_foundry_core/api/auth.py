@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 import httpx
 import jwt
-from fastapi import Request, Response, Security
+from fastapi import Depends, Request, Response, Security
 from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBearer
 from jwt.algorithms import RSAAlgorithm
 from loguru import logger
@@ -364,10 +364,15 @@ def _is_auth_disabled(auth_settings: AuthSettings) -> bool:
     return not (auth_settings.cookie_enabled or auth_settings.enabled or auth_settings.jwt_enabled)
 
 
+def _load_auth_settings() -> AuthSettings:
+    return load_settings(AuthSettings)
+
+
 async def _require_authenticated_impl(
     request: Request,
     _cookie: str | None,
-    _bearer: HTTPAuthorizationCredentials | None = None,
+    _bearer: HTTPAuthorizationCredentials | None,
+    auth_settings: AuthSettings,
     role: str | None = None,
 ) -> None:
     """Internal implementation for authenticated session check with optional role.
@@ -376,6 +381,7 @@ async def _require_authenticated_impl(
         request: The incoming request.
         _cookie: The session cookie.
         _bearer: Optional Bearer JWT credentials.
+        auth_settings: The resolved auth settings.
         role: Optional role required (e.g., "admin"). If specified, user must have
             this role in their configured role_claim.
 
@@ -383,20 +389,17 @@ async def _require_authenticated_impl(
         UnauthenticatedError: If the session is not valid or missing.
         ForbiddenError: If role is specified and user doesn't have the required role.
     """
-    auth_settings = load_settings(AuthSettings)
-
     if _is_auth_disabled(auth_settings):
         logger.debug("Auth is disabled; bypassing authentication check")
         return
 
-    user = await get_user(request, _cookie, _bearer)
+    user = await get_user(request, _cookie, _bearer, auth_settings)
     if not user:
         logger.critical(USER_NOT_AUTHENTICATED)
         raise ForbiddenError(USER_NOT_AUTHENTICATED)
 
     log = logger.bind(user_id=user.get("sub"))
 
-    # Check role if specified
     if role is not None:
         user_role = user.get(auth_settings.role_claim)
         if user_role != role:
@@ -410,6 +413,7 @@ async def require_authenticated(
     request: Request,
     _cookie: Annotated[str | None, Security(auth0_session_scheme)],
     _bearer: Annotated[HTTPAuthorizationCredentials | None, Security(auth0_bearer_scheme)],
+    _auth_settings: Annotated[AuthSettings, Depends(_load_auth_settings)],
 ) -> None:
     """Require an authenticated session (FastAPI dependency).
 
@@ -419,17 +423,19 @@ async def require_authenticated(
         request: The incoming request.
         _cookie: The session cookie (auto-injected by FastAPI).
         _bearer: JWT Bearer credentials (auto-injected by FastAPI).
+        _auth_settings: Auth settings (auto-injected by FastAPI).
 
     Raises:
         ForbiddenError: If the session is not valid or missing.
     """
-    await _require_authenticated_impl(request, _cookie, _bearer)
+    await _require_authenticated_impl(request, _cookie, _bearer, _auth_settings)
 
 
 async def require_admin(
     request: Request,
     _cookie: Annotated[str | None, Security(auth0_admin_scheme)],
     _bearer: Annotated[HTTPAuthorizationCredentials | None, Security(auth0_admin_bearer_scheme)],
+    _auth_settings: Annotated[AuthSettings, Depends(_load_auth_settings)],
 ) -> None:
     """Require admin role (FastAPI dependency).
 
@@ -439,17 +445,19 @@ async def require_admin(
         request: The incoming request.
         _cookie: The session cookie (auto-injected by FastAPI).
         _bearer: JWT Bearer credentials (auto-injected by FastAPI).
+        _auth_settings: Auth settings (auto-injected by FastAPI).
 
     Raises:
         ForbiddenError: If the session is not valid or user doesn't have admin role.
     """
-    await _require_authenticated_impl(request, _cookie, _bearer, role=AUTH0_ROLE_ADMIN)
+    await _require_authenticated_impl(request, _cookie, _bearer, _auth_settings, role=AUTH0_ROLE_ADMIN)
 
 
 async def require_internal(
     request: Request,
     _cookie: Annotated[str | None, Security(auth0_internal_scheme)],
     _bearer: Annotated[HTTPAuthorizationCredentials | None, Security(auth0_internal_bearer_scheme)],
+    _auth_settings: Annotated[AuthSettings, Depends(_load_auth_settings)],
 ) -> None:
     """Require internal organization membership (FastAPI dependency).
 
@@ -461,17 +469,16 @@ async def require_internal(
         request: The incoming request.
         _cookie: The session cookie (auto-injected by FastAPI).
         _bearer: JWT Bearer credentials (auto-injected by FastAPI).
+        _auth_settings: Auth settings (auto-injected by FastAPI).
 
     Raises:
         ForbiddenError: If the session is not valid or user is not in the internal org.
     """
-    auth_settings = load_settings(AuthSettings)
-
-    if _is_auth_disabled(auth_settings):
+    if _is_auth_disabled(_auth_settings):
         logger.debug("Auth is disabled; bypassing internal organization check")
         return
 
-    user = await get_user(request, _cookie, _bearer)
+    user = await get_user(request, _cookie, _bearer, _auth_settings)
     if not user:
         logger.critical(USER_NOT_AUTHENTICATED)
         raise ForbiddenError(USER_NOT_AUTHENTICATED)
@@ -479,7 +486,7 @@ async def require_internal(
     user_org_id = user.get("org_id")
     log = logger.bind(user_id=user.get("sub"), user_org=user_org_id)
 
-    if user_org_id != auth_settings.internal_org_id:
+    if user_org_id != _auth_settings.internal_org_id:
         log.warning("Org membership check failed")
         msg = f"User is not a member of the internal organization (org_id: {user_org_id})"
         raise ForbiddenError(msg)
@@ -491,6 +498,7 @@ async def require_internal_admin(
     request: Request,
     _cookie: Annotated[str | None, Security(auth0_internal_admin_scheme)],
     _bearer: Annotated[HTTPAuthorizationCredentials | None, Security(auth0_internal_admin_bearer_scheme)],
+    _auth_settings: Annotated[AuthSettings, Depends(_load_auth_settings)],
 ) -> None:
     """Require internal organization membership AND admin role (FastAPI dependency).
 
@@ -503,26 +511,25 @@ async def require_internal_admin(
         request: The incoming request.
         _cookie: The session cookie (auto-injected by FastAPI).
         _bearer: JWT Bearer credentials (auto-injected by FastAPI).
+        _auth_settings: Auth settings (auto-injected by FastAPI).
 
     Raises:
         ForbiddenError: If user is not internal or doesn't have admin role.
     """
-    auth_settings = load_settings(AuthSettings)
-
-    if _is_auth_disabled(auth_settings):
+    if _is_auth_disabled(_auth_settings):
         logger.debug("Auth is disabled; bypassing internal admin check")
         return
 
-    user = await get_user(request, _cookie, _bearer)
+    user = await get_user(request, _cookie, _bearer, _auth_settings)
     if not user:
         logger.critical(USER_NOT_AUTHENTICATED)
         raise ForbiddenError(USER_NOT_AUTHENTICATED)
 
     user_org_id = user.get("org_id")
-    user_role = user.get(auth_settings.role_claim)
+    user_role = user.get(_auth_settings.role_claim)
     log = logger.bind(user_id=user.get("sub"), user_org=user_org_id, user_role=user_role)
 
-    if user_org_id != auth_settings.internal_org_id:
+    if user_org_id != _auth_settings.internal_org_id:
         log.warning("Org membership check failed")
         msg = f"User is not a member of the internal organization (org_id: {user_org_id})"
         raise ForbiddenError(msg)
@@ -539,6 +546,7 @@ async def require_internal_superadmin(
     request: Request,
     _cookie: Annotated[str | None, Security(auth0_internal_superadmin_scheme)],
     _bearer: Annotated[HTTPAuthorizationCredentials | None, Security(auth0_internal_superadmin_bearer_scheme)],
+    _auth_settings: Annotated[AuthSettings, Depends(_load_auth_settings)],
 ) -> None:
     """Require internal organization membership AND superadmin role (FastAPI dependency).
 
@@ -551,26 +559,25 @@ async def require_internal_superadmin(
         request: The incoming request.
         _cookie: The session cookie (auto-injected by FastAPI).
         _bearer: JWT Bearer credentials (auto-injected by FastAPI).
+        _auth_settings: Auth settings (auto-injected by FastAPI).
 
     Raises:
         ForbiddenError: If user is not internal or doesn't have superadmin role.
     """
-    auth_settings = load_settings(AuthSettings)
-
-    if _is_auth_disabled(auth_settings):
+    if _is_auth_disabled(_auth_settings):
         logger.debug("Auth is disabled; bypassing internal superadmin check")
         return
 
-    user = await get_user(request, _cookie, _bearer)
+    user = await get_user(request, _cookie, _bearer, _auth_settings)
     if not user:
         logger.critical(USER_NOT_AUTHENTICATED)
         raise ForbiddenError(USER_NOT_AUTHENTICATED)
 
     user_org_id = user.get("org_id")
-    user_role = user.get(auth_settings.role_claim)
+    user_role = user.get(_auth_settings.role_claim)
     log = logger.bind(user_id=user.get("sub"), user_org=user_org_id, user_role=user_role)
 
-    if user_org_id != auth_settings.internal_org_id:
+    if user_org_id != _auth_settings.internal_org_id:
         log.warning("Org membership check failed")
         msg = f"User is not a member of the internal organization (org_id: {user_org_id})"
         raise ForbiddenError(msg)
@@ -587,6 +594,7 @@ async def get_user(
     request: Request,
     _cookie: Annotated[str | None, Security(auth0_session_scheme)],
     _bearer: Annotated[HTTPAuthorizationCredentials | None, Security(auth0_bearer_scheme)],
+    _auth_settings: Annotated[AuthSettings, Depends(_load_auth_settings)],
 ) -> dict[str, Any] | None:
     """Get authenticated user information (FastAPI dependency).
 
@@ -597,6 +605,7 @@ async def get_user(
         request: The incoming request.
         _cookie: The session cookie (auto-injected by FastAPI).
         _bearer: JWT Bearer credentials (auto-injected by FastAPI).
+        _auth_settings: Auth settings (auto-injected by FastAPI).
 
     Returns:
         User dictionary containing claims like 'sub', 'email', 'name', etc.,
@@ -607,7 +616,7 @@ async def get_user(
         async def me(user: Annotated[dict[str, Any], Depends(get_user)]):
             return {"email": user.get("email")}
     """
-    auth_settings = load_settings(AuthSettings)
+    auth_settings = _auth_settings
 
     # Try Bearer JWT first
     if _bearer and auth_settings.jwt_enabled:
