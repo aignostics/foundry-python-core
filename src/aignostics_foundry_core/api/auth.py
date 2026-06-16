@@ -390,7 +390,7 @@ async def _require_authenticated_impl(
         ForbiddenError: If role is specified and user doesn't have the required role.
     """
     if _is_auth_disabled(auth_settings):
-        logger.debug("Auth is disabled; bypassing authentication check")
+        logger.warning("Auth is disabled; bypassing authentication check")
         return
 
     user = await get_user(request, _cookie, _bearer, auth_settings)
@@ -453,6 +453,56 @@ async def require_admin(
     await _require_authenticated_impl(request, _cookie, _bearer, _auth_settings, role=AUTH0_ROLE_ADMIN)
 
 
+async def _require_internal_impl(
+    request: Request,
+    _cookie: str | None,
+    _bearer: HTTPAuthorizationCredentials | None,
+    auth_settings: AuthSettings,
+    role: str | None = None,
+) -> None:
+    """Internal implementation for internal-org checks with optional role.
+
+    Args:
+        request: The incoming request.
+        _cookie: The session cookie.
+        _bearer: Optional Bearer JWT credentials.
+        auth_settings: The resolved auth settings.
+        role: Optional role required (e.g., "admin", "superadmin"). If None, only org
+            membership is checked.
+
+    Raises:
+        ForbiddenError: If the user is not authenticated, not in the internal org,
+            or lacks the required role.
+    """
+    check_label = f"internal {role}" if role else "internal organization"
+    if _is_auth_disabled(auth_settings):
+        bypass_msg = "Auth is disabled; bypassing " + check_label + " check"
+        logger.warning(bypass_msg)
+        return
+
+    user = await get_user(request, _cookie, _bearer, auth_settings)
+    if not user:
+        logger.critical(USER_NOT_AUTHENTICATED)
+        raise ForbiddenError(USER_NOT_AUTHENTICATED)
+
+    user_org_id = user.get("org_id")
+    user_role = user.get(auth_settings.role_claim)
+    log = logger.bind(user_id=user.get("sub"), user_org=user_org_id, user_role=user_role)
+
+    if user_org_id != auth_settings.internal_org_id:
+        log.warning("Org membership check failed")
+        msg = f"User is not a member of the internal organization (org_id: {user_org_id})"
+        raise ForbiddenError(msg)
+
+    if role is not None and user_role != role:
+        log.warning("Role check failed", required_role=role)
+        msg = f"User role '{user_role}' does not match required role '{role}'"
+        raise ForbiddenError(msg)
+
+    pass_msg = check_label.capitalize() + " check passed"
+    log.debug(pass_msg)
+
+
 async def require_internal(
     request: Request,
     _cookie: Annotated[str | None, Security(auth0_internal_scheme)],
@@ -474,24 +524,7 @@ async def require_internal(
     Raises:
         ForbiddenError: If the session is not valid or user is not in the internal org.
     """
-    if _is_auth_disabled(_auth_settings):
-        logger.debug("Auth is disabled; bypassing internal organization check")
-        return
-
-    user = await get_user(request, _cookie, _bearer, _auth_settings)
-    if not user:
-        logger.critical(USER_NOT_AUTHENTICATED)
-        raise ForbiddenError(USER_NOT_AUTHENTICATED)
-
-    user_org_id = user.get("org_id")
-    log = logger.bind(user_id=user.get("sub"), user_org=user_org_id)
-
-    if user_org_id != _auth_settings.internal_org_id:
-        log.warning("Org membership check failed")
-        msg = f"User is not a member of the internal organization (org_id: {user_org_id})"
-        raise ForbiddenError(msg)
-
-    log.debug("Org membership check passed")
+    await _require_internal_impl(request, _cookie, _bearer, _auth_settings)
 
 
 async def require_internal_admin(
@@ -516,30 +549,7 @@ async def require_internal_admin(
     Raises:
         ForbiddenError: If user is not internal or doesn't have admin role.
     """
-    if _is_auth_disabled(_auth_settings):
-        logger.debug("Auth is disabled; bypassing internal admin check")
-        return
-
-    user = await get_user(request, _cookie, _bearer, _auth_settings)
-    if not user:
-        logger.critical(USER_NOT_AUTHENTICATED)
-        raise ForbiddenError(USER_NOT_AUTHENTICATED)
-
-    user_org_id = user.get("org_id")
-    user_role = user.get(_auth_settings.role_claim)
-    log = logger.bind(user_id=user.get("sub"), user_org=user_org_id, user_role=user_role)
-
-    if user_org_id != _auth_settings.internal_org_id:
-        log.warning("Org membership check failed")
-        msg = f"User is not a member of the internal organization (org_id: {user_org_id})"
-        raise ForbiddenError(msg)
-
-    if user_role != AUTH0_ROLE_ADMIN:
-        log.warning("Role check failed", required_role=AUTH0_ROLE_ADMIN)
-        msg = f"User role '{user_role}' does not match required role '{AUTH0_ROLE_ADMIN}'"
-        raise ForbiddenError(msg)
-
-    log.debug("Internal admin check passed")
+    await _require_internal_impl(request, _cookie, _bearer, _auth_settings, role=AUTH0_ROLE_ADMIN)
 
 
 async def require_internal_superadmin(
@@ -564,30 +574,7 @@ async def require_internal_superadmin(
     Raises:
         ForbiddenError: If user is not internal or doesn't have superadmin role.
     """
-    if _is_auth_disabled(_auth_settings):
-        logger.debug("Auth is disabled; bypassing internal superadmin check")
-        return
-
-    user = await get_user(request, _cookie, _bearer, _auth_settings)
-    if not user:
-        logger.critical(USER_NOT_AUTHENTICATED)
-        raise ForbiddenError(USER_NOT_AUTHENTICATED)
-
-    user_org_id = user.get("org_id")
-    user_role = user.get(_auth_settings.role_claim)
-    log = logger.bind(user_id=user.get("sub"), user_org=user_org_id, user_role=user_role)
-
-    if user_org_id != _auth_settings.internal_org_id:
-        log.warning("Org membership check failed")
-        msg = f"User is not a member of the internal organization (org_id: {user_org_id})"
-        raise ForbiddenError(msg)
-
-    if user_role != AUTH0_ROLE_SUPERADMIN:
-        log.warning("Role check failed", required_role=AUTH0_ROLE_SUPERADMIN)
-        msg = f"User role '{user_role}' does not match required role '{AUTH0_ROLE_SUPERADMIN}'"
-        raise ForbiddenError(msg)
-
-    log.debug("Internal superadmin check passed")
+    await _require_internal_impl(request, _cookie, _bearer, _auth_settings, role=AUTH0_ROLE_SUPERADMIN)
 
 
 async def get_user(
