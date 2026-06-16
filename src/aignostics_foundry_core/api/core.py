@@ -43,6 +43,7 @@ API_TAG_PUBLIC = "public"
 API_TAG_ADMIN = "admin"
 API_TAG_INTERNAL = "internal"
 API_TAG_INTERNAL_ADMIN = "internal_admin"
+API_TAG_INTERNAL_SUPERADMIN = "internal_superadmin"
 
 
 class VersionedAPIRouter:
@@ -259,6 +260,36 @@ def create_internal_admin_router(
     actual_prefix = prefix if prefix is not None else f"/{module_tag}"
     tags = [module_tag, API_TAG_INTERNAL_ADMIN] + (extra_tags or [])
     dependencies = [Depends(require_internal_admin)] + (extra_dependencies or [])
+    return cast("APIRouter", VersionedAPIRouter(version, prefix=actual_prefix, tags=tags, dependencies=dependencies))
+
+
+def create_internal_superadmin_router(
+    module_tag: str,
+    *,
+    version: str = "v1",
+    prefix: str | None = None,
+    extra_tags: list[str] | None = None,
+    extra_dependencies: list[Any] | None = None,
+) -> APIRouter:
+    """Create an internal superadmin API router (requires internal org + superadmin role).
+
+    Args:
+        module_tag: The module tag used for prefix and tags (e.g., "hello-world").
+        version: API version (default: "v1").
+        prefix: URL prefix (default: "/{module_tag}").
+        extra_tags: Additional tags to add to the router.
+        extra_dependencies: Additional dependencies to add to the router.
+
+    Returns:
+        A configured APIRouter instance.
+    """
+    from fastapi import Depends  # noqa: PLC0415
+
+    from .auth import require_internal_superadmin  # noqa: PLC0415
+
+    actual_prefix = prefix if prefix is not None else f"/{module_tag}"
+    tags = [module_tag, API_TAG_INTERNAL_SUPERADMIN] + (extra_tags or [])
+    dependencies = [Depends(require_internal_superadmin)] + (extra_dependencies or [])
     return cast("APIRouter", VersionedAPIRouter(version, prefix=actual_prefix, tags=tags, dependencies=dependencies))
 
 
