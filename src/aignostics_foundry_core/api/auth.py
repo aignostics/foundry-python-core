@@ -38,6 +38,7 @@ AUTH0_SESSION_COOKIE_NAME = "_a0_session"
 AUTH0_TRANSACTION_COOKIE_NAME = "_a0_tx"
 AUTH0_COOKIE_SCHEME_NAME = "Auth0Cookie"
 AUTH0_COOKIE_SCHEME_DESCRIPTION = "Auth0 session cookie authentication scheme."
+AUTH0_BEARER_SCHEME_NAME = "Auth0Bearer"
 AUTH0_ROLE_ADMIN = "admin"
 USER_NOT_AUTHENTICATED = "User is not authenticated"
 AUTH_SESSION_EXPIRATION_DEFAULT = 60 * 60 * 24  # 1 day in seconds
@@ -204,7 +205,7 @@ auth0_session_scheme = APIKeyCookie(
 
 auth0_admin_scheme = APIKeyCookie(
     name=AUTH0_SESSION_COOKIE_NAME,
-    scheme_name="Auth0AdminCookie",
+    scheme_name=AUTH0_COOKIE_SCHEME_NAME,
     description="Auth0 session cookie authentication with admin role requirement. "
     f"User must have '{AUTH0_ROLE_ADMIN}' role in their configured role_claim.",
     auto_error=False,
@@ -212,7 +213,7 @@ auth0_admin_scheme = APIKeyCookie(
 
 auth0_internal_scheme = APIKeyCookie(
     name=AUTH0_SESSION_COOKIE_NAME,
-    scheme_name="Auth0InternalCookie",
+    scheme_name=AUTH0_COOKIE_SCHEME_NAME,
     description="Auth0 session cookie authentication with internal organization membership requirement. "
     "User must be a member of the configured internal organization.",
     auto_error=False,
@@ -220,7 +221,7 @@ auth0_internal_scheme = APIKeyCookie(
 
 auth0_internal_admin_scheme = APIKeyCookie(
     name=AUTH0_SESSION_COOKIE_NAME,
-    scheme_name="Auth0InternalAdminCookie",
+    scheme_name=AUTH0_COOKIE_SCHEME_NAME,
     description=(
         "Auth0 session cookie authentication with internal organization membership AND admin role requirements. "
         f"User must be a member of the internal organization AND have '{AUTH0_ROLE_ADMIN}' role."
@@ -229,27 +230,27 @@ auth0_internal_admin_scheme = APIKeyCookie(
 )  # Security scheme for internal admin endpoints
 
 auth0_bearer_scheme = HTTPBearer(
-    scheme_name="Auth0Bearer",
+    scheme_name=AUTH0_BEARER_SCHEME_NAME,
     description="Auth0 JWT Bearer token authentication.",
     auto_error=False,
 )
 
 auth0_admin_bearer_scheme = HTTPBearer(
-    scheme_name="Auth0AdminBearer",
+    scheme_name=AUTH0_BEARER_SCHEME_NAME,
     description="Auth0 JWT Bearer token authentication with admin role requirement. "
     f"User must have '{AUTH0_ROLE_ADMIN}' role in their configured role_claim.",
     auto_error=False,
 )
 
 auth0_internal_bearer_scheme = HTTPBearer(
-    scheme_name="Auth0InternalBearer",
+    scheme_name=AUTH0_BEARER_SCHEME_NAME,
     description="Auth0 JWT Bearer token authentication with internal organization membership requirement. "
     "User must be a member of the configured internal organization.",
     auto_error=False,
 )
 
 auth0_internal_admin_bearer_scheme = HTTPBearer(
-    scheme_name="Auth0InternalAdminBearer",
+    scheme_name=AUTH0_BEARER_SCHEME_NAME,
     description=(
         "Auth0 JWT Bearer token authentication with internal organization membership AND admin role requirements. "
         f"User must be a member of the internal organization AND have '{AUTH0_ROLE_ADMIN}' role."
