@@ -1,3 +1,14 @@
+## v0.15.0 (2026-06-16)
+
+### Feat
+
+- **auth**: add superadmin role support and auth-disabled bypass (#88) ([498d2c1](https://github.com/aignostics/foundry-python-core/commit/498d2c1569d452c65c96919503dfbcfcec299c4d))
+
+### Fix
+
+- **health**: remove uptime_statistics from Health model (#87) ([14db734](https://github.com/aignostics/foundry-python-core/commit/14db734ce85da6f79be2d510490cea8f6b291319))
+- **auth**: collapse OpenAPI security schemes from 8 to 2 (#86) ([41250f5](https://github.com/aignostics/foundry-python-core/commit/41250f5399712de711462815d35b74140c21c0c5))
+
 ## v0.14.1 (2026-05-28)
 
 ### Fix
