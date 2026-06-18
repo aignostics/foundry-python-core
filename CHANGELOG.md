@@ -1,3 +1,9 @@
+## v0.15.3 (2026-06-18)
+
+### Fix
+
+- internal super admin cookie schema name (#91) ([db3b84d](https://github.com/aignostics/foundry-python-core/commit/db3b84d71a9ed4e76f637cc0a64d5a0c863d629e))
+
 ## v0.15.2 (2026-06-16)
 
 ### Fix
