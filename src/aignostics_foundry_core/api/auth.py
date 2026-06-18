@@ -230,6 +230,16 @@ auth0_internal_admin_scheme = APIKeyCookie(
     auto_error=False,
 )  # Security scheme for internal admin endpoints
 
+auth0_internal_superadmin_scheme = APIKeyCookie(
+    name=AUTH0_SESSION_COOKIE_NAME,
+    scheme_name=AUTH0_COOKIE_SCHEME_NAME,
+    description=(
+        "Auth0 session cookie authentication with internal organization membership AND superadmin role requirements. "
+        f"User must be a member of the internal organization AND have '{AUTH0_ROLE_SUPERADMIN}' role."
+    ),
+    auto_error=False,
+)  # Security scheme for internal superadmin endpoints
+
 auth0_bearer_scheme = HTTPBearer(
     scheme_name=AUTH0_BEARER_SCHEME_NAME,
     description="Auth0 JWT Bearer token authentication.",
@@ -258,16 +268,6 @@ auth0_internal_admin_bearer_scheme = HTTPBearer(
     ),
     auto_error=False,
 )
-
-auth0_internal_superadmin_scheme = APIKeyCookie(
-    name=AUTH0_SESSION_COOKIE_NAME,
-    scheme_name="Auth0InternalSuperadminCookie",
-    description=(
-        "Auth0 session cookie authentication with internal organization membership AND superadmin role requirements. "
-        f"User must be a member of the internal organization AND have '{AUTH0_ROLE_SUPERADMIN}' role."
-    ),
-    auto_error=False,
-)  # Security scheme for internal superadmin endpoints
 
 auth0_internal_superadmin_bearer_scheme = HTTPBearer(
     scheme_name=AUTH0_BEARER_SCHEME_NAME,
