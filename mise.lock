@@ -45,25 +45,32 @@ backend = "aqua:npryce/adr-tools"
 
 [tools.adr-tools."platforms.linux-arm64"]
 url = "https://github.com/npryce/adr-tools/archive/refs/tags/3.0.0.tar.gz"
+url_api = "https://api.github.com/repos/npryce/adr-tools/tarball/3.0.0"
 
 [tools.adr-tools."platforms.linux-arm64-musl"]
 url = "https://github.com/npryce/adr-tools/archive/refs/tags/3.0.0.tar.gz"
+url_api = "https://api.github.com/repos/npryce/adr-tools/tarball/3.0.0"
 
 [tools.adr-tools."platforms.linux-x64"]
 url = "https://github.com/npryce/adr-tools/archive/refs/tags/3.0.0.tar.gz"
+url_api = "https://api.github.com/repos/npryce/adr-tools/tarball/3.0.0"
 
 [tools.adr-tools."platforms.linux-x64-musl"]
 url = "https://github.com/npryce/adr-tools/archive/refs/tags/3.0.0.tar.gz"
+url_api = "https://api.github.com/repos/npryce/adr-tools/tarball/3.0.0"
 
 [tools.adr-tools."platforms.macos-arm64"]
 checksum = "blake3:1b011324e104b8957270f29fde38aae5f80a8131f7854c521c8f237233ea4d2b"
 url = "https://github.com/npryce/adr-tools/archive/refs/tags/3.0.0.tar.gz"
+url_api = "https://api.github.com/repos/npryce/adr-tools/tarball/3.0.0"
 
 [tools.adr-tools."platforms.macos-x64"]
 url = "https://github.com/npryce/adr-tools/archive/refs/tags/3.0.0.tar.gz"
+url_api = "https://api.github.com/repos/npryce/adr-tools/tarball/3.0.0"
 
 [tools.adr-tools."platforms.windows-x64"]
 url = "https://github.com/npryce/adr-tools/archive/refs/tags/3.0.0.tar.gz"
+url_api = "https://api.github.com/repos/npryce/adr-tools/tarball/3.0.0"
 
 [[tools.gh]]
 version = "2.95.0"
