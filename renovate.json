@@ -4,7 +4,10 @@
   "timezone": "Europe/Berlin",
   "schedule": ["at any time"],
   "minimumReleaseAge": "14 days",
+  "automerge": true,
+  "automergeType": "pr",
   "internalChecksFilter": "strict",
+  "platformAutomerge": "true",
   "labels": ["bot", "renovate", "dependencies", "skip:codecov"],
   "ignorePaths": ["plugins/manifest/package.json"],
   "pre-commit": {
@@ -12,7 +15,8 @@
   },
   "vulnerabilityAlerts": {
     "enabled": true,
-    "automerge": true
+    "automerge": true,
+    "minimumReleaseAge": null
   },
   "lockFileMaintenance": {
     "enabled": true,
