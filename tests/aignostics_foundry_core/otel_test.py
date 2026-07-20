@@ -2,7 +2,6 @@
 
 import logging
 import os
-import pathlib
 import sys
 from unittest.mock import ANY, MagicMock, patch
 
@@ -11,6 +10,7 @@ from opentelemetry.sdk.resources import Resource
 
 from aignostics_foundry_core.foundry import set_context
 from aignostics_foundry_core.otel import (
+    _OS_CA_BUNDLE_PATH,
     OTelSettings,
     _default_otlp_certificate_setdefault,
     _make_otel_log_sink,
@@ -18,24 +18,11 @@ from aignostics_foundry_core.otel import (
     _otel_logs_initialize,
     _otel_metrics_initialize,
     _otel_traces_initialize,
-    _unlink_quietly,
-    _write_combined_ca_bundle,
     default_otel_instrumentors,
     instrument_fastapi,
     otel_initialize,
 )
 from tests.conftest import TEST_PROJECT_NAME, TEST_PROJECT_PREFIX, make_context
-
-_INTERNAL_CA_RESOURCE = ("aignostics_foundry_core", "certs/aignx-ca-root-authority.pem")
-
-
-def _read_bundled_internal_ca() -> str:
-    """Read the PEM text of the internal CA bundled in the package."""
-    from importlib.resources import files
-
-    package, resource_path = _INTERNAL_CA_RESOURCE
-    return files(package).joinpath(resource_path).read_text(encoding="utf-8")
-
 
 _OTEL_PREFIX = f"{TEST_PROJECT_PREFIX}OTEL_"
 _OTLP_ENDPOINT = "https://otel-gateway.example.com:4317"
@@ -329,26 +316,23 @@ class TestOtelInitializeInstrumentors:
         mock_instrumentor.instrument.assert_not_called()
 
 
-@pytest.mark.integration
+@pytest.mark.unit
 class TestOtelExporterCertificateDefault:
     """Behavioural tests for the OTEL_EXPORTER_OTLP_CERTIFICATE default."""
 
-    def test_defaults_to_combined_bundle_trusting_internal_ca(self) -> None:
-        """_default_otlp_certificate_setdefault() writes a bundle that trusts the internal CA."""
-        _default_otlp_certificate_setdefault()
-        cert_path = os.environ.get(_OTEL_EXPORTER_OTLP_CERTIFICATE)
-        assert cert_path is not None
-        bundle = pathlib.Path(cert_path)
-        assert bundle.is_file()
-        assert _read_bundled_internal_ca().strip() in bundle.read_text(encoding="utf-8")
+    def test_defaults_to_os_ca_bundle_when_present(self) -> None:
+        """Points at the OS CA bundle (installed by the Dockerfile) when it exists."""
+        with patch("os.path.isfile", return_value=True):
+            _default_otlp_certificate_setdefault()
+        assert os.environ.get(_OTEL_EXPORTER_OTLP_CERTIFICATE) == _OS_CA_BUNDLE_PATH
 
-    def test_combined_bundle_includes_system_roots(self) -> None:
-        """The default bundle also carries certifi's system roots, so public endpoints verify."""
+    def test_falls_back_to_certifi_when_os_bundle_absent(self) -> None:
+        """Falls back to certifi's bundle when the OS CA bundle file isn't present."""
         import certifi
 
-        _default_otlp_certificate_setdefault()
-        bundle = pathlib.Path(os.environ[_OTEL_EXPORTER_OTLP_CERTIFICATE]).read_text(encoding="utf-8")
-        assert pathlib.Path(certifi.where()).read_text(encoding="utf-8").strip() in bundle
+        with patch("os.path.isfile", return_value=False):
+            _default_otlp_certificate_setdefault()
+        assert os.environ.get(_OTEL_EXPORTER_OTLP_CERTIFICATE) == certifi.where()
 
     def test_does_not_override_explicit_value(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """An explicitly set OTEL_EXPORTER_OTLP_CERTIFICATE is left untouched."""
@@ -356,27 +340,14 @@ class TestOtelExporterCertificateDefault:
         _default_otlp_certificate_setdefault()
         assert os.environ[_OTEL_EXPORTER_OTLP_CERTIFICATE] == "/explicit/ca.pem"
 
-    def test_warns_and_leaves_unset_when_resource_missing(self) -> None:
-        """Logs a warning and doesn't set the env var if the bundled cert can't be located."""
-        with patch("importlib.resources.files", side_effect=ModuleNotFoundError("boom")):
+    def test_leaves_unset_when_neither_os_bundle_nor_certifi_present(self) -> None:
+        """Doesn't set the env var if neither the OS bundle nor certifi is available."""
+        with (
+            patch("os.path.isfile", return_value=False),
+            patch("aignostics_foundry_core.otel.find_spec", return_value=None),
+        ):
             _default_otlp_certificate_setdefault()
         assert _OTEL_EXPORTER_OTLP_CERTIFICATE not in os.environ
-
-    def test_leaves_unset_when_bundled_cert_not_a_file(self) -> None:
-        """Doesn't set the env var if the bundled resource exists but isn't a regular file."""
-        cert = MagicMock()
-        cert.is_file.return_value = False
-        traversable = MagicMock()
-        traversable.joinpath.return_value = cert
-        with patch("importlib.resources.files", return_value=traversable):
-            _default_otlp_certificate_setdefault()
-        assert _OTEL_EXPORTER_OTLP_CERTIFICATE not in os.environ
-
-    def test_combined_bundle_falls_back_to_internal_ca_when_certifi_absent(self) -> None:
-        """Without certifi, the bundle is just the internal CA (degraded but functional)."""
-        with patch("aignostics_foundry_core.otel.find_spec", return_value=None):
-            path = _write_combined_ca_bundle("INTERNAL-CA-PEM")
-        assert pathlib.Path(path).read_text(encoding="utf-8").strip() == "INTERNAL-CA-PEM"
 
     def test_otel_initialize_sets_certificate_default_when_traces_enabled(
         self, monkeypatch: pytest.MonkeyPatch
@@ -388,27 +359,10 @@ class TestOtelExporterCertificateDefault:
             patch(_TRACE_SET_TRACER_PROVIDER),
             patch(_METRICS_SET_METER_PROVIDER),
             patch(_OTEL_INSTRUMENTORS_APPLY),
+            patch("os.path.isfile", return_value=True),
         ):
             otel_initialize()
-        cert_path = os.environ.get(_OTEL_EXPORTER_OTLP_CERTIFICATE)
-        assert cert_path is not None
-        assert _read_bundled_internal_ca().strip() in pathlib.Path(cert_path).read_text(encoding="utf-8")
-
-
-@pytest.mark.unit
-class TestUnlinkQuietly:
-    """Behavioural tests for _unlink_quietly()."""
-
-    def test_removes_existing_file(self, tmp_path: pathlib.Path) -> None:
-        """Removes a file that exists."""
-        target = tmp_path / "bundle.pem"
-        target.write_text("x", encoding="utf-8")
-        _unlink_quietly(str(target))
-        assert not target.exists()
-
-    def test_ignores_missing_file(self, tmp_path: pathlib.Path) -> None:
-        """Silently ignores a path that is already gone (must not raise)."""
-        _unlink_quietly(str(tmp_path / "does-not-exist.pem"))
+        assert os.environ.get(_OTEL_EXPORTER_OTLP_CERTIFICATE) == _OS_CA_BUNDLE_PATH
 
 
 @pytest.mark.integration

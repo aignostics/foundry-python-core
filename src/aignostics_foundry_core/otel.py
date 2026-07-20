@@ -38,23 +38,31 @@ unconditionally). Pass ``instrumentors=[]`` to opt out, or a project-built
 list (mirroring how ``constants.py`` builds ``SENTRY_INTEGRATIONS``) to opt
 into more.
 
-``OTEL_EXPORTER_OTLP_CERTIFICATE`` also defaults to a combined CA bundle
-(certifi's system roots plus the fleet's internal ``aignx-ca-root-authority``,
-which isn't a publicly trusted root), since the OTel gateway's TLS-facing
-endpoints are signed by that internal CA. Bundling the system roots alongside
-it keeps a service that redirects ``OTEL_EXPORTER_OTLP_ENDPOINT`` at a
-publicly-signed vendor working too. An explicit value for that env var always
-overrides the default.
+``OTEL_SEMCONV_STABILITY_OPT_IN`` also defaults to ``"http"``, opting HTTP
+instrumentation into the stable semantic conventions instead of the old,
+experimental ones both ``HTTPXClientInstrumentor`` and ``FastAPIInstrumentor``
+still default to — the old conventions name a span after the literal request
+path (unbounded cardinality for any route with a path parameter), the stable
+ones require a low-cardinality route template instead.
+
+``OTEL_EXPORTER_OTLP_CERTIFICATE`` also defaults to the OS's CA bundle, if
+present (falling back to certifi's bundle otherwise), since the OTel
+gateway's TLS-facing endpoints are signed by the fleet's internal
+``aignx-ca-root-authority`` CA, not a publicly trusted root. The Foundry
+Cloud Run Dockerfile installs that CA into the OS trust store via
+``update-ca-certificates``, merging it with the distro's own roots into one
+file — pointing at that file (rather than assembling a bundle here) keeps
+trust independent of any one language/library, and still works for a
+service that redirects ``OTEL_EXPORTER_OTLP_ENDPOINT`` at a publicly-signed
+vendor. An explicit value for either env var always overrides the default.
 """
 
 from __future__ import annotations
 
 import atexit
-import contextlib
 import logging
 import os
 import pathlib
-import tempfile
 from importlib.util import find_spec
 from typing import TYPE_CHECKING, Annotated, Any
 
@@ -79,6 +87,16 @@ if TYPE_CHECKING:
 _OTEL_EXPORTER_OTLP_ENDPOINT = "OTEL_EXPORTER_OTLP_ENDPOINT"
 _OTEL_EXPORTER_OTLP_CERTIFICATE = "OTEL_EXPORTER_OTLP_CERTIFICATE"
 _OTEL_SERVICE_NAME = "OTEL_SERVICE_NAME"
+_OTEL_SEMCONV_STABILITY_OPT_IN = "OTEL_SEMCONV_STABILITY_OPT_IN"
+
+# Opts HTTP instrumentation (HTTPXClientInstrumentor, FastAPIInstrumentor) into the stable
+# semantic conventions instead of the old, experimental ones both still default to. The old
+# conventions name a span after the literal request path (e.g. "GET /items/42" — unbounded
+# cardinality for any route with a path parameter); the stable conventions require a
+# low-cardinality route template instead (e.g. "GET /items/{item_id}"). "http" opts fully into
+# the new conventions; "http/dup" would emit both old and new attributes side by side for a
+# migration window, which nothing here needs.
+_OTEL_SEMCONV_STABILITY_OPT_IN_DEFAULT = "http"
 
 # The fleet's OTel push-gateway instances (shared-tools, sandbox, ...) serve their
 # HTTPProxy/ingress-facing TLS off certs issued by the internal aignx-ca-root-authority
@@ -86,11 +104,14 @@ _OTEL_SERVICE_NAME = "OTEL_SERVICE_NAME"
 # publicly trusted root. In-cluster GKE consumers avoid this by using the collector's
 # plaintext otlp/insecure:4319 receiver directly; Cloud Run and anything else reaching
 # the gateway through its HTTPProxy over TLS needs this root to validate the connection.
-# Bundled here so every Foundry service trusts it out of the box, with zero config.
-# It's combined with certifi's system roots (not used alone) so redirecting the endpoint
-# at a publicly-signed vendor still works, while OTEL_EXPORTER_OTLP_CERTIFICATE set
-# explicitly always takes precedence — see _default_otlp_certificate_setdefault().
-_OTLP_CA_CERT_RESOURCE = ("aignostics_foundry_core", "certs/aignx-ca-root-authority.pem")
+#
+# The Foundry Cloud Run Dockerfile installs that CA into the OS trust store via
+# update-ca-certificates, which merges it with the distro's own roots into one bundle
+# file at the path below — trusting it is then just a matter of pointing
+# OTEL_EXPORTER_OTLP_CERTIFICATE there, no per-language cert handling needed (see
+# _default_otlp_certificate_setdefault()). Falls back to certifi's bundle (public roots
+# only, no internal CA) when that file isn't present, e.g. running outside the container.
+_OS_CA_BUNDLE_PATH = "/etc/ssl/certs/ca-certificates.crt"
 
 # Logger-name prefixes whose records must never reach the OTLP log sink. opentelemetry's
 # and grpc's own diagnostics arrive at loguru through log.py's root InterceptHandler;
@@ -184,73 +205,32 @@ class OTelSettings(OpaqueSettings):
 
 
 def _default_otlp_certificate_setdefault() -> None:
-    """Default ``OTEL_EXPORTER_OTLP_CERTIFICATE`` to certifi's roots + the internal CA.
+    """Default ``OTEL_EXPORTER_OTLP_CERTIFICATE`` to the OS CA bundle, or certifi's.
 
-    A no-op if the env var is already set (an explicit value, e.g. pointing at a
-    different vendor's endpoint entirely, always wins) or if the bundled cert
-    can't be located (e.g. a packaging problem) — in the latter case this simply
-    logs and lets the exporter's own TLS verification fail with its normal error.
+    A no-op if the env var is already set — an explicit value, e.g. pointing at
+    a different vendor's endpoint entirely, always wins.
 
     ``OTEL_EXPORTER_OTLP_CERTIFICATE`` *replaces* gRPC's trust roots rather than
-    adding to them, so defaulting it to the internal CA alone would break any
-    service that points ``OTEL_EXPORTER_OTLP_ENDPOINT`` at a publicly-signed
-    vendor. The default is therefore a combined bundle (see
-    :func:`_write_combined_ca_bundle`) that trusts both.
+    adding to them, so this needs a bundle that trusts both the internal CA and
+    any public vendor a service might redirect the endpoint to. The Foundry
+    Cloud Run Dockerfile installs the internal CA into the OS trust store,
+    which merges it with the distro's own roots into one file at
+    :data:`_OS_CA_BUNDLE_PATH` — pointing there covers both, with no
+    per-language cert handling needed. Falls back to certifi's bundle (public
+    roots only, no internal CA) when that file isn't present, e.g. running
+    locally outside the container.
     """
     if os.environ.get(_OTEL_EXPORTER_OTLP_CERTIFICATE):
         return
 
-    from importlib.resources import files  # noqa: PLC0415
-
-    package, resource_path = _OTLP_CA_CERT_RESOURCE
-    try:
-        cert = files(package).joinpath(resource_path)
-        if not cert.is_file():
-            return
-        internal_ca_pem = cert.read_text(encoding="utf-8")
-    except ModuleNotFoundError as e:
-        logger.warning("Could not locate bundled OTLP CA certificate, TLS verification may fail: {}", e)
+    if pathlib.Path(_OS_CA_BUNDLE_PATH).is_file():
+        os.environ[_OTEL_EXPORTER_OTLP_CERTIFICATE] = _OS_CA_BUNDLE_PATH
         return
 
-    os.environ[_OTEL_EXPORTER_OTLP_CERTIFICATE] = _write_combined_ca_bundle(internal_ca_pem)
-
-
-def _write_combined_ca_bundle(internal_ca_pem: str) -> str:
-    """Write certifi's system roots followed by the internal CA to a temp file.
-
-    The file lives for the process lifetime — gRPC reads it once at channel
-    creation, which happens later than this during provider setup — and is
-    removed on process exit. Falls back to the internal CA alone if certifi
-    isn't importable (degraded, but no worse than the previous behaviour).
-
-    Args:
-        internal_ca_pem: PEM text of the bundled internal CA root.
-
-    Returns:
-        str: Filesystem path to the combined PEM bundle.
-    """
-    parts = []
     if find_spec("certifi"):
         import certifi  # noqa: PLC0415
 
-        parts.append(pathlib.Path(certifi.where()).read_text(encoding="utf-8"))
-    parts.append(internal_ca_pem)
-
-    fd, path = tempfile.mkstemp(prefix="otel-ca-bundle-", suffix=".pem")
-    with os.fdopen(fd, "w", encoding="utf-8") as bundle:
-        bundle.write("\n".join(part.strip() for part in parts) + "\n")
-    atexit.register(_unlink_quietly, path)
-    return path
-
-
-def _unlink_quietly(path: str) -> None:
-    """Remove ``path``, ignoring the case where it's already gone.
-
-    Args:
-        path: Filesystem path to remove.
-    """
-    with contextlib.suppress(OSError):
-        pathlib.Path(path).unlink()
+        os.environ[_OTEL_EXPORTER_OTLP_CERTIFICATE] = certifi.where()
 
 
 def default_otel_instrumentors() -> list[BaseInstrumentor]:
@@ -394,6 +374,7 @@ def otel_initialize(
         return False
 
     os.environ.setdefault(_OTEL_SERVICE_NAME, ctx.name)
+    os.environ.setdefault(_OTEL_SEMCONV_STABILITY_OPT_IN, _OTEL_SEMCONV_STABILITY_OPT_IN_DEFAULT)
     _default_otlp_certificate_setdefault()
 
     from opentelemetry.sdk.resources import Resource  # noqa: PLC0415

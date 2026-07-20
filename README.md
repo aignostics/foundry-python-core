@@ -186,8 +186,9 @@ the SDK reads itself — not project-prefixed settings:
 |---|---|---|
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | OTLP/gRPC collector endpoint. **Required** — export is skipped if unset. |
 | `OTEL_SERVICE_NAME` | project name | Service name attached to all telemetry. Defaults to the `FoundryContext` name. |
-| `OTEL_EXPORTER_OTLP_CERTIFICATE` | bundled CA bundle | CA file for the exporter's TLS. Defaults to certifi's system roots plus the fleet's internal CA (so the internal gateway and public vendors both verify); set explicitly to override. |
+| `OTEL_EXPORTER_OTLP_CERTIFICATE` | OS CA bundle, else certifi's | CA file for the exporter's TLS. The Foundry Cloud Run Dockerfile installs the fleet's internal CA into the OS trust store, so this defaults to that bundle (falls back to certifi's public-roots-only bundle if it isn't present, e.g. running locally); set explicitly to override. |
 | `OTEL_RESOURCE_ATTRIBUTES` | unset | Extra resource attributes, comma-separated `key=value` pairs. |
+| `OTEL_SEMCONV_STABILITY_OPT_IN` | `http` | Opts HTTP instrumentation into the stable semantic conventions (low-cardinality route-template span names) instead of the old, experimental ones. |
 
 Process-level tracing/metrics/logs are set up by `boot()`. `boot()` also applies default
 auto-instrumentors (HTTPX, SQLAlchemy) when traces are enabled — override via
