@@ -14,7 +14,7 @@ Implementation PRs:
 
 - [gitops#3459](https://github.com/aignostics/gitops/pull/3459) — `aignx-otel-gateway` instance on `shared-tools`, Contour `HTTPProxy`, `k8sAttributes.enabled` toggle.
 - [foundry-python-core#96](https://github.com/aignostics/foundry-python-core/pull/96) — `otel_initialize()` in `aignostics_foundry_core.otel`, wired into `boot()`; `instrument_fastapi()` applied automatically by `init_api()`.
-- [foundry-python#385](https://github.com/aignostics/foundry-python/pull/385) — unconditional Direct VPC egress in the generated Cloud Run manifest/deploy workflow.
+- [foundry-python#385](https://github.com/aignostics/foundry-python/pull/385) — unconditional Direct VPC egress in the generated Cloud Run manifest/deploy workflow; installs the fleet's internal CA into the OS trust store via the generated Dockerfile.
 - [foundry-infrastructure#10](https://github.com/aignostics/foundry-infrastructure/pull/10) — unconditional `vpc_network`/`vpc_subnetwork` placeholders in `project.hcl`, companion fix for foundry-python#385.
 
 ## Context
