@@ -163,6 +163,40 @@ set.
 | `{PREFIX}SENTRY_PROFILE_LIFECYCLE` | `"trace"` | Profile lifecycle mode: `"trace"` or `"manual"`. |
 | `{PREFIX}SENTRY_ENABLE_LOGS` | `true` | Forward log records to Sentry. |
 
+#### OpenTelemetry (`{PREFIX}OTEL_`)
+
+Settings class: `OTelSettings`. OpenTelemetry is only initialised when `ENABLED=true` **and** the
+standard `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Each signal is then independently toggleable —
+traces and metrics default on, logs off (their volume/cost profile differs). Telemetry is exported
+via OTLP/gRPC, e.g. to the internal OTel gateway backing the
+[Grafana](https://grafana.aignostics.ai/) stack (Tempo/Loki/Prometheus).
+
+| Variable | Default | Description |
+|---|---|---|
+| `{PREFIX}OTEL_ENABLED` | `false` | Master switch for OpenTelemetry export via OTLP. |
+| `{PREFIX}OTEL_TRACES_ENABLED` | `true` | Export traces (once `ENABLED`). |
+| `{PREFIX}OTEL_METRICS_ENABLED` | `true` | Export metrics (once `ENABLED`). |
+| `{PREFIX}OTEL_LOGS_ENABLED` | `false` | Bridge loguru records into OTLP log export (once `ENABLED`). |
+
+Endpoint, service name, and all other exporter behaviour come from the **standard, unprefixed**
+[OpenTelemetry environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/)
+the SDK reads itself — not project-prefixed settings:
+
+| Variable | Default | Description |
+|---|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | OTLP/gRPC collector endpoint. **Required** — export is skipped if unset. |
+| `OTEL_SERVICE_NAME` | project name | Service name attached to all telemetry. Defaults to the `FoundryContext` name. |
+| `OTEL_EXPORTER_OTLP_CERTIFICATE` | bundled CA bundle | CA file for the exporter's TLS. Defaults to certifi's system roots plus the fleet's internal CA (so the internal gateway and public vendors both verify); set explicitly to override. |
+| `OTEL_RESOURCE_ATTRIBUTES` | unset | Extra resource attributes, comma-separated `key=value` pairs. |
+
+Process-level tracing/metrics/logs are set up by `boot()`. `boot()` also applies default
+auto-instrumentors (HTTPX, SQLAlchemy) when traces are enabled — override via
+`boot(otel_instrumentors=[...])`, or pass `[]` to opt out. Request-level FastAPI spans are
+instrumented automatically too: `init_api()` applies `instrument_fastapi()` to the app it builds
+(and to every versioned sub-app) — no explicit call needed. A project that constructs its
+`FastAPI` instance some other way can call `instrument_fastapi(app)` directly, once, after
+construction.
+
 #### Database (`{PREFIX}DB_`)
 
 Settings class: `DatabaseSettings`. Database configuration is only activated when `{PREFIX}DB_URL`

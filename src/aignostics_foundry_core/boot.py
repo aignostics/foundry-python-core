@@ -19,6 +19,7 @@ from loguru import logger
 
 from aignostics_foundry_core.foundry import get_context
 from aignostics_foundry_core.log import logging_initialize
+from aignostics_foundry_core.otel import otel_initialize
 from aignostics_foundry_core.process import get_process_info
 from aignostics_foundry_core.sentry import sentry_initialize
 
@@ -37,6 +38,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from loguru import Record
+    from opentelemetry.instrumentation.instrumentor import BaseInstrumentor
     from sentry_sdk.integrations import Integration
 
     from aignostics_foundry_core.foundry import FoundryContext
@@ -47,6 +49,7 @@ _boot_called = False
 def boot(
     context: FoundryContext | None = None,
     sentry_integrations: list[Integration] | None = None,
+    otel_instrumentors: list[BaseInstrumentor] | None = None,
     log_filter: Callable[[Record], bool] | None = None,
     show_cmdline: bool = True,
 ) -> None:
@@ -61,8 +64,10 @@ def boot(
     2. Initialise loguru logging via :func:`~aignostics_foundry_core.log.logging_initialize`.
     3. Amend the SSL trust chain with *truststore* and *certifi*.
     4. Initialise Sentry via :func:`~aignostics_foundry_core.sentry.sentry_initialize`.
-    5. Log a boot message with version, PID, and process information.
-    6. Register an atexit shutdown message.
+    5. Initialise OpenTelemetry via :func:`~aignostics_foundry_core.otel.otel_initialize`.
+    6. Log a boot message with version, PID, process information, and whether
+       Sentry/OpenTelemetry actually initialised.
+    7. Register an atexit shutdown message.
 
     Args:
         context: :class:`~aignostics_foundry_core.foundry.FoundryContext` providing
@@ -72,6 +77,11 @@ def boot(
             is used.
         sentry_integrations: List of Sentry SDK integrations to register, or
             ``None`` to skip Sentry initialisation.
+        otel_instrumentors: List of OTel ``BaseInstrumentor`` instances to apply
+            (e.g. ``SQLAlchemyInstrumentor``), forwarded to
+            :func:`~aignostics_foundry_core.otel.otel_initialize`. ``None`` (the
+            default) uses that function's own best-practice defaults
+            (currently ``HTTPXClientInstrumentor``); pass ``[]`` to opt out.
         log_filter: Optional loguru filter callable forwarded to
             :func:`~aignostics_foundry_core.log.logging_initialize`.
         show_cmdline: Whether to include the process command line in the
@@ -86,11 +96,17 @@ def boot(
     _parse_env_args(ctx.name)
     logging_initialize(filter_func=log_filter, context=ctx)
     _amend_ssl_trust_chain()
-    sentry_initialize(
+    sentry_initialized = sentry_initialize(
         integrations=sentry_integrations,
         context=ctx,
     )
-    _log_boot_message(context=ctx, show_cmdline=show_cmdline)
+    otel_initialized = otel_initialize(context=ctx, instrumentors=otel_instrumentors)
+    _log_boot_message(
+        context=ctx,
+        show_cmdline=show_cmdline,
+        sentry_initialized=sentry_initialized,
+        otel_initialized=otel_initialized,
+    )
     _register_shutdown_message(project_name=ctx.name, version=ctx.version)
     logger.trace("Boot sequence completed successfully.")
 
@@ -158,6 +174,8 @@ def _amend_ssl_trust_chain() -> None:
 def _log_boot_message(
     context: FoundryContext,
     show_cmdline: bool = True,
+    sentry_initialized: bool = False,
+    otel_initialized: bool = False,
 ) -> None:
     """Log a boot message including version, PID, and parent process info.
 
@@ -165,13 +183,18 @@ def _log_boot_message(
         context: Project context supplying name, version, library mode flag, and
             project root path.
         show_cmdline: Whether to append the process command line.
+        sentry_initialized: Whether :func:`~aignostics_foundry_core.sentry.sentry_initialize`
+            actually initialised Sentry (``False`` if disabled or misconfigured).
+        otel_initialized: Whether :func:`~aignostics_foundry_core.otel.otel_initialize`
+            actually initialised OpenTelemetry (``False`` if disabled or misconfigured).
     """
     process_info = get_process_info(context=context)
     mode_suffix = ", library-mode" if context.is_library else ""
     message = (
         f"⭐ Booting {context.name} v{context.version} "
         f"(project root {process_info.project_root}, pid {process_info.pid}), "
-        f"parent '{process_info.parent.name}' (pid {process_info.parent.pid}){mode_suffix}"
+        f"parent '{process_info.parent.name}' (pid {process_info.parent.pid}){mode_suffix}, "
+        f"sentry: {'on' if sentry_initialized else 'off'}, otel: {'on' if otel_initialized else 'off'}"
     )
     if show_cmdline and process_info.cmdline:
         cmdline_str = " ".join(process_info.cmdline)

@@ -368,3 +368,44 @@ def test_init_api_without_versions_unchanged() -> None:
 
     mount_routes = [r for r in app.routes if isinstance(r, Mount)]
     assert mount_routes == []
+
+
+@pytest.mark.unit
+def test_init_api_instruments_root_app(monkeypatch: pytest.MonkeyPatch) -> None:
+    """init_api applies OTel FastAPI instrumentation to the root app it returns."""
+    from unittest.mock import MagicMock
+
+    from aignostics_foundry_core.api.core import init_api
+
+    mock_instrument = MagicMock(return_value=True)
+    monkeypatch.setattr("aignostics_foundry_core.otel.instrument_fastapi", mock_instrument)
+
+    app = init_api()
+
+    mock_instrument.assert_called_once_with(app)
+
+
+@pytest.mark.unit
+def test_init_api_instruments_versioned_apps(monkeypatch: pytest.MonkeyPatch) -> None:
+    """init_api applies OTel FastAPI instrumentation to every versioned sub-app, not just root."""
+    from typing import Any
+    from unittest.mock import MagicMock, call
+
+    from fastapi import FastAPI
+
+    import aignostics_foundry_core.api.core as core_module
+    from aignostics_foundry_core.api.core import init_api
+
+    stub_v1 = FastAPI()
+    stub_v2 = FastAPI()
+
+    def fake_get_versioned(versions: list[str], **_: Any) -> dict[str, FastAPI]:  # noqa: ANN401
+        return {VERSION_V1: stub_v1, VERSION_V2: stub_v2}
+
+    monkeypatch.setattr(core_module, "get_versioned_api_instances", fake_get_versioned)
+    mock_instrument = MagicMock(return_value=True)
+    monkeypatch.setattr("aignostics_foundry_core.otel.instrument_fastapi", mock_instrument)
+
+    app = init_api(versions=[VERSION_V1, VERSION_V2])
+
+    assert mock_instrument.call_args_list == [call(stub_v1), call(stub_v2), call(app)]

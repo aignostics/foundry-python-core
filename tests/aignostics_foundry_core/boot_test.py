@@ -113,3 +113,24 @@ def test_boot_explicit_context_overrides_global(monkeypatch: pytest.MonkeyPatch)
 
     call_ctx = mock_sentry.call_args.kwargs["context"]
     assert call_ctx.name == _OTHER_PROJECT
+
+
+@pytest.mark.unit
+def test_boot_forwards_otel_instrumentors_to_otel_initialize(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An explicit otel_instrumentors list is forwarded to otel_initialize()."""
+    monkeypatch.setattr(boot_mod, "_boot_called", False)
+    monkeypatch.setattr(boot_mod, "logging_initialize", MagicMock())
+    monkeypatch.setattr(boot_mod, "sentry_initialize", MagicMock(return_value=False))
+    mock_otel = MagicMock(return_value=False)
+    monkeypatch.setattr(boot_mod, "otel_initialize", mock_otel)
+    monkeypatch.setattr(boot_mod, "truststore", None)
+    monkeypatch.setattr(boot_mod, "certifi", None)
+
+    sentinel_instrumentors = [MagicMock()]
+    boot_mod.boot(
+        context=make_context(),
+        sentry_integrations=None,
+        otel_instrumentors=sentinel_instrumentors,  # pyright: ignore[reportArgumentType]
+    )
+
+    assert mock_otel.call_args.kwargs["instrumentors"] is sentinel_instrumentors

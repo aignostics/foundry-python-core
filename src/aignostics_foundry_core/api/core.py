@@ -449,12 +449,20 @@ def init_api(
             app.
         **fastapi_kwargs: Extra keyword arguments forwarded to ``FastAPI()``.
 
+    Instruments the returned app (and every versioned sub-app, since Starlette
+    dispatches a mounted sub-app's requests through its own middleware stack,
+    not the root's) for request-level OTel tracing via
+    :func:`~aignostics_foundry_core.otel.instrument_fastapi`. No-op if
+    OpenTelemetry FastAPI instrumentation isn't installed.
+
     Returns:
         A configured ``FastAPI`` instance.
     """
     from fastapi import FastAPI  # noqa: PLC0415
     from fastapi.exceptions import RequestValidationError  # noqa: PLC0415
     from pydantic import ValidationError  # noqa: PLC0415
+
+    from aignostics_foundry_core.otel import instrument_fastapi  # noqa: PLC0415
 
     api = FastAPI(root_path=root_path, lifespan=lifespan, **fastapi_kwargs)
 
@@ -484,6 +492,8 @@ def init_api(
                 exc_class_or_status_code=ValidationError, handler=validation_exception_handler
             )
             version_app.add_exception_handler(exc_class_or_status_code=Exception, handler=unhandled_exception_handler)
+            instrument_fastapi(version_app)
             api.mount(f"/{version_name}", version_app)
 
+    instrument_fastapi(api)
     return api
