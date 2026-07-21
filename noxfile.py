@@ -92,10 +92,7 @@ def audit(session: nox.Session) -> None:
     _setup_venv(session, True)
 
     # pip-audit to check for vulnerabilities
-    ignore_vulns = [
-        "CVE-2026-3219",  # No fix for pip yet
-        "CVE-2026-4539",  # No fix for pygments yet (GHSA-5239-wwwm-4pmq, ReDoS in AdlLexer, low severity)
-    ]
+    ignore_vulns: list[str] = []
     try:
         session.run(
             "pip-audit",
