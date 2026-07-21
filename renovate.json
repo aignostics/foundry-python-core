@@ -6,6 +6,7 @@
   "minimumReleaseAge": "14 days",
   "automerge": true,
   "automergeType": "pr",
+  "prCreation": "not-pending",
   "internalChecksFilter": "strict",
   "platformAutomerge": "true",
   "labels": ["bot", "renovate", "dependencies", "skip:codecov"],
