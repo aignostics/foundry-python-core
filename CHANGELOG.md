@@ -1,3 +1,15 @@
+## v0.16.0 (2026-07-21)
+
+### Feat
+
+- **otel**: add OpenTelemetry tracing, metrics, and log export support ([848e396](https://github.com/aignostics/foundry-python-core/commit/848e3962a26ea2f6985cd3220e2fad6d965ec945))
+
+### Fix
+
+- **otel**: patch pathlib.Path.is_file, not os.path.isfile, in cert default tests ([2f92818](https://github.com/aignostics/foundry-python-core/commit/2f9281814bb9c9aab80582565489a6558677c504))
+- **otel**: default semconv stability opt-in, move CA trust to the OS ([8e83561](https://github.com/aignostics/foundry-python-core/commit/8e8356101f93e9bb5f5f69dce6999dd75301b34a))
+- Upgrade setuptools to fix CVE ([0610197](https://github.com/aignostics/foundry-python-core/commit/06101977ebf16226c04102e0e771b15d1d069cc8))
+
 ## v0.15.3 (2026-06-18)
 
 ### Fix
