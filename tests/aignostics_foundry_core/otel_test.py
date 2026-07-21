@@ -322,7 +322,7 @@ class TestOtelExporterCertificateDefault:
 
     def test_defaults_to_os_ca_bundle_when_present(self) -> None:
         """Points at the OS CA bundle (installed by the Dockerfile) when it exists."""
-        with patch("os.path.isfile", return_value=True):
+        with patch("pathlib.Path.is_file", return_value=True):
             _default_otlp_certificate_setdefault()
         assert os.environ.get(_OTEL_EXPORTER_OTLP_CERTIFICATE) == _OS_CA_BUNDLE_PATH
 
@@ -330,7 +330,7 @@ class TestOtelExporterCertificateDefault:
         """Falls back to certifi's bundle when the OS CA bundle file isn't present."""
         import certifi
 
-        with patch("os.path.isfile", return_value=False):
+        with patch("pathlib.Path.is_file", return_value=False):
             _default_otlp_certificate_setdefault()
         assert os.environ.get(_OTEL_EXPORTER_OTLP_CERTIFICATE) == certifi.where()
 
@@ -343,7 +343,7 @@ class TestOtelExporterCertificateDefault:
     def test_leaves_unset_when_neither_os_bundle_nor_certifi_present(self) -> None:
         """Doesn't set the env var if neither the OS bundle nor certifi is available."""
         with (
-            patch("os.path.isfile", return_value=False),
+            patch("pathlib.Path.is_file", return_value=False),
             patch("aignostics_foundry_core.otel.find_spec", return_value=None),
         ):
             _default_otlp_certificate_setdefault()
@@ -359,7 +359,7 @@ class TestOtelExporterCertificateDefault:
             patch(_TRACE_SET_TRACER_PROVIDER),
             patch(_METRICS_SET_METER_PROVIDER),
             patch(_OTEL_INSTRUMENTORS_APPLY),
-            patch("os.path.isfile", return_value=True),
+            patch("pathlib.Path.is_file", return_value=True),
         ):
             otel_initialize()
         assert os.environ.get(_OTEL_EXPORTER_OTLP_CERTIFICATE) == _OS_CA_BUNDLE_PATH
