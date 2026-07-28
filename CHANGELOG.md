@@ -1,3 +1,9 @@
+## v0.16.1 (2026-07-28)
+
+### Fix
+
+- **log**: preserve loguru context in stdlib intercept ([ebdee11](https://github.com/aignostics/foundry-python-core/commit/ebdee1174ab431ed7a1fbead9d6a5615d73df5c7))
+
 ## v0.16.0 (2026-07-21)
 
 ### Feat
