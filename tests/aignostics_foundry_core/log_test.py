@@ -3,6 +3,7 @@
 import logging as stdlib_logging
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from pydantic import ValidationError
@@ -10,12 +11,19 @@ from pydantic import ValidationError
 from aignostics_foundry_core.log import InterceptHandler, LogSettings, logging_initialize
 from tests.conftest import TEST_PROJECT_PREFIX
 
+if TYPE_CHECKING:
+    from loguru import Message
+
 _MARKER_MESSAGE = "log_test_unique_marker_4f2a"
 _STDLIB_MESSAGE = "stdlib_redirect_unique_marker_9b3c"
 _FILE_HANDLER_MARKER = "file_handler_unique_marker_7e9b"
 _FILTER_MARKER = "filter_func_unique_marker_3d5f"
 _REPLACE_MARKER = "replace_handlers_unique_marker_8c1a"
 _SENTRY_MARKER = "sentry.io unique drop marker 2f4e"
+_CONTEXTUALIZE_JOB_ID = "test_job_id_context_8f3c"
+_CONTEXTUALIZE_MARKER = "contextualize_intercept_marker_6d2e"
+_PARITY_NATIVE_MARKER = "parity_native_loguru_4b7a"
+_PARITY_STDLIB_MARKER = "parity_stdlib_intercept_9c1f"
 
 
 @pytest.mark.sequential
@@ -116,6 +124,73 @@ class TestLoggingInitialize:
 
         logger.info(_MARKER_MESSAGE)
         assert _MARKER_MESSAGE not in capsys.readouterr().err
+
+    def test_intercept_handler_preserves_contextualize_extra(self) -> None:
+        """Stdlib log emitted inside logger.contextualize() carries the bound context fields."""
+        from loguru import logger
+
+        logging_initialize()
+        records: list[Any] = []
+
+        def capture(message: "Message") -> None:
+            records.append(message.record)
+
+        sink_id = logger.add(capture, level="DEBUG")
+        try:
+            with logger.contextualize(job_id=_CONTEXTUALIZE_JOB_ID):
+                stdlib_logging.getLogger("test.ctx.intercept").warning(_CONTEXTUALIZE_MARKER)
+        finally:
+            logger.remove(sink_id)
+
+        intercepted = [r for r in records if _CONTEXTUALIZE_MARKER in r["message"]]
+        assert intercepted, "No intercepted record captured"
+        assert intercepted[0]["extra"]["job_id"] == _CONTEXTUALIZE_JOB_ID
+
+    def test_intercept_handler_preserves_base_context_extra(self) -> None:
+        """Intercepted stdlib records retain base-config keys set by logging_initialize()."""
+        from loguru import logger
+
+        logging_initialize()
+        records: list[Any] = []
+
+        def capture(message: "Message") -> None:
+            records.append(message.record)
+
+        sink_id = logger.add(capture, level="DEBUG")
+        try:
+            with logger.contextualize(job_id=_CONTEXTUALIZE_JOB_ID):
+                stdlib_logging.getLogger("test.ctx.base").warning(_CONTEXTUALIZE_MARKER)
+        finally:
+            logger.remove(sink_id)
+
+        intercepted = [r for r in records if _CONTEXTUALIZE_MARKER in r["message"]]
+        assert intercepted, "No intercepted record captured"
+        assert "project_name" in intercepted[0]["extra"]
+        assert "version" in intercepted[0]["extra"]
+
+    def test_intercept_handler_extra_matches_native_loguru(self) -> None:
+        """Native loguru and intercepted stdlib lines share the same context fields."""
+        from loguru import logger
+
+        logging_initialize()
+        records: list[Any] = []
+
+        def capture(message: "Message") -> None:
+            records.append(message.record)
+
+        sink_id = logger.add(capture, level="DEBUG")
+        try:
+            with logger.contextualize(job_id=_CONTEXTUALIZE_JOB_ID):
+                logger.warning(_PARITY_NATIVE_MARKER)
+                stdlib_logging.getLogger("test.ctx.parity").warning(_PARITY_STDLIB_MARKER)
+        finally:
+            logger.remove(sink_id)
+
+        native = [r for r in records if _PARITY_NATIVE_MARKER in r["message"]]
+        stdlib = [r for r in records if _PARITY_STDLIB_MARKER in r["message"]]
+        assert native, "No native loguru record captured"
+        assert stdlib, "No intercepted stdlib record captured"
+        assert native[0]["extra"]["job_id"] == stdlib[0]["extra"]["job_id"] == _CONTEXTUALIZE_JOB_ID
 
 
 @pytest.mark.unit

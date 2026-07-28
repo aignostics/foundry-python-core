@@ -74,7 +74,19 @@ def _validate_file_name(file_name: str | None) -> str | None:
 
 
 class InterceptHandler(logging.Handler):
-    """Stdlib logging handler that redirects all records to loguru."""
+    """Stdlib logging handler that redirects all records to loguru.
+
+    Context propagation: loguru's ``contextualize()`` variables are carried
+    across ``await`` boundaries and into ``asyncio.to_thread`` workers (which
+    copies the contextvars context automatically).  They are **not** propagated
+    into bare ``threading.Thread`` or ``ThreadPoolExecutor`` workers — libraries
+    that self-spawn threads must copy the context explicitly.
+
+    Extra merge semantics: the intercepted stdlib record's own ``extra`` dict
+    (set via ``logging.getLogger(...).warning(msg, extra={...})``) is merged on
+    top of loguru's assembled context with ``.update()``, so log-site intent
+    wins on the rare key collision between stdlib ``extra`` and ambient context.
+    """
 
     def emit(self, record: logging.LogRecord) -> None:  # noqa: PLR6301
         """Emit a log record by forwarding it to loguru.
@@ -94,7 +106,7 @@ class InterceptHandler(logging.Handler):
         # Patch the record to use the original logger name, function, and line from standard logging
         def patcher(record_dict: "Record") -> None:
             record_dict["module"] = record.module
-            record_dict["extra"] = record.__dict__.get("extra", {})
+            record_dict["extra"].update(record.__dict__.get("extra", {}))
             if record.processName and record.process:
                 record_dict["process"].id = record.process
                 record_dict["process"].name = record.processName
