@@ -88,7 +88,7 @@ class InterceptHandler(logging.Handler):
     wins on the rare key collision between stdlib ``extra`` and ambient context.
     """
 
-    def emit(self, record: logging.LogRecord) -> None:  # noqa: PLR6301
+    def emit(self, record: logging.LogRecord) -> None:  # ruff: ignore[no-self-use]
         """Emit a log record by forwarding it to loguru.
 
         Args:
@@ -142,7 +142,7 @@ class LogSettings(BaseSettings):
         env_file_encoding="utf-8",
     )
 
-    def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
+    def __init__(self, **kwargs: Any) -> None:  # ruff: ignore[any-type]
         """Initialise settings, deriving env_prefix from the active FoundryContext."""
         super().__init__(_env_prefix=f"{get_context().env_prefix}LOG_", **kwargs)  # pyright: ignore[reportCallIssue]
 

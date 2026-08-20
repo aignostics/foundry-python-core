@@ -492,7 +492,7 @@ class TestMakeOtelLogSink:
         sink = _make_otel_log_sink(handler)
         error_message = "boom"
         try:
-            raise ValueError(error_message)  # noqa: TRY301
+            raise ValueError(error_message)  # ruff: ignore[raise-within-try]
         except ValueError:
             exc_type, exc_value, exc_tb = sys.exc_info()
             exception = MagicMock(type=exc_type, value=exc_value, traceback=exc_tb)

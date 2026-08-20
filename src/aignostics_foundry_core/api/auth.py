@@ -103,7 +103,7 @@ class AuthSettings(OpaqueSettings):
     internal_org_id: Annotated[str, StringConstraints(max_length=255, strip_whitespace=True)] = Field(default="")
     role_claim: Annotated[str, StringConstraints(max_length=255, strip_whitespace=True)] = Field(default="")
 
-    def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
+    def __init__(self, **kwargs: Any) -> None:  # ruff: ignore[any-type]
         """Initialise settings, deriving env_prefix and env files from the active FoundryContext."""
         ctx = get_context()
         super().__init__(_env_prefix=f"{ctx.env_prefix}AUTH_", _env_file=ctx.env_file, **kwargs)  # pyright: ignore[reportCallIssue]
@@ -354,7 +354,7 @@ async def _validate_jwt(token: str, auth_settings: AuthSettings) -> dict[str, An
             issuer=f"https://{auth_settings.domain}/",
         )
         return payload
-    except Exception:  # noqa: BLE001
+    except Exception:  # ruff: ignore[blind-except]
         logger.debug("JWT validation failed")
         return None
 
@@ -617,7 +617,7 @@ async def get_user(
     try:
         auth_client = get_auth_client(request)
         session: dict = await auth_client.require_session(request, Response())  # type: ignore[reportUnknownVariableType]
-    except Exception:  # noqa: BLE001
+    except Exception:  # ruff: ignore[blind-except]
         msg = "No session found"
         logger.debug(msg)
         return None

@@ -58,7 +58,7 @@ class DatabaseSettings(OpaqueSettings):
         self,
         _env_prefix: str | None = None,
         _env_file: list[Path] | None = None,
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,  # ruff: ignore[any-type]
     ) -> None:
         """Initialise settings, deriving env prefix and env files from the active FoundryContext when not given.
 
@@ -82,7 +82,7 @@ class DatabaseSettings(OpaqueSettings):
             RuntimeError: If both ``_env_prefix`` is absent and no active context is installed.
         """
         if _env_prefix is None or _env_file is None:
-            from aignostics_foundry_core.foundry import get_context  # noqa: PLC0415
+            from aignostics_foundry_core.foundry import get_context  # ruff: ignore[import-outside-top-level]
 
             try:
                 ctx = get_context()
@@ -126,7 +126,7 @@ def _reset_engine_after_fork() -> None:
     This is automatically called by multiprocessing in child processes.
     Registered via multiprocessing.util.register_after_fork() below.
     """
-    global _engine, _async_session_maker  # noqa: PLW0603
+    global _engine, _async_session_maker  # ruff: ignore[global-statement]
 
     logger.trace("Resetting database engine after fork in child process")
     if _engine is not None:
@@ -179,7 +179,7 @@ def _resolve_db_params(
             the context has no ``database`` configured.
     """
     if db_url is None:
-        from aignostics_foundry_core.foundry import get_context  # noqa: PLC0415
+        from aignostics_foundry_core.foundry import get_context  # ruff: ignore[import-outside-top-level]
 
         ctx = get_context()
         if ctx.database is None:
@@ -233,7 +233,7 @@ def init_engine(
         RuntimeError: If ``db_url`` is ``None`` and no context is installed, or the
             context has no ``database`` configured.
     """
-    global _engine, _async_session_maker  # noqa: PLW0603
+    global _engine, _async_session_maker  # ruff: ignore[global-statement]
 
     if _engine is not None:
         logger.trace("Database engine already initialized, reusing existing engine and connection pool.")
@@ -278,7 +278,7 @@ async def dispose_engine() -> None:
     Should only be called during application shutdown (e.g., FastAPI lifespan shutdown).
     NOT to be called after individual jobs - the connection pool should persist.
     """
-    global _engine, _async_session_maker  # noqa: PLW0603
+    global _engine, _async_session_maker  # ruff: ignore[global-statement]
 
     if _engine is not None:
         await _engine.dispose()
@@ -305,10 +305,12 @@ async def get_db_session() -> AsyncGenerator[AsyncSession]:
 
     async with _async_session_maker() as session:
         logger.trace("Providing database session via get_db_session dependency")
-        yield session
+        # FastAPI drives this dependency generator to completion, so the `async with`
+        # cleanup always runs — the ASYNC119 concern does not apply to this idiom.
+        yield session  # ruff: ignore[yield-in-context-manager-in-async-generator]
 
 
-async def execute_with_session(async_func: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+async def execute_with_session(async_func: Any, *args: Any, **kwargs: Any) -> Any:  # ruff: ignore[any-type]
     """Execute an async function with a database session.
 
     This is a helper for executing async database functions outside of the FastAPI request context.
@@ -339,14 +341,14 @@ async def execute_with_session(async_func: Any, *args: Any, **kwargs: Any) -> An
 
 
 def cli_run_with_db(
-    async_func: Any,  # noqa: ANN401
-    *args: Any,  # noqa: ANN401
+    async_func: Any,  # ruff: ignore[any-type]
+    *args: Any,  # ruff: ignore[any-type]
     db_url: str | None = None,
     pool_size: int | None = None,
     pool_max_overflow: int | None = None,
     pool_timeout: float | None = None,
-    **kwargs: Any,  # noqa: ANN401
-) -> Any:  # noqa: ANN401
+    **kwargs: Any,  # ruff: ignore[any-type]
+) -> Any:  # ruff: ignore[any-type]
     """Run an async database function from a synchronous CLI context.
 
     This helper is specifically for CLI commands. It initializes the DB connection using
@@ -370,7 +372,7 @@ def cli_run_with_db(
     Returns:
         The result of the async function.
     """
-    import asyncio  # noqa: PLC0415
+    import asyncio  # ruff: ignore[import-outside-top-level]
 
     logger.trace("Initializing database engine for cli_run_with_db")
     init_engine(db_url=db_url, pool_size=pool_size, pool_max_overflow=pool_max_overflow, pool_timeout=pool_timeout)
@@ -386,14 +388,14 @@ def cli_run_with_db(
 
 
 def cli_run_with_engine(
-    async_func: Any,  # noqa: ANN401
-    *args: Any,  # noqa: ANN401
+    async_func: Any,  # ruff: ignore[any-type]
+    *args: Any,  # ruff: ignore[any-type]
     db_url: str | None = None,
     pool_size: int | None = None,
     pool_max_overflow: int | None = None,
     pool_timeout: float | None = None,
-    **kwargs: Any,  # noqa: ANN401
-) -> Any:  # noqa: ANN401
+    **kwargs: Any,  # ruff: ignore[any-type]
+) -> Any:  # ruff: ignore[any-type]
     """Run an async function with initialized database engine from a synchronous CLI context.
 
     This helper is specifically for CLI commands. It initializes the DB engine using
@@ -417,7 +419,7 @@ def cli_run_with_engine(
     Returns:
         The result of the async function.
     """
-    import asyncio  # noqa: PLC0415
+    import asyncio  # ruff: ignore[import-outside-top-level]
 
     logger.trace("Initializing database engine for cli_run_with_engine")
     init_engine(db_url=db_url, pool_size=pool_size, pool_max_overflow=pool_max_overflow, pool_timeout=pool_timeout)
@@ -432,13 +434,13 @@ def cli_run_with_engine(
 
 
 def with_engine(
-    func: Any | None = None,  # noqa: ANN401
+    func: Any | None = None,  # ruff: ignore[any-type]
     *,
     db_url: str | None = None,
     pool_size: int | None = None,
     pool_max_overflow: int | None = None,
     pool_timeout: float | None = None,
-) -> Any:  # noqa: ANN401
+) -> Any:  # ruff: ignore[any-type]
     """Decorator (or decorator factory) to ensure database engine is initialized for async functions.
 
     Supports two calling conventions:
@@ -479,12 +481,12 @@ def with_engine(
         async def my_other_job(): ...
     """
 
-    def decorator(f: Any) -> Any:  # noqa: ANN401
+    def decorator(f: Any) -> Any:  # ruff: ignore[any-type]
         func_name = getattr(f, "__name__", str(f))
         logger.trace("Applying with_engine decorator to function {}", func_name)
 
         @functools.wraps(f)
-        async def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:  # ruff: ignore[any-type]
             logger.trace("Initializing database engine in with_engine wrapper for function {}", func_name)
             init_engine(
                 db_url=db_url, pool_size=pool_size, pool_max_overflow=pool_max_overflow, pool_timeout=pool_timeout

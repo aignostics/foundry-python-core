@@ -17,7 +17,7 @@ def _get_console() -> Console:
         Console: The themed rich console.
     """
     try:
-        from aignostics_foundry_core.foundry import get_context  # noqa: PLC0415
+        from aignostics_foundry_core.foundry import get_context  # ruff: ignore[import-outside-top-level]
 
         env_var = f"{get_context().env_prefix}CONSOLE_WIDTH"
         width: int | None = int(os.environ.get(env_var, "0")) or None

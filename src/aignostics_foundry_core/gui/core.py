@@ -66,7 +66,7 @@ def gui_register_pages(*, context: FoundryContext | None = None, frame_func: Fra
             Called as ``frame_func(title, user=user)`` inside the page wrapper.
             When ``None``, pages render without a frame.
     """
-    from .auth import process_page_registry  # noqa: PLC0415
+    from .auth import process_page_registry  # ruff: ignore[import-outside-top-level]
 
     page_builders = locate_subclasses(BasePageBuilder, context=context or get_context())
     for page_builder in page_builders:
@@ -94,7 +94,7 @@ def _mount_fastapi_app(
     fastapi_app: FastAPI,
     auth_router: APIRouter | None,
 ) -> None:
-    from starlette.responses import RedirectResponse  # noqa: PLC0415
+    from starlette.responses import RedirectResponse  # ruff: ignore[import-outside-top-level]
 
     app.mount("/api", fastapi_app)
 
@@ -121,7 +121,7 @@ def _mount_fastapi_app(
         app.state.config = fastapi_app.state.config
 
 
-def gui_run(  # noqa: PLR0913, PLR0917
+def gui_run(  # ruff: ignore[too-many-arguments, too-many-positional-arguments]
     show: bool = False,
     host: str | None = None,
     port: int | None = None,
@@ -161,8 +161,8 @@ def gui_run(  # noqa: PLR0913, PLR0917
             Injected into every page registered via the ``page_*`` registry
             decorators.  Called as ``frame_func(title, user=user)``.
     """
-    from nicegui import app, ui  # noqa: PLC0415
-    from nicegui import native as native_app  # noqa: PLC0415
+    from nicegui import app, ui  # ruff: ignore[import-outside-top-level]
+    from nicegui import native as native_app  # ruff: ignore[import-outside-top-level]
 
     ctx = context or get_context()
 

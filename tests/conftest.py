@@ -84,7 +84,7 @@ def _set_context() -> Generator[None, None, None]:  # pyright: ignore[reportUnus
     reset_context()
 
 
-def make_context(  # noqa: PLR0913
+def make_context(  # ruff: ignore[too-many-arguments]
     name: str = TEST_PROJECT_NAME,
     *,
     env_prefix: str = TEST_PROJECT_PREFIX,

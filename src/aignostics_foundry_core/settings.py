@@ -82,10 +82,10 @@ def load_settings(settings_class: type[_T]) -> _T:
     try:
         return settings_class()
     except ValidationError as e:
-        from rich.panel import Panel  # noqa: PLC0415
-        from rich.text import Text  # noqa: PLC0415
+        from rich.panel import Panel  # ruff: ignore[import-outside-top-level]
+        from rich.text import Text  # ruff: ignore[import-outside-top-level]
 
-        from aignostics_foundry_core.console import console  # noqa: PLC0415
+        from aignostics_foundry_core.console import console  # ruff: ignore[import-outside-top-level]
 
         errors = e.errors()
         text = Text()

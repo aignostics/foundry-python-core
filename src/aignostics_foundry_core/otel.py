@@ -163,7 +163,7 @@ class OTelSettings(OpaqueSettings):
         extra="ignore",
     )
 
-    def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
+    def __init__(self, **kwargs: Any) -> None:  # ruff: ignore[any-type]
         """Initialise settings, deriving env_prefix from the active FoundryContext."""
         super().__init__(_env_prefix=f"{get_context().env_prefix}OTEL_", **kwargs)  # pyright: ignore[reportCallIssue]
 
@@ -228,7 +228,7 @@ def _default_otlp_certificate_setdefault() -> None:
         return
 
     if find_spec("certifi"):
-        import certifi  # noqa: PLC0415
+        import certifi  # ruff: ignore[import-outside-top-level]
 
         os.environ[_OTEL_EXPORTER_OTLP_CERTIFICATE] = certifi.where()
 
@@ -266,12 +266,16 @@ def default_otel_instrumentors() -> list[BaseInstrumentor]:
     # Each instrumentation package depends on its target library, so its own presence is
     # a sufficient gate — no need to separately probe httpx/sqlalchemy.
     if find_spec("opentelemetry.instrumentation.httpx"):
-        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor  # noqa: PLC0415
+        from opentelemetry.instrumentation.httpx import (  # ruff: ignore[import-outside-top-level]
+            HTTPXClientInstrumentor,
+        )
 
         instrumentors.append(HTTPXClientInstrumentor())
 
     if find_spec("opentelemetry.instrumentation.sqlalchemy"):
-        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor  # noqa: PLC0415
+        from opentelemetry.instrumentation.sqlalchemy import (  # ruff: ignore[import-outside-top-level]
+            SQLAlchemyInstrumentor,
+        )
 
         instrumentors.append(SQLAlchemyInstrumentor())
 
@@ -287,7 +291,7 @@ def _gcp_resource_detect() -> Resource:
     Returns:
         Resource: The detected attributes, empty if not running on GCP.
     """
-    from opentelemetry.resourcedetector.gcp_resource_detector import (  # noqa: PLC0415
+    from opentelemetry.resourcedetector.gcp_resource_detector import (  # ruff: ignore[import-outside-top-level]
         GoogleCloudResourceDetector,
     )
 
@@ -308,7 +312,7 @@ def _drop_high_cardinality_resource_attrs(resource: Resource) -> Resource:
     Returns:
         Resource: A copy with the high-cardinality keys removed, same schema_url.
     """
-    from opentelemetry.sdk.resources import Resource  # noqa: PLC0415
+    from opentelemetry.sdk.resources import Resource  # ruff: ignore[import-outside-top-level]
 
     filtered = {k: v for k, v in resource.attributes.items() if k not in _HIGH_CARDINALITY_RESOURCE_ATTRS}
     return Resource(filtered, resource.schema_url)
@@ -377,7 +381,7 @@ def otel_initialize(
     os.environ.setdefault(_OTEL_SEMCONV_STABILITY_OPT_IN, _OTEL_SEMCONV_STABILITY_OPT_IN_DEFAULT)
     _default_otlp_certificate_setdefault()
 
-    from opentelemetry.sdk.resources import Resource  # noqa: PLC0415
+    from opentelemetry.sdk.resources import Resource  # ruff: ignore[import-outside-top-level]
 
     # foundry_service duplicates service.name under an unambiguous label. On metrics
     # (via the gateway's resource_to_telemetry_conversion), service.name lands as
@@ -432,10 +436,12 @@ def _otel_traces_initialize(resource: Resource) -> bool:
             re-initialisation guard skipped setup. The caller uses this to avoid
             re-applying instrumentors against an already-instrumented process.
     """
-    from opentelemetry import trace  # noqa: PLC0415
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter  # noqa: PLC0415
-    from opentelemetry.sdk.trace import TracerProvider  # noqa: PLC0415
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor  # noqa: PLC0415
+    from opentelemetry import trace  # ruff: ignore[import-outside-top-level]
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (  # ruff: ignore[import-outside-top-level]
+        OTLPSpanExporter,
+    )
+    from opentelemetry.sdk.trace import TracerProvider  # ruff: ignore[import-outside-top-level]
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor  # ruff: ignore[import-outside-top-level]
 
     if isinstance(trace.get_tracer_provider(), TracerProvider):
         logger.trace("OTel TracerProvider already registered, skipping re-initialization.")
@@ -479,10 +485,12 @@ def _otel_metrics_initialize(resource: Resource) -> None:
     Args:
         resource: The shared OTel ``Resource`` used by all providers.
     """
-    from opentelemetry import metrics  # noqa: PLC0415
-    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter  # noqa: PLC0415
-    from opentelemetry.sdk.metrics import MeterProvider  # noqa: PLC0415
-    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader  # noqa: PLC0415
+    from opentelemetry import metrics  # ruff: ignore[import-outside-top-level]
+    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (  # ruff: ignore[import-outside-top-level]
+        OTLPMetricExporter,
+    )
+    from opentelemetry.sdk.metrics import MeterProvider  # ruff: ignore[import-outside-top-level]
+    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader  # ruff: ignore[import-outside-top-level]
 
     if isinstance(metrics.get_meter_provider(), MeterProvider):
         logger.trace("OTel MeterProvider already registered, skipping re-initialization.")
@@ -515,13 +523,15 @@ def _otel_logs_initialize(resource: Resource) -> None:
     # opentelemetry-python's logs API is still under a leading-underscore module path
     # even in stable releases (see open-telemetry/opentelemetry-python#3565) — noqa/
     # pyright-ignore below are for that upstream naming, not our own code.
-    from opentelemetry import _logs as logs  # noqa: PLC0415, PLC2701
-    from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter  # noqa: PLC0415, PLC2701
-    from opentelemetry.sdk._logs import (  # noqa: PLC0415, PLC2701
+    from opentelemetry import _logs as logs  # ruff: ignore[import-outside-top-level, import-private-name]
+    from opentelemetry.exporter.otlp.proto.grpc._log_exporter import (  # ruff: ignore[import-outside-top-level, import-private-name]
+        OTLPLogExporter,
+    )
+    from opentelemetry.sdk._logs import (  # ruff: ignore[import-outside-top-level, import-private-name]
         LoggerProvider,  # pyright: ignore[reportPrivateImportUsage]
         LoggingHandler,  # pyright: ignore[reportPrivateImportUsage]
     )
-    from opentelemetry.sdk._logs.export import (  # noqa: PLC0415, PLC2701
+    from opentelemetry.sdk._logs.export import (  # ruff: ignore[import-outside-top-level, import-private-name]
         BatchLogRecordProcessor,  # pyright: ignore[reportPrivateImportUsage]
     )
 
@@ -626,14 +636,14 @@ def instrument_fastapi(app: fastapi.FastAPI) -> bool:
         logger.trace("opentelemetry-instrumentation-fastapi not found, FastAPI instrumentation skipped.")
         return False
 
-    from opentelemetry import trace  # noqa: PLC0415
-    from opentelemetry.sdk.trace import TracerProvider  # noqa: PLC0415
+    from opentelemetry import trace  # ruff: ignore[import-outside-top-level]
+    from opentelemetry.sdk.trace import TracerProvider  # ruff: ignore[import-outside-top-level]
 
     if not isinstance(trace.get_tracer_provider(), TracerProvider):
         logger.trace("No TracerProvider registered, skipping FastAPI instrumentation.")
         return False
 
-    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # noqa: PLC0415
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # ruff: ignore[import-outside-top-level]
 
     FastAPIInstrumentor.instrument_app(app)
     logger.trace("FastAPI instrumentation applied.")

@@ -68,7 +68,7 @@ class VersionedAPIRouter:
         """
         return cls._instances.copy()
 
-    def __new__(cls, version: str, *args: Any, **kwargs: Any) -> Self:  # noqa: ANN401
+    def __new__(cls, version: str, *args: Any, **kwargs: Any) -> Self:  # ruff: ignore[any-type]
         """Create a new instance with lazy-loaded dependencies.
 
         Args:
@@ -79,7 +79,7 @@ class VersionedAPIRouter:
         Returns:
             An instance of VersionedAPIRouter backed by a FastAPI APIRouter.
         """
-        from fastapi import APIRouter  # noqa: PLC0415
+        from fastapi import APIRouter  # ruff: ignore[import-outside-top-level]
 
         class VersionedAPIRouterImpl(APIRouter):
             """Implementation of VersionedAPIRouter with lazy-loaded dependencies."""
@@ -87,7 +87,7 @@ class VersionedAPIRouter:
             version: str
             exception_handlers: list[tuple[type[Exception], Any]]
 
-            def __init__(self, version: str, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+            def __init__(self, version: str, *args: Any, **kwargs: Any) -> None:  # ruff: ignore[any-type]
                 """Initialise the router.
 
                 Args:
@@ -102,7 +102,7 @@ class VersionedAPIRouter:
             def add_exception_handler_registration(
                 self,
                 exc_class: type[Exception],
-                handler: Any,  # noqa: ANN401
+                handler: Any,  # ruff: ignore[any-type]
             ) -> None:
                 """Register an exception handler to be added to the FastAPI app.
 
@@ -163,9 +163,9 @@ def create_authenticated_router(
     Returns:
         A configured APIRouter instance.
     """
-    from fastapi import Depends  # noqa: PLC0415
+    from fastapi import Depends  # ruff: ignore[import-outside-top-level]
 
-    from .auth import require_authenticated  # noqa: PLC0415
+    from .auth import require_authenticated  # ruff: ignore[import-outside-top-level]
 
     actual_prefix = prefix if prefix is not None else f"/{module_tag}"
     tags = [module_tag, API_TAG_AUTHENTICATED] + (extra_tags or [])
@@ -193,9 +193,9 @@ def create_admin_router(
     Returns:
         A configured APIRouter instance.
     """
-    from fastapi import Depends  # noqa: PLC0415
+    from fastapi import Depends  # ruff: ignore[import-outside-top-level]
 
-    from .auth import require_admin  # noqa: PLC0415
+    from .auth import require_admin  # ruff: ignore[import-outside-top-level]
 
     actual_prefix = prefix if prefix is not None else f"/{module_tag}"
     tags = [module_tag, API_TAG_ADMIN] + (extra_tags or [])
@@ -223,9 +223,9 @@ def create_internal_router(
     Returns:
         A configured APIRouter instance.
     """
-    from fastapi import Depends  # noqa: PLC0415
+    from fastapi import Depends  # ruff: ignore[import-outside-top-level]
 
-    from .auth import require_internal  # noqa: PLC0415
+    from .auth import require_internal  # ruff: ignore[import-outside-top-level]
 
     actual_prefix = prefix if prefix is not None else f"/{module_tag}"
     tags = [module_tag, API_TAG_INTERNAL] + (extra_tags or [])
@@ -253,9 +253,9 @@ def create_internal_admin_router(
     Returns:
         A configured APIRouter instance.
     """
-    from fastapi import Depends  # noqa: PLC0415
+    from fastapi import Depends  # ruff: ignore[import-outside-top-level]
 
-    from .auth import require_internal_admin  # noqa: PLC0415
+    from .auth import require_internal_admin  # ruff: ignore[import-outside-top-level]
 
     actual_prefix = prefix if prefix is not None else f"/{module_tag}"
     tags = [module_tag, API_TAG_INTERNAL_ADMIN] + (extra_tags or [])
@@ -283,9 +283,9 @@ def create_internal_superadmin_router(
     Returns:
         A configured APIRouter instance.
     """
-    from fastapi import Depends  # noqa: PLC0415
+    from fastapi import Depends  # ruff: ignore[import-outside-top-level]
 
-    from .auth import require_internal_superadmin  # noqa: PLC0415
+    from .auth import require_internal_superadmin  # ruff: ignore[import-outside-top-level]
 
     actual_prefix = prefix if prefix is not None else f"/{module_tag}"
     tags = [module_tag, API_TAG_INTERNAL_SUPERADMIN] + (extra_tags or [])
@@ -396,7 +396,7 @@ def get_versioned_api_instances(
     Returns:
         Mapping from version name to its configured ``FastAPI`` instance.
     """
-    from fastapi import FastAPI  # noqa: PLC0415
+    from fastapi import FastAPI  # ruff: ignore[import-outside-top-level]
 
     ctx = context or get_context()
     load_modules(context=ctx)
@@ -418,10 +418,10 @@ def get_versioned_api_instances(
 
 def init_api(
     root_path: str = "",
-    lifespan: Any | None = None,  # noqa: ANN401
+    lifespan: Any | None = None,  # ruff: ignore[any-type]
     exception_handler_registrations: list[tuple[type[Exception], Any]] | None = None,
     versions: list[str] | None = None,
-    **fastapi_kwargs: Any,  # noqa: ANN401
+    **fastapi_kwargs: Any,  # ruff: ignore[any-type]
 ) -> FastAPI:
     """Initialise a FastAPI application with standard exception handlers.
 
@@ -458,11 +458,11 @@ def init_api(
     Returns:
         A configured ``FastAPI`` instance.
     """
-    from fastapi import FastAPI  # noqa: PLC0415
-    from fastapi.exceptions import RequestValidationError  # noqa: PLC0415
-    from pydantic import ValidationError  # noqa: PLC0415
+    from fastapi import FastAPI  # ruff: ignore[import-outside-top-level]
+    from fastapi.exceptions import RequestValidationError  # ruff: ignore[import-outside-top-level]
+    from pydantic import ValidationError  # ruff: ignore[import-outside-top-level]
 
-    from aignostics_foundry_core.otel import instrument_fastapi  # noqa: PLC0415
+    from aignostics_foundry_core.otel import instrument_fastapi  # ruff: ignore[import-outside-top-level]
 
     api = FastAPI(root_path=root_path, lifespan=lifespan, **fastapi_kwargs)
 
