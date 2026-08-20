@@ -145,6 +145,13 @@ _LOGURU_TO_STDLIB_LEVEL = {
     "CRITICAL": logging.CRITICAL,
 }
 
+# Attribute names the stdlib logging framework owns on every LogRecord, plus the two it
+# fills in later (``message`` via ``getMessage()``, ``asctime`` via a formatter). Computed
+# from a real LogRecord so it tracks whatever this Python version actually populates.
+_RESERVED_LOG_RECORD_ATTRS = frozenset(
+    logging.LogRecord(name="", level=0, pathname="", lineno=0, msg="", args=None, exc_info=None).__dict__
+) | {"message", "asctime"}
+
 
 class OTelSettings(OpaqueSettings):
     """Configuration settings for OpenTelemetry integration.
@@ -589,18 +596,20 @@ def _make_otel_log_sink(handler: LoggingHandler) -> Callable[[Message], None]:
         if record["exception"] is not None:
             exc = record["exception"]
             exc_info = (exc.type, exc.value, exc.traceback)
-        handler.emit(
-            logging.LogRecord(
-                name=record["name"] or "",
-                level=_LOGURU_TO_STDLIB_LEVEL.get(record["level"].name, logging.INFO),
-                pathname=record["file"].path,
-                lineno=record["line"],
-                msg=record["message"],
-                args=None,
-                exc_info=exc_info,  # pyright: ignore[reportArgumentType]
-                func=record["function"],
-            )
+        log_record = logging.LogRecord(
+            name=record["name"] or "",
+            level=_LOGURU_TO_STDLIB_LEVEL.get(record["level"].name, logging.INFO),
+            pathname=record["file"].path,
+            lineno=record["line"],
+            msg=record["message"],
+            args=None,
+            exc_info=exc_info,  # pyright: ignore[reportArgumentType]
+            func=record["function"],
         )
+        log_record.__dict__.update({
+            key: value for key, value in record["extra"].items() if key not in _RESERVED_LOG_RECORD_ATTRS
+        })
+        handler.emit(log_record)
 
     return sink
 
