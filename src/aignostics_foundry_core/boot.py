@@ -87,7 +87,7 @@ def boot(
         show_cmdline: Whether to include the process command line in the
             boot log message (default: ``True``).
     """
-    global _boot_called  # noqa: PLW0603
+    global _boot_called  # ruff: ignore[global-statement]
     if _boot_called:
         return
     _boot_called = True

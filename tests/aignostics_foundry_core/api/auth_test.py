@@ -36,12 +36,12 @@ _TEST_ROLE_CLAIM = "https://aignostics-platform-bridge/role"
 _USER_NOT_AUTHENTICATED = "User is not authenticated"
 _USER_SUB = "auth0|x"
 _USER_EMAIL = "x@x.com"
-_TEST_SESSION_SECRET = "test-session-secret"  # noqa: S105
+_TEST_SESSION_SECRET = "test-session-secret"  # ruff: ignore[hardcoded-password-string]
 _TEST_CLIENT_SECRET = "x" * 64
 _TEST_CLIENT_ID = "x" * 32
 _TEST_DOMAIN = "example.auth0.com"
 _TEST_JWT_AUDIENCE = "https://api.example.com"
-_TEST_BEARER_TOKEN = "eyJhbGciOiJSUzI1NiIsImtpZCI6InRlc3QifQ.test.test"  # noqa: S105
+_TEST_BEARER_TOKEN = "eyJhbGciOiJSUzI1NiIsImtpZCI6InRlc3QifQ.test.test"  # ruff: ignore[hardcoded-password-string]
 _TEST_KID = "test-kid"
 _FETCH_JWKS_PATH = "aignostics_foundry_core.api.auth._fetch_jwks"
 

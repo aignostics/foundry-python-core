@@ -81,7 +81,7 @@ def main() -> None:
     if package_name:
         cmd += ["--ignore-packages", package_name]
 
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)  # noqa: S603
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)  # ruff: ignore[subprocess-without-shell-equals-true]
     if result.returncode != 0:
         print(result.stderr, file=sys.stderr)
         sys.exit(result.returncode)

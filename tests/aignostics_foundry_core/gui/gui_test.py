@@ -683,7 +683,7 @@ class TestPageRegistryDecorators:
 
         called: list[bool] = []
 
-        async def my_async_page(user: object) -> None:  # noqa: RUF029
+        async def my_async_page(user: object) -> None:  # ruff: ignore[unused-async]
             called.append(True)
 
         result = page_public(_TEST_PATH)(my_async_page)

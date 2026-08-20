@@ -252,7 +252,7 @@ def _get_vcs_ref_from_git(project_path: Path) -> str:
         return "unknown"
     if content.startswith("ref: refs/heads/"):
         return content[len("ref: refs/heads/") :]
-    if len(content) == 40 and all(c in string.hexdigits for c in content):  # noqa: PLR2004
+    if len(content) == 40 and all(c in string.hexdigits for c in content):  # ruff: ignore[magic-value-comparison]
         return content[:7]
     return "unknown"
 
@@ -410,7 +410,7 @@ def set_context(ctx: FoundryContext) -> None:
     References:
         docs/decisions/0003-project-context-injection.md
     """
-    global _context  # noqa: PLW0603
+    global _context  # ruff: ignore[global-statement]
     _context = ctx
     _inject_third_party_path(ctx.name)
 
@@ -422,7 +422,7 @@ def reset_context() -> None:
     raise :exc:`RuntimeError` again until :func:`set_context` is called.
     Intended for use in test teardown to prevent state leaking between tests.
     """
-    global _context  # noqa: PLW0603
+    global _context  # ruff: ignore[global-statement]
     _context = None
 
 

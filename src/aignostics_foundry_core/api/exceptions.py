@@ -21,7 +21,7 @@ class _HasErrors(Protocol):
     def errors(self) -> list[dict[str, Any]]: ...
 
 
-class ApiException(Exception):  # noqa: N818
+class ApiException(Exception):  # ruff: ignore[error-suffix-on-exception-name]
     """Base exception for API errors."""
 
     status_code = 500
@@ -71,7 +71,7 @@ def api_exception_handler(_: "Request", exc: ApiException) -> "JSONResponse":
     Returns:
         JSONResponse with error details.
     """
-    from fastapi.responses import JSONResponse  # noqa: PLC0415
+    from fastapi.responses import JSONResponse  # ruff: ignore[import-outside-top-level]
 
     return JSONResponse(
         status_code=exc.status_code,
@@ -95,8 +95,8 @@ def unhandled_exception_handler(_: "Request", exc: Exception) -> "JSONResponse":
     Returns:
         JSONResponse with generic server error.
     """
-    from fastapi.responses import JSONResponse  # noqa: PLC0415
-    from loguru import logger  # noqa: PLC0415
+    from fastapi.responses import JSONResponse  # ruff: ignore[import-outside-top-level]
+    from loguru import logger  # ruff: ignore[import-outside-top-level]
 
     logger.critical(f"Unhandled api exception {exc!r}", extra={"exception": f"{exc!r}"})
     return JSONResponse(
@@ -118,7 +118,7 @@ def validation_exception_handler(_: "Request", exc: Exception) -> "JSONResponse"
     Returns:
         JSONResponse with validation error details.
     """
-    from fastapi.responses import JSONResponse  # noqa: PLC0415
+    from fastapi.responses import JSONResponse  # ruff: ignore[import-outside-top-level]
 
     # Both ValidationError and RequestValidationError have errors() method
     if isinstance(exc, _HasErrors):

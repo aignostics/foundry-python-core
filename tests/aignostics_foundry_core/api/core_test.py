@@ -280,7 +280,7 @@ def test_init_api_mounts_versioned_apps(monkeypatch: pytest.MonkeyPatch) -> None
     stub_v1 = FastAPI()
     stub_v2 = FastAPI()
 
-    def fake_get_versioned(versions: list[str], **_: Any) -> dict[str, FastAPI]:  # noqa: ANN401
+    def fake_get_versioned(versions: list[str], **_: Any) -> dict[str, FastAPI]:  # ruff: ignore[any-type]
         return {VERSION_V1: stub_v1, VERSION_V2: stub_v2}
 
     monkeypatch.setattr(core_module, "get_versioned_api_instances", fake_get_versioned)
@@ -304,7 +304,7 @@ def test_init_api_propagates_custom_exception_handlers_to_versioned_apps(monkeyp
     stub_v1 = MagicMock()
     stub_v2 = MagicMock()
 
-    def fake_get_versioned(versions: list[str], **_: Any) -> dict[str, MagicMock]:  # noqa: ANN401
+    def fake_get_versioned(versions: list[str], **_: Any) -> dict[str, MagicMock]:  # ruff: ignore[any-type]
         return {VERSION_V1: stub_v1, VERSION_V2: stub_v2}
 
     monkeypatch.setattr(core_module, "get_versioned_api_instances", fake_get_versioned)
@@ -339,7 +339,7 @@ def test_init_api_registers_standard_handlers_on_versioned_apps(monkeypatch: pyt
     stub_v1 = MagicMock()
     stub_v2 = MagicMock()
 
-    def fake_get_versioned(versions: list[str], **_: Any) -> dict[str, MagicMock]:  # noqa: ANN401
+    def fake_get_versioned(versions: list[str], **_: Any) -> dict[str, MagicMock]:  # ruff: ignore[any-type]
         return {VERSION_V1: stub_v1, VERSION_V2: stub_v2}
 
     monkeypatch.setattr(core_module, "get_versioned_api_instances", fake_get_versioned)
@@ -399,7 +399,7 @@ def test_init_api_instruments_versioned_apps(monkeypatch: pytest.MonkeyPatch) ->
     stub_v1 = FastAPI()
     stub_v2 = FastAPI()
 
-    def fake_get_versioned(versions: list[str], **_: Any) -> dict[str, FastAPI]:  # noqa: ANN401
+    def fake_get_versioned(versions: list[str], **_: Any) -> dict[str, FastAPI]:  # ruff: ignore[any-type]
         return {VERSION_V1: stub_v1, VERSION_V2: stub_v2}
 
     monkeypatch.setattr(core_module, "get_versioned_api_instances", fake_get_versioned)

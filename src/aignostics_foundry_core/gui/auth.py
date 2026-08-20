@@ -151,14 +151,14 @@ async def get_gui_user(request: Request) -> dict[str, Any] | None:
         ``email``, ``picture``, etc. Returns ``None`` if not authenticated,
         session is missing, or the session has expired.
     """
-    from fastapi import Response  # noqa: PLC0415
+    from fastapi import Response  # ruff: ignore[import-outside-top-level]
 
     auth_settings = load_settings(AuthSettings)
 
     try:
         auth_client = get_auth_client(request)
         session: dict[str, Any] = await auth_client.require_session(request, Response())  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType, reportUnknownVariableType]
-    except Exception:  # noqa: BLE001
+    except Exception:  # ruff: ignore[blind-except]
         msg = "No session found"
         logger.debug(msg)
         return None
@@ -201,7 +201,7 @@ async def require_gui_user(request: Request, return_to: str | None = None) -> di
         User dictionary from Auth0 session if authenticated, ``None`` if
         redirecting to login.
     """
-    from nicegui import ui  # noqa: PLC0415
+    from nicegui import ui  # ruff: ignore[import-outside-top-level]
 
     user = await get_gui_user(request)
     if not user:
@@ -242,7 +242,7 @@ def _actualize_public(
     Returns:
         A decorator that wraps the page function.
     """
-    from nicegui import ui  # noqa: PLC0415
+    from nicegui import ui  # ruff: ignore[import-outside-top-level]
 
     def decorator(
         func: Callable[..., Any],
@@ -273,7 +273,7 @@ def _actualize_authenticated(
     Returns:
         A decorator that wraps the page function.
     """
-    from nicegui import ui  # noqa: PLC0415
+    from nicegui import ui  # ruff: ignore[import-outside-top-level]
 
     def decorator(
         func: Callable[..., Any],
@@ -306,7 +306,7 @@ def _actualize_admin(
     Returns:
         A decorator that wraps the page function.
     """
-    from nicegui import ui  # noqa: PLC0415
+    from nicegui import ui  # ruff: ignore[import-outside-top-level]
 
     def decorator(
         func: Callable[..., Any],
@@ -347,7 +347,7 @@ def _actualize_internal(
     Returns:
         A decorator that wraps the page function.
     """
-    from nicegui import ui  # noqa: PLC0415
+    from nicegui import ui  # ruff: ignore[import-outside-top-level]
 
     def decorator(
         func: Callable[..., Any],
@@ -388,7 +388,7 @@ def _actualize_internal_admin(
     Returns:
         A decorator that wraps the page function.
     """
-    from nicegui import ui  # noqa: PLC0415
+    from nicegui import ui  # ruff: ignore[import-outside-top-level]
 
     def decorator(
         func: Callable[..., Any],

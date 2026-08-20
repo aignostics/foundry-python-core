@@ -16,7 +16,7 @@ from aignostics_foundry_core.settings import (
     strip_to_none_before_validator,
 )
 
-_SECRET_VALUE = "sensitive"  # noqa: S105
+_SECRET_VALUE = "sensitive"  # ruff: ignore[hardcoded-password-string]
 _MASKED_VALUE = "**********"
 _AIGNOSTICS_FOUNDRY_CORE_CONSOLE = "aignostics_foundry_core.console"
 

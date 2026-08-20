@@ -128,7 +128,7 @@ class SentrySettings(OpaqueSettings):
         extra="ignore",
     )
 
-    def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
+    def __init__(self, **kwargs: Any) -> None:  # ruff: ignore[any-type]
         """Initialise settings, deriving env_prefix from the active FoundryContext."""
         super().__init__(_env_prefix=f"{get_context().env_prefix}SENTRY_", **kwargs)  # pyright: ignore[reportCallIssue]
 
@@ -253,8 +253,8 @@ def sentry_initialize(
         logger.trace("Sentry integration is disabled or sentry_sdk not found, initialization skipped.")
         return False
 
-    import sentry_sdk  # noqa: PLC0415
-    from sentry_sdk.integrations.logging import ignore_logger  # noqa: PLC0415
+    import sentry_sdk  # ruff: ignore[import-outside-top-level]
+    from sentry_sdk.integrations.logging import ignore_logger  # ruff: ignore[import-outside-top-level]
 
     sentry_sdk.init(
         release=f"{ctx.name}@{ctx.version_full}",
@@ -318,7 +318,7 @@ def set_sentry_user(user: dict[str, Any] | None, role_claim: str | None = None) 
     if not find_spec("sentry_sdk"):
         return
 
-    import sentry_sdk  # noqa: PLC0415
+    import sentry_sdk  # ruff: ignore[import-outside-top-level]
 
     if user is None:
         sentry_sdk.set_user(None)

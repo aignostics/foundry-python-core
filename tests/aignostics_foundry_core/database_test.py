@@ -126,7 +126,7 @@ class TestCliRunWithDb:
         """cli_run_with_db disposes the engine via finally even when the function raises."""
         err_msg = "boom"
 
-        async def raise_error(**_: object) -> None:  # noqa: RUF029
+        async def raise_error(**_: object) -> None:  # ruff: ignore[unused-async]
             raise ValueError(err_msg)
 
         with pytest.raises(ValueError, match=err_msg):
@@ -156,7 +156,7 @@ class TestCliRunWithEngine:
         """cli_run_with_engine disposes the engine via finally even when the function raises."""
         err_msg = "boom"
 
-        async def raise_error() -> None:  # noqa: RUF029
+        async def raise_error() -> None:  # ruff: ignore[unused-async]
             raise ValueError(err_msg)
 
         with pytest.raises(ValueError, match=err_msg):
@@ -175,7 +175,7 @@ class TestWithEngine:
         calls: list[bool] = []
 
         @with_engine(db_url=sqlite_url)
-        async def my_job() -> None:  # noqa: RUF029
+        async def my_job() -> None:  # ruff: ignore[unused-async]
             calls.append(True)
 
         await my_job()
@@ -188,7 +188,7 @@ class TestWithEngine:
         err_msg = "job failed"
 
         @with_engine(db_url=sqlite_url)
-        async def failing_job() -> None:  # noqa: RUF029
+        async def failing_job() -> None:  # ruff: ignore[unused-async]
             raise RuntimeError(err_msg)
 
         with pytest.raises(RuntimeError, match=err_msg):
@@ -287,7 +287,7 @@ class TestWithEngineContextAware:
         calls: list[bool] = []
 
         @with_engine
-        async def my_job() -> None:  # noqa: RUF029
+        async def my_job() -> None:  # ruff: ignore[unused-async]
             calls.append(True)
 
         await my_job()
@@ -302,7 +302,7 @@ class TestWithEngineContextAware:
         calls: list[bool] = []
 
         @with_engine()
-        async def my_job() -> None:  # noqa: RUF029
+        async def my_job() -> None:  # ruff: ignore[unused-async]
             calls.append(True)
 
         await my_job()
