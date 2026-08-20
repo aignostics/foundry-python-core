@@ -434,8 +434,13 @@ def _make_loguru_message(
     level_name: str = "INFO",
     message: str = "hello",
     exception: object = None,
+    extra: dict[str, object] | None = None,
 ) -> MagicMock:
-    """Build a minimal fake loguru Message with a `.record` dict for sink tests."""
+    """Build a minimal fake loguru Message with a `.record` dict for sink tests.
+
+    Real loguru records always carry an ``extra`` dict (empty unless fields are
+    bound via ``logger.bind(...)``), so it is always present here too.
+    """
     level = MagicMock()
     level.name = level_name
     file_ = MagicMock()
@@ -449,8 +454,24 @@ def _make_loguru_message(
         "message": message,
         "function": "my_func",
         "exception": exception,
+        "extra": extra if extra is not None else {},
     }
     return msg
+
+
+_BOUND_FIELD_KEY = "job_id"
+_BOUND_FIELD_VALUE = "abc"
+
+
+def _make_wired_otel_log_handler() -> tuple[object, object]:
+    """Build a real OTel LoggingHandler wired to an in-memory exporter."""
+    from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+    from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter, SimpleLogRecordProcessor
+
+    exporter = InMemoryLogRecordExporter()
+    provider = LoggerProvider()
+    provider.add_log_record_processor(SimpleLogRecordProcessor(exporter))
+    return LoggingHandler(level=logging.NOTSET, logger_provider=provider), exporter
 
 
 @pytest.mark.unit
@@ -501,6 +522,51 @@ class TestMakeOtelLogSink:
         record = handler.emit.call_args.args[0]
         assert record.exc_info is not None
         assert record.exc_info[1] is exc_value
+
+    def test_otel_log_sink_forwards_bound_extras(self) -> None:
+        """A field bound via logger.bind() lands as its own top-level OTLP attribute."""
+        handler, exporter = _make_wired_otel_log_handler()
+        sink = _make_otel_log_sink(handler)  # pyright: ignore[reportArgumentType]
+
+        sink(_make_loguru_message(extra={_BOUND_FIELD_KEY: _BOUND_FIELD_VALUE}))
+
+        finished = exporter.get_finished_logs()  # pyright: ignore[reportAttributeAccessIssue]
+        assert len(finished) == 1
+        attributes = finished[0].log_record.attributes
+        assert attributes[_BOUND_FIELD_KEY] == _BOUND_FIELD_VALUE
+        assert "extra" not in attributes
+
+    def test_otel_log_sink_without_extras_still_emits(self) -> None:
+        """A record with no bound extras emits cleanly with its standard fields intact."""
+        handler, exporter = _make_wired_otel_log_handler()
+        sink = _make_otel_log_sink(handler)  # pyright: ignore[reportArgumentType]
+
+        sink(_make_loguru_message(message="no bound fields"))
+
+        finished = exporter.get_finished_logs()  # pyright: ignore[reportAttributeAccessIssue]
+        assert len(finished) == 1
+        assert finished[0].log_record.body == "no bound fields"
+
+    def test_otel_log_sink_extra_does_not_clobber_reserved_fields(self) -> None:
+        """A bound key colliding with a reserved LogRecord attribute is ignored, not applied."""
+        handler, exporter = _make_wired_otel_log_handler()
+        sink = _make_otel_log_sink(handler)  # pyright: ignore[reportArgumentType]
+
+        sink(
+            _make_loguru_message(
+                level_name="WARNING",
+                message="real message",
+                extra={"message": "hijacked", "levelname": "BOGUS"},
+            )
+        )
+
+        finished = exporter.get_finished_logs()  # pyright: ignore[reportAttributeAccessIssue]
+        assert len(finished) == 1
+        log_record = finished[0].log_record
+        assert log_record.body == "real message"
+        # OTel maps stdlib "WARNING" to the shortened "WARN"; had the bound "levelname"
+        # been applied, severity_text would read "BOGUS" instead.
+        assert log_record.severity_text == "WARN"
 
 
 @pytest.mark.unit
