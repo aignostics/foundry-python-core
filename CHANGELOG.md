@@ -1,3 +1,9 @@
+## v0.17.0 (2026-08-21)
+
+### Feat
+
+- **otel**: forward loguru extras to OTLP logs ([907b0cd](https://github.com/aignostics/foundry-python-core/commit/907b0cd919255d24cf17ebe34259ec43c99fda31))
+
 ## v0.16.1 (2026-07-28)
 
 ### Fix
