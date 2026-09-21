@@ -1,4 +1,4 @@
-# CLAUDE.md - CI/CD & GitHub Actions Guide
+# AGENTS.md - CI/CD & GitHub Actions Guide
 
 This file provides guidance for Claude Code and engineers working with the CI/CD infrastructure and GitHub Actions workflows in Foundry Python Core.
 
@@ -176,7 +176,7 @@ Cancels in-progress runs for same branch
 * Code quality
 * Test coverage
 * Security
-* Adherence to CLAUDE.md guidelines
+* Adherence to AGENTS.md guidelines
 
 **Secrets required**:
 
