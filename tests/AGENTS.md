@@ -1,6 +1,6 @@
-# CLAUDE.md - Test Suite
+# AGENTS.md - Test Suite
 
-This file provides guidance for working with the test suite. For general project guidance, see the root [CLAUDE.md](../CLAUDE.md).
+This file provides guidance for working with the test suite. For general project guidance, see the root [AGENTS.md](../AGENTS.md).
 
 ## Critical Test Patterns
 

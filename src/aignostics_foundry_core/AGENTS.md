@@ -1,4 +1,4 @@
-# CLAUDE.md - Foundry Python Core Package Overview
+# AGENTS.md - Foundry Python Core Package Overview
 
 This file provides an overview of all modules in `aignostics_foundry_core`, their features, and interactions.
 
@@ -461,7 +461,7 @@ assert "cache" in system.reason
 
 ### Module Documentation
 
-Consider creating `CLAUDE.md` files in module subdirectories for detailed documentation of complex modules.
+Consider creating `AGENTS.md` files in module subdirectories for detailed documentation of complex modules.
 
 ---
 

@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 This file provides comprehensive guidance to Claude Code (claude.ai/code) when working with the Foundry Python Core repository.
 
@@ -6,11 +6,11 @@ This file provides comprehensive guidance to Claude Code (claude.ai/code) when w
 
 It is your goal to enable the contributor while insisting on highest standards at all times:
 
-* Fully read, understand and follow this CLAUDE.md and **ALL** recursively referenced documents herein for guidance on style and conventions.
+* Fully read, understand and follow this AGENTS.md and **ALL** recursively referenced documents herein for guidance on style and conventions.
 * In case of doubt apply best practices of enterprise grade software engineering.
 * On every review you make or code you contribute raise the bar on engineering and operational excellence in this repository
 * Do web research on any libraries, frameworks, principles or tools you are not familiar with.
-* **CRITICAL: Continuously update this CLAUDE.md** when you discover new learnings, tool usage patterns, architecture insights, or efficiency improvements. This ensures you become a more effective pair programmer over time. Document what you learned, why it matters, and how to apply it.
+* **CRITICAL: Continuously update this AGENTS.md** when you discover new learnings, tool usage patterns, architecture insights, or efficiency improvements. This ensures you become a more effective pair programmer over time. Document what you learned, why it matters, and how to apply it.
 
 ### Code Quality Principles
 
@@ -75,7 +75,7 @@ mise run test_lowest_direct     # Unit tests with lowest-direct deps (lower-boun
 
 **Coverage**: Goal 100%, minimum 85%.
 
-See [tests/CLAUDE.md](tests/CLAUDE.md) for detailed testing guidance including markers, fixtures, parallelization, and best practices.
+See [tests/AGENTS.md](tests/AGENTS.md) for detailed testing guidance including markers, fixtures, parallelization, and best practices.
 
 ## Development Workflow
 
@@ -160,7 +160,7 @@ All tool configuration lives in these files (single source of truth):
 
 **Tests run on**: Python 3.11-3.14, Linux (ubuntu-latest)
 
-See [.github/CLAUDE.md](.github/CLAUDE.md) for complete CI/CD documentation.
+See [.github/AGENTS.md](.github/AGENTS.md) for complete CI/CD documentation.
 
 
 

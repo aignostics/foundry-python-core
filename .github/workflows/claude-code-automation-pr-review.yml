@@ -45,7 +45,7 @@ jobs:
 
             You are reviewing a pull request. Please perform a thorough code review following these steps:
 
-            1. **Read CLAUDE.md** (if it exists) to understand project-specific conventions and standards.
+            1. **Read AGENTS.md** (if it exists) to understand project-specific conventions and standards.
 
             2. **Analyze the changes**:
                - Run `git diff origin/main...HEAD` to see all changes
