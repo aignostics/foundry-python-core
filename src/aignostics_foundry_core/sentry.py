@@ -318,8 +318,13 @@ class SentrySettings(OpaqueSettings):
     enable_logs: Annotated[
         bool,
         Field(
-            description="Enable Sentry log integration (https://docs.sentry.io/platforms/python/logging/)",
-            default=True,
+            description=(
+                "Send log records to Sentry Logs (https://docs.sentry.io/platforms/python/logs/). "
+                "Off by default, because log records can contain credentials and personal data. "
+                "sentry-sdk 2.68.0 and later ignore this option: set capture_sentry_logs=True on "
+                "LoggingIntegration or LoguruIntegration instead."
+            ),
+            default=False,
         ),
     ]
 

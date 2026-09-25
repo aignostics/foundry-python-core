@@ -169,7 +169,7 @@ set.
 | `{PREFIX}SENTRY_PROFILES_SAMPLE_RATE` | `0.1` | Profiler sample rate. |
 | `{PREFIX}SENTRY_PROFILE_SESSION_SAMPLE_RATE` | `0.1` | Profile session sample rate. |
 | `{PREFIX}SENTRY_PROFILE_LIFECYCLE` | `"trace"` | Profile lifecycle mode: `"trace"` or `"manual"`. |
-| `{PREFIX}SENTRY_ENABLE_LOGS` | `true` | Forward log records to Sentry. |
+| `{PREFIX}SENTRY_ENABLE_LOGS` | `false` | Send log records to Sentry Logs. Log records can contain credentials and personal data. sentry-sdk 2.68.0 and later ignore this option. With these versions, set `capture_sentry_logs=True` on `LoggingIntegration` or `LoguruIntegration` and pass the integration to `boot(sentry_integrations=...)`. |
 
 #### OpenTelemetry (`{PREFIX}OTEL_`)
 

@@ -1,6 +1,7 @@
 """Tests for aignostics_foundry_core.sentry."""
 
 import json
+import logging
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
@@ -11,6 +12,7 @@ import pytest
 import sentry_sdk
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from loguru import logger
 from pydantic import ValidationError
 from sentry_sdk.client import NonRecordingClient
 from sentry_sdk.transport import Transport
@@ -59,6 +61,8 @@ _INTERNAL_URL = "https://internal.example.com/"
 _PARTNER_URL = "https://partner.example.org/"
 _SENTRY_TRACE_HEADER = "sentry-trace"
 _BAGGAGE_HEADER = "baggage"
+_APP_LOGGER_NAME = "app"
+_LOG_ITEM_TYPE = "log"
 
 
 class _CapturingTransport(Transport):
@@ -353,6 +357,21 @@ class TestSentryDataCollection:
 
         (event,) = sentry_capture.items("event")
         assert event["request"]["data"][_SECRET_LOCAL_NAME] == _SECRET_LOCAL_VALUE
+
+    def test_sentry_logs_not_sent_by_default(
+        self, sentry_capture: SentryCapture, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """No INFO record from the stdlib logging module or from loguru goes to Sentry Logs at default settings.
+
+        The ``app`` logger is set to INFO, so that the record gets to the handlers of the Sentry
+        logging integration.
+        """
+        caplog.set_level(logging.INFO, logger=_APP_LOGGER_NAME)
+        sentry_capture.start()
+        logging.getLogger(_APP_LOGGER_NAME).info("stdlib record for %s", _PROBE_MESSAGE)
+        logger.info("loguru record for {}", _PROBE_MESSAGE)
+
+        assert sentry_capture.items(_LOG_ITEM_TYPE) == []
 
 
 @pytest.mark.integration
