@@ -26,6 +26,8 @@ _AUTH0_USER = "auth0|x"
 _SENTRY_PREFIX = f"{TEST_PROJECT_PREFIX}SENTRY_"
 _PROBE_MESSAGE = "probe"
 _EVENT_ITEM_TYPES = {"event", "transaction"}
+_SECRET_LOCAL_NAME = "client_secret"  # ruff: ignore[hardcoded-password-string]
+_SECRET_LOCAL_VALUE = "s3cr3t"  # ruff: ignore[hardcoded-password-string]
 
 
 class _CapturingTransport(Transport):
@@ -85,6 +87,30 @@ class SentryCapture:
             for item in envelope.items
             if item.type in item_types and item.payload.json is not None
         ]
+
+
+def _fail_with_secret_local() -> None:
+    """Raise from a frame that holds a secret in a local variable.
+
+    Raises:
+        ValueError: Always.
+    """
+    client_secret = _SECRET_LOCAL_VALUE
+    msg = f"login failed for a secret of length {len(client_secret)}"
+    raise ValueError(msg)
+
+
+def _capture_exception_with_secret_local() -> None:
+    """Call :func:`_fail_with_secret_local` and send the exception to Sentry."""
+    try:
+        _fail_with_secret_local()
+    except ValueError:
+        sentry_sdk.capture_exception()
+
+
+def _exception_frames(event: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return all stack frames of all exceptions in *event*."""
+    return [frame for value in event["exception"]["values"] for frame in value["stacktrace"]["frames"]]
 
 
 @pytest.fixture
@@ -172,6 +198,33 @@ class TestSentryInitialize:
         base_context = event["contexts"]["aignx/base"]
         assert base_context["project_name"] == TEST_PROJECT_NAME
         assert base_context["test_mode"] is True
+
+
+@pytest.mark.integration
+class TestSentryDataCollection:
+    """Tests for the data that Sentry events carry with default and opt-in settings."""
+
+    def test_exception_event_has_no_frame_vars_by_default(self, sentry_capture: SentryCapture) -> None:
+        """No stack frame of an exception event carries local variables at default settings."""
+        sentry_capture.start()
+        _capture_exception_with_secret_local()
+
+        (event,) = sentry_capture.events
+        frames = _exception_frames(event)
+        assert frames
+        assert all("vars" not in frame for frame in frames)
+
+    def test_exception_event_has_frame_vars_when_enabled(
+        self, sentry_capture: SentryCapture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The raising frame carries its local variables when INCLUDE_LOCAL_VARIABLES is true."""
+        monkeypatch.setenv(f"{_SENTRY_PREFIX}INCLUDE_LOCAL_VARIABLES", "true")
+        sentry_capture.start()
+        _capture_exception_with_secret_local()
+
+        (event,) = sentry_capture.events
+        (frame,) = [f for f in _exception_frames(event) if f["function"] == _fail_with_secret_local.__name__]
+        assert _SECRET_LOCAL_NAME in frame["vars"]
 
 
 @pytest.mark.integration

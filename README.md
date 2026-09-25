@@ -155,6 +155,7 @@ set.
 | `{PREFIX}SENTRY_DSN` | unset | Sentry DSN (must be an HTTPS URL with a valid `ingest.*.sentry.io` domain). |
 | `{PREFIX}SENTRY_DEBUG` | `false` | Enable Sentry SDK debug mode. |
 | `{PREFIX}SENTRY_SEND_DEFAULT_PII` | `false` | Include personally-identifiable information in events. |
+| `{PREFIX}SENTRY_INCLUDE_LOCAL_VARIABLES` | `false` | Include the local variables of each stack frame in error events. Locals can contain credentials and personal data. |
 | `{PREFIX}SENTRY_MAX_BREADCRUMBS` | `50` | Maximum breadcrumbs stored per event. |
 | `{PREFIX}SENTRY_SAMPLE_RATE` | `1.0` | Error event sample rate (0.0–1.0). |
 | `{PREFIX}SENTRY_TRACES_SAMPLE_RATE` | `0.1` | Transaction/trace sample rate. |
