@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from loguru import logger
 from pydantic import ValidationError
 from sentry_sdk.client import NonRecordingClient
+from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.transport import Transport
 
 from aignostics_foundry_core.foundry import set_context
@@ -372,6 +373,30 @@ class TestSentryDataCollection:
         logger.info("loguru record for {}", _PROBE_MESSAGE)
 
         assert sentry_capture.items(_LOG_ITEM_TYPE) == []
+
+    def test_sentry_logs_not_sent_when_enable_logs_env_var_is_set(
+        self, sentry_capture: SentryCapture, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A service that still sets the removed ENABLE_LOGS env var starts Sentry and sends no Sentry Logs."""
+        monkeypatch.setenv(f"{_SENTRY_PREFIX}ENABLE_LOGS", "true")
+        caplog.set_level(logging.INFO, logger=_APP_LOGGER_NAME)
+
+        assert sentry_capture.start() is True
+        logging.getLogger(_APP_LOGGER_NAME).info("stdlib record for %s", _PROBE_MESSAGE)
+        logger.info("loguru record for {}", _PROBE_MESSAGE)
+
+        assert sentry_capture.items(_LOG_ITEM_TYPE) == []
+
+    def test_sentry_logs_sent_when_logging_integration_captures_them(
+        self, sentry_capture: SentryCapture, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A service opts in to Sentry Logs with LoggingIntegration(capture_sentry_logs=True)."""
+        caplog.set_level(logging.INFO, logger=_APP_LOGGER_NAME)
+        sentry_capture.start([LoggingIntegration(capture_sentry_logs=True)])
+        logging.getLogger(_APP_LOGGER_NAME).info("stdlib record for %s", _PROBE_MESSAGE)
+
+        bodies = [log["body"] for batch in sentry_capture.items(_LOG_ITEM_TYPE) for log in batch["items"]]
+        assert f"stdlib record for {_PROBE_MESSAGE}" in bodies
 
 
 @pytest.mark.integration

@@ -315,19 +315,6 @@ class SentrySettings(OpaqueSettings):
         ),
     ]
 
-    enable_logs: Annotated[
-        bool,
-        Field(
-            description=(
-                "Send log records to Sentry Logs (https://docs.sentry.io/platforms/python/logs/). "
-                "Off by default, because log records can contain credentials and personal data. "
-                "sentry-sdk 2.68.0 and later ignore this option: set capture_sentry_logs=True on "
-                "LoggingIntegration or LoguruIntegration instead."
-            ),
-            default=False,
-        ),
-    ]
-
 
 def sentry_initialize(
     integrations: "list[Integration] | None",
@@ -380,7 +367,6 @@ def sentry_initialize(
         profiles_sample_rate=settings.profiles_sample_rate,
         profile_session_sample_rate=settings.profile_session_sample_rate,
         profile_lifecycle=settings.profile_lifecycle,
-        enable_logs=settings.enable_logs,
         before_breadcrumb=_before_breadcrumb,
         before_send_transaction=_before_send_transaction,
         integrations=integrations if integrations is not None else [],
