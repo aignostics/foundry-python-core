@@ -3,7 +3,7 @@
 import re
 import urllib.parse
 from importlib.util import find_spec
-from typing import TYPE_CHECKING, Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal, cast
 
 from loguru import logger
 from pydantic import AfterValidator, BeforeValidator, Field, PlainSerializer, SecretStr
@@ -13,6 +13,7 @@ from aignostics_foundry_core.foundry import get_context
 from aignostics_foundry_core.settings import OpaqueSettings, strip_to_none_before_validator
 
 if TYPE_CHECKING:
+    from sentry_sdk._types import Event
     from sentry_sdk.integrations import Integration
 
     from aignostics_foundry_core.foundry import FoundryContext
@@ -23,6 +24,10 @@ _ERR_MSG_NON_HTTPS = "Sentry DSN must use HTTPS protocol for security"
 _ERR_MSG_INVALID_DOMAIN = "Sentry DSN must use a valid Sentry domain (ingest.us.sentry.io or ingest.de.sentry.io)"
 _ERR_MSG_INVALID_FORMAT = "Invalid Sentry DSN format"
 _VALID_SENTRY_DOMAIN_PATTERN = r"^[a-f0-9]+@o\d+\.ingest\.(us|de)\.sentry\.io$"
+_HTTP_BREADCRUMB_TYPE = "http"
+_HTTP_BREADCRUMB_CATEGORY = "httplib"
+_URL_DATA_KEY = "url"
+_URL_PART_DATA_KEYS = frozenset({"http.query", "http.fragment"})
 
 
 def _validate_url_scheme(parsed_url: urllib.parse.ParseResult) -> None:
@@ -115,6 +120,63 @@ def _validate_https_dsn(value: SecretStr | None) -> SecretStr | None:
     return value
 
 
+def _without_url_query(data: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of HTTP breadcrumb or span *data* without the query string and the fragment.
+
+    Removes the ``http.query`` and ``http.fragment`` keys, and the query and the fragment of
+    ``data["url"]``. Query strings can hold credentials, for example the signature of a signed URL.
+    The result is a copy because the SDK makes the HTTP breadcrumb from the span data dict itself.
+
+    Args:
+        data: The ``data`` of a breadcrumb or a span.
+
+    Returns:
+        dict[str, Any]: A copy of *data* without the query string and the fragment.
+    """
+    stripped = {key: value for key, value in data.items() if key not in _URL_PART_DATA_KEYS}
+    url = stripped.get(_URL_DATA_KEY)
+    if isinstance(url, str):
+        stripped[_URL_DATA_KEY] = urllib.parse.urlsplit(url)._replace(query="", fragment="").geturl()
+    return stripped
+
+
+def _before_breadcrumb(crumb: dict[str, Any], _hint: dict[str, Any]) -> dict[str, Any]:
+    """Remove the query string and the fragment from HTTP breadcrumbs. Return other breadcrumbs unchanged.
+
+    Args:
+        crumb: The breadcrumb that the SDK is about to record.
+        _hint: The breadcrumb hint (unused).
+
+    Returns:
+        dict[str, Any]: The breadcrumb to record.
+    """
+    is_http = crumb.get("type") == _HTTP_BREADCRUMB_TYPE or crumb.get("category") == _HTTP_BREADCRUMB_CATEGORY
+    data = crumb.get("data")
+    if is_http and isinstance(data, dict):
+        crumb["data"] = _without_url_query(cast("dict[str, Any]", data))
+    return crumb
+
+
+def _before_send_transaction(event: "Event", _hint: dict[str, Any]) -> "Event":
+    """Remove the query string and the fragment from the data of each span of a transaction.
+
+    Args:
+        event: The transaction event that the SDK is about to send.
+        _hint: The event hint (unused).
+
+    Returns:
+        Event: The transaction event to send.
+    """
+    spans = event.get("spans")
+    if not isinstance(spans, list):
+        return event
+    for span in spans:
+        data = span.get("data")
+        if isinstance(data, dict):
+            span["data"] = _without_url_query(cast("dict[str, Any]", data))
+    return event
+
+
 class SentrySettings(OpaqueSettings):
     """Configuration settings for Sentry integration.
 
@@ -158,6 +220,45 @@ class SentrySettings(OpaqueSettings):
         Field(
             description="Send default personal identifiable information (https://docs.sentry.io/platforms/python/configuration/options/)",
             default=False,
+        ),
+    ]
+
+    include_local_variables: Annotated[
+        bool,
+        Field(
+            description=(
+                "Include the local variables of each stack frame in error events. Off by default because "
+                "locals can hold credentials and personal data "
+                "(https://docs.sentry.io/platforms/python/configuration/options/#include-local-variables)"
+            ),
+            default=False,
+        ),
+    ]
+
+    max_request_body_size: Annotated[
+        Literal["never", "small", "medium", "always"],
+        Field(
+            description=(
+                "Maximum size of HTTP request bodies attached to events. Off (never) by default because "
+                "request bodies can hold credentials and personal data, and integrations send JSON bodies "
+                "even when send_default_pii is false "
+                "(https://docs.sentry.io/platforms/python/configuration/options/#max-request-body-size)"
+            ),
+            default="never",
+        ),
+    ]
+
+    trace_propagation_targets: Annotated[
+        list[str],
+        Field(
+            description=(
+                "Regexes of the outbound request URLs that get the sentry-trace and baggage headers. "
+                "Empty by default, so no outbound request gets them: the baggage header carries the "
+                "release, the environment and the public key of the DSN. The env var takes a JSON list "
+                "(https://docs.sentry.io/platforms/python/configuration/options/#trace-propagation-targets)"
+            ),
+            examples=[[r"internal\.example\.com"]],
+            default_factory=list,
         ),
     ]
 
@@ -214,14 +315,6 @@ class SentrySettings(OpaqueSettings):
         ),
     ]
 
-    enable_logs: Annotated[
-        bool,
-        Field(
-            description="Enable Sentry log integration (https://docs.sentry.io/platforms/python/logging/)",
-            default=True,
-        ),
-    ]
-
 
 def sentry_initialize(
     integrations: "list[Integration] | None",
@@ -232,6 +325,9 @@ def sentry_initialize(
 
     All project-specific metadata is derived from *context* (or the global
     context installed via :func:`~aignostics_foundry_core.foundry.set_context`).
+
+    HTTP breadcrumbs and the spans of transactions carry no query string and no fragment.
+    Both can hold credentials, for example the signature of a signed URL.
 
     Args:
         integrations: List of Sentry SDK integrations to register, or ``None``.
@@ -263,12 +359,16 @@ def sentry_initialize(
         max_breadcrumbs=settings.max_breadcrumbs,
         debug=settings.debug,
         send_default_pii=settings.send_default_pii,
+        include_local_variables=settings.include_local_variables,
+        max_request_body_size=settings.max_request_body_size,
+        trace_propagation_targets=settings.trace_propagation_targets,
         sample_rate=settings.sample_rate,
         traces_sample_rate=settings.traces_sample_rate,
         profiles_sample_rate=settings.profiles_sample_rate,
         profile_session_sample_rate=settings.profile_session_sample_rate,
         profile_lifecycle=settings.profile_lifecycle,
-        enable_logs=settings.enable_logs,
+        before_breadcrumb=_before_breadcrumb,
+        before_send_transaction=_before_send_transaction,
         integrations=integrations if integrations is not None else [],
     )
     sentry_sdk.set_context(
@@ -304,15 +404,21 @@ def set_sentry_user(user: dict[str, Any] | None, role_claim: str | None = None) 
     This function should be called after successful authentication
     to enrich error reports with user context.
 
+    Only IDs go to Sentry: ``sub`` becomes ``id`` and ``org_id`` stays ``org_id``.
+    When ``role_claim`` is set, that claim becomes ``role``. All other claims (for
+    example ``email``, ``name`` or ``picture``) are dropped, also when
+    ``send_default_pii`` is enabled.
+
     Args:
-        user: User dict from Auth0 containing fields like 'sub' (user ID),
-            'email', 'name', 'org_id', 'org_name', 'role', etc.
+        user: User dict from Auth0 containing claims like 'sub' (user ID) and
+            'org_id' (organization ID). Other claims are ignored.
             Pass None to clear user context.
         role_claim: Optional custom claim name for the user's role.
             If not specified, the role field will not be extracted.
 
     Example:
-        >>> set_sentry_user({"sub": "auth0|123", "email": "user@example.com", "org_id": "org123"})
+        >>> set_sentry_user({"sub": "auth0|123", "org_id": "org123"})
+        >>> set_sentry_user({"sub": "auth0|123", "https://x/role": "admin"}, role_claim="https://x/role")
         >>> set_sentry_user(None)  # Clear user context
     """
     if not find_spec("sentry_sdk"):
@@ -324,18 +430,10 @@ def set_sentry_user(user: dict[str, Any] | None, role_claim: str | None = None) 
         sentry_sdk.set_user(None)
         return
 
-    # Direct mappings from Auth0 user claims to Sentry user context
+    # Only IDs go to Sentry: personal data such as email or name stays out of error reports
     field_mappings: list[tuple[str, str]] = [
         ("sub", "id"),  # Auth0 user ID (e.g., "auth0|abc123")
-        ("email", "email"),
-        ("name", "name"),
         ("org_id", "org_id"),
-        ("org_name", "org_name"),
-        ("nickname", "nickname"),
-        ("given_name", "given_name"),
-        ("family_name", "family_name"),
-        ("picture", "picture"),
-        ("updated_at", "updated_at"),
     ]
 
     if role_claim:

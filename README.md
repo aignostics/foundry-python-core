@@ -144,6 +144,11 @@ Settings class: `LogSettings`
 | `{PREFIX}LOG_FILE_NAME` | platform log dir | Path to the log file (validated on startup when `FILE_ENABLED` is true). |
 | `{PREFIX}LOG_REDIRECT_LOGGING` | `true` | Redirect stdlib `logging` to loguru via `InterceptHandler`. |
 
+`logging_initialize()` sets the stdlib loggers `httpx`, `httpx2` and `urllib3` to `WARNING`. These
+HTTP clients log each request URL at `INFO`, and the URL can contain credentials in its query string
+(for example, the signature of a signed URL). At `WARNING`, these request lines do not get to the log
+sinks or to Sentry. The `psycopg` and `psycopg.pool` loggers are also at `WARNING`.
+
 #### Sentry (`{PREFIX}SENTRY_`)
 
 Settings class: `SentrySettings`. Sentry is only initialised when `ENABLED=true` **and** `DSN` is
@@ -155,13 +160,20 @@ set.
 | `{PREFIX}SENTRY_DSN` | unset | Sentry DSN (must be an HTTPS URL with a valid `ingest.*.sentry.io` domain). |
 | `{PREFIX}SENTRY_DEBUG` | `false` | Enable Sentry SDK debug mode. |
 | `{PREFIX}SENTRY_SEND_DEFAULT_PII` | `false` | Include personally-identifiable information in events. |
+| `{PREFIX}SENTRY_INCLUDE_LOCAL_VARIABLES` | `false` | Include the local variables of each stack frame in error events. Locals can contain credentials and personal data. |
+| `{PREFIX}SENTRY_MAX_REQUEST_BODY_SIZE` | `"never"` | Maximum size of HTTP request bodies in error events: `"never"`, `"small"` (up to 1 KB), `"medium"` (up to 10 KB) or `"always"`. Request bodies can contain credentials and personal data. The FastAPI integration sends JSON bodies even when `SEND_DEFAULT_PII` is `false`. |
+| `{PREFIX}SENTRY_TRACE_PROPAGATION_TARGETS` | `[]` | JSON list of regexes. Sentry adds the `sentry-trace` and `baggage` headers only to outbound requests whose URL matches one of them. The `baggage` header contains the release, the environment and the public key of the DSN. With the default, no outbound request gets these headers. Example: `{PREFIX}SENTRY_TRACE_PROPAGATION_TARGETS='["internal\\.example\\.com"]'`. |
 | `{PREFIX}SENTRY_MAX_BREADCRUMBS` | `50` | Maximum breadcrumbs stored per event. |
 | `{PREFIX}SENTRY_SAMPLE_RATE` | `1.0` | Error event sample rate (0.0–1.0). |
 | `{PREFIX}SENTRY_TRACES_SAMPLE_RATE` | `0.1` | Transaction/trace sample rate. |
 | `{PREFIX}SENTRY_PROFILES_SAMPLE_RATE` | `0.1` | Profiler sample rate. |
 | `{PREFIX}SENTRY_PROFILE_SESSION_SAMPLE_RATE` | `0.1` | Profile session sample rate. |
 | `{PREFIX}SENTRY_PROFILE_LIFECYCLE` | `"trace"` | Profile lifecycle mode: `"trace"` or `"manual"`. |
-| `{PREFIX}SENTRY_ENABLE_LOGS` | `true` | Forward log records to Sentry. |
+
+Log records do not go to Sentry Logs, because they can contain credentials and personal data.
+To send them, pass `LoggingIntegration(capture_sentry_logs=True)` or
+`LoguruIntegration(capture_sentry_logs=True)` to `boot(sentry_integrations=...)`. foundry-core
+requires sentry-sdk 2.68.0 or later, and it has no `{PREFIX}SENTRY_ENABLE_LOGS` setting.
 
 #### OpenTelemetry (`{PREFIX}OTEL_`)
 
@@ -177,6 +189,10 @@ via OTLP/gRPC, e.g. to the internal OTel gateway backing the
 | `{PREFIX}OTEL_TRACES_ENABLED` | `true` | Export traces (once `ENABLED`). |
 | `{PREFIX}OTEL_METRICS_ENABLED` | `true` | Export metrics (once `ENABLED`). |
 | `{PREFIX}OTEL_LOGS_ENABLED` | `false` | Bridge loguru records into OTLP log export (once `ENABLED`). |
+
+The OTLP log sink uses the same `{PREFIX}LOG_LEVEL` as the stderr and file sinks. It also uses the
+`log_filter` that the service passes to `boot()`. Records below the log level, and records that the
+filter rejects, do not go to the OTLP endpoint.
 
 Endpoint, service name, and all other exporter behaviour come from the **standard, unprefixed**
 [OpenTelemetry environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/)

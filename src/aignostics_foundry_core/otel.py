@@ -71,6 +71,7 @@ from pydantic import Field
 from pydantic_settings import SettingsConfigDict
 
 from aignostics_foundry_core.foundry import get_context
+from aignostics_foundry_core.log import LogSettings
 from aignostics_foundry_core.settings import OpaqueSettings
 
 if TYPE_CHECKING:
@@ -329,6 +330,7 @@ def otel_initialize(
     *,
     context: FoundryContext | None = None,
     instrumentors: list[BaseInstrumentor] | None = None,
+    log_filter: Callable[[Record], bool] | None = None,
 ) -> bool:
     """Initialize OpenTelemetry tracing, metrics, and/or logs.
 
@@ -344,7 +346,10 @@ def otel_initialize(
     ``logging``) via a loguru sink that forwards each record into OTel's own
     ``LoggingHandler`` — loguru has no first-party OTel integration, so this
     is the simplest way to reuse the SDK's own record conversion and trace
-    correlation instead of duplicating it.
+    correlation instead of duplicating it. The sink drops records below
+    :attr:`~aignostics_foundry_core.log.LogSettings.level` (``{PREFIX}LOG_LEVEL``)
+    and records that *log_filter* rejects, the same as the stderr and file sinks
+    that :func:`~aignostics_foundry_core.log.logging_initialize` adds.
 
     Args:
         context: :class:`~aignostics_foundry_core.foundry.FoundryContext` providing
@@ -356,6 +361,11 @@ def otel_initialize(
             ``instrument_fastapi``'s purpose). ``None`` (the default) uses
             :func:`default_otel_instrumentors`; pass ``[]`` to opt out entirely,
             or a longer list to opt into more than the default.
+        log_filter: Optional loguru filter callable for the OTLP log sink; receives
+            a ``Record`` and returns ``True`` to keep it, ``False`` to drop it.
+            :func:`~aignostics_foundry_core.boot.boot` passes the same filter that
+            it gives to :func:`~aignostics_foundry_core.log.logging_initialize`.
+            ``None`` (the default) keeps all records at or above the log level.
 
     Returns:
         bool: ``True`` if OpenTelemetry was initialised successfully, ``False`` otherwise.
@@ -413,7 +423,8 @@ def otel_initialize(
         _otel_metrics_initialize(resource)
 
     if settings.logs_enabled:
-        _otel_logs_initialize(resource)
+        log_level = LogSettings(_env_file=ctx.env_file).level  # pyright: ignore[reportCallIssue]
+        _otel_logs_initialize(resource, level=log_level, log_filter=log_filter)
 
     logger.trace("OpenTelemetry integration initialized, exporting to {}.", os.environ[_OTEL_EXPORTER_OTLP_ENDPOINT])
 
@@ -511,7 +522,12 @@ def _otel_metrics_initialize(resource: Resource) -> None:
     atexit.register(meter_provider.shutdown)
 
 
-def _otel_logs_initialize(resource: Resource) -> None:
+def _otel_logs_initialize(
+    resource: Resource,
+    *,
+    level: str,
+    log_filter: Callable[[Record], bool] | None,
+) -> None:
     """Set up the OTLP ``LoggerProvider`` and bridge loguru records into it.
 
     Split out of :func:`otel_initialize` since logs export is opt-in via
@@ -524,8 +540,13 @@ def _otel_logs_initialize(resource: Resource) -> None:
     often what explains *why* the process is exiting), so this flush matters
     most here.
 
+    The loguru sink uses *level* and drops a record if
+    :func:`_otel_log_sink_filter` or *log_filter* rejects it.
+
     Args:
         resource: The shared OTel ``Resource`` used by the tracer/meter providers.
+        level: Minimum loguru level name for the OTLP log sink.
+        log_filter: Optional service filter; ``None`` keeps all records.
     """
     # opentelemetry-python's logs API is still under a leading-underscore module path
     # even in stable releases (see open-telemetry/opentelemetry-python#3565) — noqa/
@@ -550,9 +571,14 @@ def _otel_logs_initialize(resource: Resource) -> None:
     logger_provider.add_log_record_processor(BatchLogRecordProcessor(OTLPLogExporter()))
     logs.set_logger_provider(logger_provider)
     atexit.register(logger_provider.shutdown)
+
+    def sink_filter(record: Record) -> bool:
+        return _otel_log_sink_filter(record) and (log_filter is None or log_filter(record))
+
     logger.add(
         _make_otel_log_sink(LoggingHandler(level=logging.NOTSET, logger_provider=logger_provider)),
-        filter=_otel_log_sink_filter,
+        level=level,
+        filter=sink_filter,
     )
 
 

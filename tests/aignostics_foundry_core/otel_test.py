@@ -9,6 +9,7 @@ import pytest
 from opentelemetry.sdk.resources import Resource
 
 from aignostics_foundry_core.foundry import set_context
+from aignostics_foundry_core.log import logging_initialize
 from aignostics_foundry_core.otel import (
     _OS_CA_BUNDLE_PATH,
     OTelSettings,
@@ -22,6 +23,7 @@ from aignostics_foundry_core.otel import (
     instrument_fastapi,
     otel_initialize,
 )
+from tests.aignostics_foundry_core.conftest import OtlpLogCapture
 from tests.conftest import TEST_PROJECT_NAME, TEST_PROJECT_PREFIX, make_context
 
 _OTEL_PREFIX = f"{TEST_PROJECT_PREFIX}OTEL_"
@@ -48,6 +50,12 @@ def _clean_otlp_certificate_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 _LOGURU_LOGGER_ADD = "aignostics_foundry_core.otel.logger.add"
+_DEBUG_MARKER = "otlp_sink_debug_marker_5a1c"
+_INFO_MARKER = "otlp_sink_info_marker_7d3e"
+_REJECTED_LOGGER = "noisy.lib"
+_KEPT_LOGGER = "app"
+_REJECTED_MARKER = "otlp_sink_rejected_marker_2b8f"
+_KEPT_MARKER = "otlp_sink_kept_marker_9e4a"
 
 
 @pytest.mark.integration
@@ -396,7 +404,7 @@ class TestOtelProviderReinitGuards:
             patch(_LOGS_SET_LOGGER_PROVIDER) as mock_set,
             patch(_LOGURU_LOGGER_ADD) as mock_add,
         ):
-            _otel_logs_initialize(MagicMock())
+            _otel_logs_initialize(MagicMock(), level="INFO", log_filter=None)
         mock_set.assert_not_called()
         mock_add.assert_not_called()
 
@@ -613,3 +621,35 @@ class TestInstrumentFastapi:
             result = instrument_fastapi(MagicMock())
         assert result is False
         mock_instrument.assert_not_called()
+
+
+@pytest.mark.integration
+def test_otlp_log_sink_drops_records_below_log_level(
+    monkeypatch: pytest.MonkeyPatch, otlp_log_exporter: OtlpLogCapture
+) -> None:
+    """The OTLP log sink exports only records at or above {PREFIX}LOG_LEVEL."""
+    from loguru import logger
+
+    monkeypatch.setenv(f"{TEST_PROJECT_PREFIX}LOG_LEVEL", "INFO")
+    assert otel_initialize() is True
+
+    logger.debug(_DEBUG_MARKER)
+    logger.info(_INFO_MARKER)
+
+    bodies = otlp_log_exporter.bodies
+    assert _INFO_MARKER in bodies
+    assert _DEBUG_MARKER not in bodies
+
+
+@pytest.mark.integration
+def test_otlp_log_sink_drops_records_rejected_by_log_filter(otlp_log_exporter: OtlpLogCapture) -> None:
+    """The OTLP log sink drops stdlib records that the service log_filter rejects."""
+    logging_initialize()
+    assert otel_initialize(log_filter=lambda record: record["name"] != _REJECTED_LOGGER) is True
+
+    logging.getLogger(_REJECTED_LOGGER).warning(_REJECTED_MARKER)
+    logging.getLogger(_KEPT_LOGGER).warning(_KEPT_MARKER)
+
+    bodies = otlp_log_exporter.bodies
+    assert _KEPT_MARKER in bodies
+    assert _REJECTED_MARKER not in bodies
