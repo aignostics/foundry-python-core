@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
@@ -15,7 +16,7 @@ from aignostics_foundry_core.log import InterceptHandler
 from tests.conftest import TEST_PROJECT_PREFIX
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Generator, Iterator
 
     from opentelemetry.sdk._logs import LoggerProvider  # pyright: ignore[reportPrivateImportUsage]
 
@@ -24,6 +25,45 @@ _OTLP_ENDPOINT = "https://otel-gateway.example.com:4317"
 
 # otel_initialize() writes these with os.environ.setdefault(), so monkeypatch cannot undo them.
 _OTEL_SDK_ENV_DEFAULTS = ("OTEL_SERVICE_NAME", "OTEL_SEMCONV_STABILITY_OPT_IN", "OTEL_EXPORTER_OTLP_CERTIFICATE")
+
+# logging_initialize() sets the level of these stdlib loggers for the whole process.
+_LOGGERS_SET_BY_LOGGING_INITIALIZE = ("psycopg", "psycopg.pool", "httpx", "httpx2", "urllib3")
+
+
+@contextmanager
+def stdlib_logging_restored() -> Iterator[None]:
+    """Undo the process-wide logging changes of ``logging_initialize`` on exit.
+
+    On exit, removes all loguru sinks and the ``InterceptHandler`` on the stdlib
+    root logger. Restores the level of the root logger and of the loggers that
+    ``logging_initialize`` sets to WARNING.
+
+    Yields:
+        None
+    """
+    root_logger = logging.getLogger()
+    saved_root_level = root_logger.level
+    saved_levels = {name: logging.getLogger(name).level for name in _LOGGERS_SET_BY_LOGGING_INITIALIZE}
+    try:
+        yield
+    finally:
+        logger.remove()
+        for handler in [h for h in root_logger.handlers if isinstance(h, InterceptHandler)]:
+            root_logger.removeHandler(handler)
+        root_logger.setLevel(saved_root_level)
+        for name, level in saved_levels.items():
+            logging.getLogger(name).setLevel(level)
+
+
+@pytest.fixture
+def stdlib_logging_reset() -> Generator[None, None, None]:
+    """Undo the process-wide logging changes of ``logging_initialize`` after the test.
+
+    Yields:
+        None
+    """
+    with stdlib_logging_restored():
+        yield
 
 
 class OtlpLogCapture:
@@ -63,9 +103,9 @@ def otlp_log_exporter(monkeypatch: pytest.MonkeyPatch) -> Generator[OtlpLogCaptu
     patches only OpenTelemetry symbols, so the global ``LoggerProvider`` stays
     unset.
 
-    Teardown shuts the ``LoggerProvider`` down, removes all loguru sinks, removes
-    the ``InterceptHandler`` that ``logging_initialize`` puts on the stdlib root
-    logger, and restores the root logger level and the ``OTEL_*`` defaults.
+    Teardown shuts the ``LoggerProvider`` down, undoes the process-wide logging
+    changes of ``logging_initialize`` (see :func:`stdlib_logging_restored`), and
+    restores the ``OTEL_*`` defaults.
 
     Yields:
         OtlpLogCapture: Access to the exported log records.
@@ -76,11 +116,10 @@ def otlp_log_exporter(monkeypatch: pytest.MonkeyPatch) -> Generator[OtlpLogCaptu
     monkeypatch.setenv(f"{_OTEL_PREFIX}METRICS_ENABLED", "false")
     monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", _OTLP_ENDPOINT)
     saved_env = {name: os.environ.get(name) for name in _OTEL_SDK_ENV_DEFAULTS}
-    root_logger = logging.getLogger()
-    saved_root_level = root_logger.level
 
     exporter = InMemoryLogRecordExporter()
     with (
+        stdlib_logging_restored(),
         patch("opentelemetry.exporter.otlp.proto.grpc._log_exporter.OTLPLogExporter", return_value=exporter),
         patch("opentelemetry._logs.set_logger_provider") as set_logger_provider,
     ):
@@ -90,10 +129,6 @@ def otlp_log_exporter(monkeypatch: pytest.MonkeyPatch) -> Generator[OtlpLogCaptu
         finally:
             if capture.provider is not None:
                 capture.provider.shutdown()
-            logger.remove()
-            for handler in [h for h in root_logger.handlers if isinstance(h, InterceptHandler)]:
-                root_logger.removeHandler(handler)
-            root_logger.setLevel(saved_root_level)
             for name, value in saved_env.items():
                 if value is None:
                     os.environ.pop(name, None)

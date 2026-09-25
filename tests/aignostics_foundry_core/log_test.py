@@ -2,17 +2,22 @@
 
 import logging as stdlib_logging
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import httpx
 import pytest
+from loguru import logger
 from pydantic import ValidationError
 
 from aignostics_foundry_core.log import InterceptHandler, LogSettings, logging_initialize
 from tests.conftest import TEST_PROJECT_PREFIX
 
 if TYPE_CHECKING:
-    from loguru import Message
+    from collections.abc import Iterator
+
+    from loguru import Message, Record
 
 _MARKER_MESSAGE = "log_test_unique_marker_4f2a"
 _STDLIB_MESSAGE = "stdlib_redirect_unique_marker_9b3c"
@@ -24,10 +29,34 @@ _CONTEXTUALIZE_JOB_ID = "test_job_id_context_8f3c"
 _CONTEXTUALIZE_MARKER = "contextualize_intercept_marker_6d2e"
 _PARITY_NATIVE_MARKER = "parity_native_loguru_4b7a"
 _PARITY_STDLIB_MARKER = "parity_stdlib_intercept_9c1f"
+_HTTP_CLIENT_INFO_MARKER = "http_client_info_marker_5a8d"
+_HTTP_CLIENT_WARNING_MARKER = "http_client_warning_marker_2c6b"
+_SIGNED_URL = "https://example.com/blob?sig=secret"
+_SIGNED_URL_QUERY = "sig=secret"
+
+
+@contextmanager
+def _captured_records() -> "Iterator[list[Record]]":
+    """Collect every loguru record at TRACE and above while the block runs.
+
+    Yields:
+        list[Record]: The records that loguru emitted inside the block.
+    """
+    records: list[Record] = []
+
+    def capture(message: "Message") -> None:
+        records.append(message.record)
+
+    sink_id = logger.add(capture, level="TRACE")
+    try:
+        yield records
+    finally:
+        logger.remove(sink_id)
 
 
 @pytest.mark.sequential
 @pytest.mark.unit
+@pytest.mark.usefixtures("stdlib_logging_reset")
 class TestLoggingInitialize:
     """Behavioural tests for logging_initialize()."""
 
@@ -102,6 +131,31 @@ class TestLoggingInitialize:
         logging_initialize()
         assert stdlib_logging.getLogger("psycopg").level == stdlib_logging.WARNING
         assert stdlib_logging.getLogger("psycopg.pool").level == stdlib_logging.WARNING
+
+    @pytest.mark.parametrize("logger_name", ["httpx", "httpx2", "urllib3"])
+    def test_logging_initialize_sets_http_client_loggers_to_warning(self, logger_name: str) -> None:
+        """After logging_initialize(), the HTTP client loggers pass WARNING records but drop INFO records."""
+        logging_initialize()
+
+        with _captured_records() as records:
+            stdlib_logging.getLogger(logger_name).info(_HTTP_CLIENT_INFO_MARKER)
+            stdlib_logging.getLogger(logger_name).warning(_HTTP_CLIENT_WARNING_MARKER)
+
+        assert [(r["level"].name, r["message"]) for r in records if r["name"] == logger_name] == [
+            ("WARNING", _HTTP_CLIENT_WARNING_MARKER)
+        ]
+
+    def test_logging_initialize_drops_httpx_request_line(self) -> None:
+        """An httpx request writes no record, so the query string of a signed URL gets to no sink."""
+        logging_initialize()
+        transport = httpx.MockTransport(lambda _request: httpx.Response(200))
+
+        with _captured_records() as records, httpx.Client(transport=transport) as client:
+            response = client.get(_SIGNED_URL)
+
+        assert response.status_code == 200
+        assert [r["name"] for r in records if (r["name"] or "").startswith("httpx")] == []
+        assert all(_SIGNED_URL_QUERY not in r["message"] for r in records)
 
     def test_logging_initialize_uses_context_project_name(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]

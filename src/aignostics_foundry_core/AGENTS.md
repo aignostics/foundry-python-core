@@ -171,7 +171,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 - **Key Features**:
   - `InterceptHandler(logging.Handler)` — redirects stdlib log records to loguru, preserving original module/function/line metadata
   - `LogSettings(BaseSettings)` — uses the active FoundryContext.env_prefix to derive the env prefix (`{ctx.env_prefix}LOG_`). Fields: `level`, `stderr_enabled`, `file_enabled`, `file_name`, `redirect_logging`
-  - `logging_initialize(filter_func, *, context)` — removes all existing loguru handlers, then adds stderr/file handlers per settings; reads project name, version, and env file list from `context` (falls back to process-level context); embeds `project_name` and `version` in loguru `extra`; installs `InterceptHandler` for stdlib redirect; suppresses psycopg pool noise
+  - `logging_initialize(filter_func, *, context)` — removes all existing loguru handlers, then adds stderr/file handlers per settings; reads project name, version, and env file list from `context` (falls back to process-level context); embeds `project_name` and `version` in loguru `extra`; installs `InterceptHandler` for stdlib redirect; sets the stdlib loggers `psycopg`, `psycopg.pool`, `httpx`, `httpx2` and `urllib3` to WARNING (process-wide), so the INFO request lines of the HTTP clients, which contain the request URL and its query string, do not get to the sinks
 - **Location**: `aignostics_foundry_core/log.py`
 - **Dependencies**: `loguru>=0.7,<1`, `platformdirs>=4,<5` (mandatory)
 - **Import**: `from aignostics_foundry_core.log import logging_initialize, LogSettings, InterceptHandler`
