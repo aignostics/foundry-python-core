@@ -1,11 +1,12 @@
 """Tests for aignostics_foundry_core.sentry."""
 
 import json
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import httpx
+import httpx2
 import pytest
 import sentry_sdk
 from fastapi import FastAPI
@@ -52,6 +53,12 @@ _SIGNED_BLOB_URL = f"https://storage.example.com/blob?{_SIGNED_URL_QUERY}"
 _HTTP_QUERY_KEY = "http.query"
 _HTTP_FRAGMENT_KEY = "http.fragment"
 _HTTPLIB_CATEGORY = "httplib"
+# The env var form that README.md documents: a JSON list with one regex, internal\.example\.com
+_INTERNAL_TRACE_TARGETS_JSON = r'["internal\\.example\\.com"]'
+_INTERNAL_URL = "https://internal.example.com/"
+_PARTNER_URL = "https://partner.example.org/"
+_SENTRY_TRACE_HEADER = "sentry-trace"
+_BAGGAGE_HEADER = "baggage"
 
 
 class _CapturingTransport(Transport):
@@ -153,6 +160,54 @@ def _get_signed_blob_url() -> None:
     """Send a GET with a signed query string through an :class:`httpx.Client` on a mock transport."""
     with httpx.Client(transport=httpx.MockTransport(lambda _request: httpx.Response(200))) as client:
         client.get(_SIGNED_BLOB_URL)
+
+
+def _httpx_request_headers(url: str) -> dict[str, str]:
+    """Send a GET to *url* through an :class:`httpx.Client` on a mock transport, inside a Sentry transaction.
+
+    The Sentry httpx integration adds trace headers only to requests inside a transaction, as in a
+    request handler of a service.
+
+    Returns:
+        dict[str, str]: The headers of the request that reached the transport.
+    """
+    sent: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200)
+
+    with (
+        sentry_sdk.start_transaction(name=_PROBE_MESSAGE),
+        httpx.Client(transport=httpx.MockTransport(handle)) as client,
+    ):
+        client.get(url)
+    (request,) = sent
+    return dict(request.headers)
+
+
+def _httpx2_request_headers(url: str) -> dict[str, str]:
+    """Send a GET to *url* through an :class:`httpx2.Client` on a mock transport, inside a Sentry transaction.
+
+    The Sentry httpx2 integration adds trace headers only to requests inside a transaction, as in a
+    request handler of a service.
+
+    Returns:
+        dict[str, str]: The headers of the request that reached the transport.
+    """
+    sent: list[httpx2.Request] = []
+
+    def handle(request: httpx2.Request) -> httpx2.Response:
+        sent.append(request)
+        return httpx2.Response(200)
+
+    with (
+        sentry_sdk.start_transaction(name=_PROBE_MESSAGE),
+        httpx2.Client(transport=httpx2.MockTransport(handle)) as client,
+    ):
+        client.get(url)
+    (request,) = sent
+    return dict(request.headers)
 
 
 def _breadcrumbs(event: dict[str, Any], category: str) -> list[dict[str, Any]]:
@@ -354,6 +409,41 @@ class TestSentryHttpData:
         assert http_spans
         assert all(_HTTP_QUERY_KEY not in span["data"] for span in http_spans)
         assert _SIGNED_URL_MARKER not in json.dumps(transaction)
+
+    @pytest.mark.parametrize("send_get", [_httpx_request_headers, _httpx2_request_headers], ids=["httpx", "httpx2"])
+    def test_outbound_request_has_no_trace_headers_by_default(
+        self, sentry_capture: SentryCapture, send_get: Callable[[str], dict[str, str]]
+    ) -> None:
+        """An outbound request gets no ``sentry-trace`` or ``baggage`` header at default settings."""
+        sentry_capture.start()
+
+        headers = send_get(_PARTNER_URL)
+
+        assert _SENTRY_TRACE_HEADER not in headers
+        assert _BAGGAGE_HEADER not in headers
+
+    def test_outbound_request_to_allowed_host_has_trace_headers(
+        self, sentry_capture: SentryCapture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A request to a host in TRACE_PROPAGATION_TARGETS gets the ``sentry-trace`` header."""
+        monkeypatch.setenv(f"{_SENTRY_PREFIX}TRACE_PROPAGATION_TARGETS", _INTERNAL_TRACE_TARGETS_JSON)
+        sentry_capture.start()
+
+        headers = _httpx_request_headers(_INTERNAL_URL)
+
+        assert _SENTRY_TRACE_HEADER in headers
+
+    def test_outbound_request_to_other_host_has_no_trace_headers_when_targets_set(
+        self, sentry_capture: SentryCapture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A request to a host outside TRACE_PROPAGATION_TARGETS gets no ``sentry-trace`` or ``baggage`` header."""
+        monkeypatch.setenv(f"{_SENTRY_PREFIX}TRACE_PROPAGATION_TARGETS", _INTERNAL_TRACE_TARGETS_JSON)
+        sentry_capture.start()
+
+        headers = _httpx_request_headers(_PARTNER_URL)
+
+        assert _SENTRY_TRACE_HEADER not in headers
+        assert _BAGGAGE_HEADER not in headers
 
 
 @pytest.mark.integration

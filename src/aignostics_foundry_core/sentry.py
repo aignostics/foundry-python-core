@@ -248,6 +248,20 @@ class SentrySettings(OpaqueSettings):
         ),
     ]
 
+    trace_propagation_targets: Annotated[
+        list[str],
+        Field(
+            description=(
+                "Regexes of the outbound request URLs that get the sentry-trace and baggage headers. "
+                "Empty by default, so no outbound request gets them: the baggage header carries the "
+                "release, the environment and the public key of the DSN. The env var takes a JSON list "
+                "(https://docs.sentry.io/platforms/python/configuration/options/#trace-propagation-targets)"
+            ),
+            examples=[[r"internal\.example\.com"]],
+            default_factory=list,
+        ),
+    ]
+
     max_breadcrumbs: Annotated[
         int,
         Field(
@@ -355,6 +369,7 @@ def sentry_initialize(
         send_default_pii=settings.send_default_pii,
         include_local_variables=settings.include_local_variables,
         max_request_body_size=settings.max_request_body_size,
+        trace_propagation_targets=settings.trace_propagation_targets,
         sample_rate=settings.sample_rate,
         traces_sample_rate=settings.traces_sample_rate,
         profiles_sample_rate=settings.profiles_sample_rate,
