@@ -5,6 +5,7 @@ from collections.abc import Generator
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
+import httpx
 import pytest
 import sentry_sdk
 from fastapi import FastAPI
@@ -45,6 +46,12 @@ _EVENT_ITEM_TYPES = {"event", "transaction"}
 _SECRET_LOCAL_NAME = "client_secret"  # ruff: ignore[hardcoded-password-string]
 _SECRET_LOCAL_VALUE = "s3cr3t"  # ruff: ignore[hardcoded-password-string]
 _FAILING_ROUTE = "/fail"
+_SIGNED_URL_QUERY = "sig=secret"
+_SIGNED_URL_MARKER = "sig="
+_SIGNED_BLOB_URL = f"https://storage.example.com/blob?{_SIGNED_URL_QUERY}"
+_HTTP_QUERY_KEY = "http.query"
+_HTTP_FRAGMENT_KEY = "http.fragment"
+_HTTPLIB_CATEGORY = "httplib"
 
 
 class _CapturingTransport(Transport):
@@ -140,6 +147,17 @@ def _post_secret_to_failing_fastapi_route() -> None:
         raise RuntimeError(msg)
 
     TestClient(app, raise_server_exceptions=False).post(_FAILING_ROUTE, json={_SECRET_LOCAL_NAME: _SECRET_LOCAL_VALUE})
+
+
+def _get_signed_blob_url() -> None:
+    """Send a GET with a signed query string through an :class:`httpx.Client` on a mock transport."""
+    with httpx.Client(transport=httpx.MockTransport(lambda _request: httpx.Response(200))) as client:
+        client.get(_SIGNED_BLOB_URL)
+
+
+def _breadcrumbs(event: dict[str, Any], category: str) -> list[dict[str, Any]]:
+    """Return the breadcrumbs of *event* that have *category*."""
+    return [crumb for crumb in event["breadcrumbs"]["values"] if crumb.get("category") == category]
 
 
 @pytest.fixture
@@ -280,6 +298,62 @@ class TestSentryDataCollection:
 
         (event,) = sentry_capture.items("event")
         assert event["request"]["data"][_SECRET_LOCAL_NAME] == _SECRET_LOCAL_VALUE
+
+
+@pytest.mark.integration
+class TestSentryHttpData:
+    """Tests for the URL data that HTTP breadcrumbs and spans carry to Sentry."""
+
+    def test_http_breadcrumb_has_no_query_string(self, sentry_capture: SentryCapture) -> None:
+        """The ``httplib`` breadcrumb of an httpx request carries no query string."""
+        sentry_capture.start()
+        _get_signed_blob_url()
+        sentry_sdk.capture_message(_PROBE_MESSAGE)
+
+        (event,) = sentry_capture.items("event")
+        (crumb,) = _breadcrumbs(event, _HTTPLIB_CATEGORY)
+        assert _HTTP_QUERY_KEY not in crumb["data"]
+        assert _SIGNED_URL_MARKER not in crumb["data"]["url"]
+
+    def test_manual_http_breadcrumb_with_query_in_url_is_stripped(self, sentry_capture: SentryCapture) -> None:
+        """An HTTP breadcrumb added by hand loses the query keys and the query of its URL."""
+        sentry_capture.start()
+        sentry_sdk.add_breadcrumb(
+            type="http",
+            category=_HTTPLIB_CATEGORY,
+            data={"url": _SIGNED_BLOB_URL + "#part", _HTTP_QUERY_KEY: _SIGNED_URL_QUERY, _HTTP_FRAGMENT_KEY: "part"},
+        )
+        sentry_sdk.capture_message(_PROBE_MESSAGE)
+
+        (event,) = sentry_capture.items("event")
+        (crumb,) = _breadcrumbs(event, _HTTPLIB_CATEGORY)
+        assert crumb["data"] == {"url": "https://storage.example.com/blob"}
+
+    def test_non_http_breadcrumb_is_unchanged(self, sentry_capture: SentryCapture) -> None:
+        """A breadcrumb of another type and category keeps its data, also URL-like keys."""
+        data = {"url": _SIGNED_BLOB_URL, _HTTP_QUERY_KEY: _SIGNED_URL_QUERY}
+        sentry_capture.start()
+        sentry_sdk.add_breadcrumb(type="default", category="app", data=data)
+        sentry_sdk.capture_message(_PROBE_MESSAGE)
+
+        (event,) = sentry_capture.items("event")
+        (crumb,) = _breadcrumbs(event, "app")
+        assert crumb["data"] == data
+
+    def test_transaction_span_has_no_query_string(
+        self, sentry_capture: SentryCapture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The HTTP client span of an httpx request inside a transaction carries no query string."""
+        monkeypatch.setenv(f"{_SENTRY_PREFIX}TRACES_SAMPLE_RATE", "1.0")
+        sentry_capture.start()
+        with sentry_sdk.start_transaction(name=_PROBE_MESSAGE):
+            _get_signed_blob_url()
+
+        (transaction,) = sentry_capture.items("transaction")
+        http_spans = [span for span in transaction["spans"] if span["op"] == "http.client"]
+        assert http_spans
+        assert all(_HTTP_QUERY_KEY not in span["data"] for span in http_spans)
+        assert _SIGNED_URL_MARKER not in json.dumps(transaction)
 
 
 @pytest.mark.integration

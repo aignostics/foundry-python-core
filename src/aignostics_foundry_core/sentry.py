@@ -3,7 +3,7 @@
 import re
 import urllib.parse
 from importlib.util import find_spec
-from typing import TYPE_CHECKING, Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal, cast
 
 from loguru import logger
 from pydantic import AfterValidator, BeforeValidator, Field, PlainSerializer, SecretStr
@@ -13,6 +13,7 @@ from aignostics_foundry_core.foundry import get_context
 from aignostics_foundry_core.settings import OpaqueSettings, strip_to_none_before_validator
 
 if TYPE_CHECKING:
+    from sentry_sdk._types import Event
     from sentry_sdk.integrations import Integration
 
     from aignostics_foundry_core.foundry import FoundryContext
@@ -23,6 +24,10 @@ _ERR_MSG_NON_HTTPS = "Sentry DSN must use HTTPS protocol for security"
 _ERR_MSG_INVALID_DOMAIN = "Sentry DSN must use a valid Sentry domain (ingest.us.sentry.io or ingest.de.sentry.io)"
 _ERR_MSG_INVALID_FORMAT = "Invalid Sentry DSN format"
 _VALID_SENTRY_DOMAIN_PATTERN = r"^[a-f0-9]+@o\d+\.ingest\.(us|de)\.sentry\.io$"
+_HTTP_BREADCRUMB_TYPE = "http"
+_HTTP_BREADCRUMB_CATEGORY = "httplib"
+_URL_DATA_KEY = "url"
+_URL_PART_DATA_KEYS = frozenset({"http.query", "http.fragment"})
 
 
 def _validate_url_scheme(parsed_url: urllib.parse.ParseResult) -> None:
@@ -113,6 +118,63 @@ def _validate_https_dsn(value: SecretStr | None) -> SecretStr | None:
         raise ValueError(error_message) from exc
 
     return value
+
+
+def _without_url_query(data: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of HTTP breadcrumb or span *data* without the query string and the fragment.
+
+    Removes the ``http.query`` and ``http.fragment`` keys, and the query and the fragment of
+    ``data["url"]``. Query strings can hold credentials, for example the signature of a signed URL.
+    The result is a copy because the SDK makes the HTTP breadcrumb from the span data dict itself.
+
+    Args:
+        data: The ``data`` of a breadcrumb or a span.
+
+    Returns:
+        dict[str, Any]: A copy of *data* without the query string and the fragment.
+    """
+    stripped = {key: value for key, value in data.items() if key not in _URL_PART_DATA_KEYS}
+    url = stripped.get(_URL_DATA_KEY)
+    if isinstance(url, str):
+        stripped[_URL_DATA_KEY] = urllib.parse.urlsplit(url)._replace(query="", fragment="").geturl()
+    return stripped
+
+
+def _before_breadcrumb(crumb: dict[str, Any], _hint: dict[str, Any]) -> dict[str, Any]:
+    """Remove the query string and the fragment from HTTP breadcrumbs. Return other breadcrumbs unchanged.
+
+    Args:
+        crumb: The breadcrumb that the SDK is about to record.
+        _hint: The breadcrumb hint (unused).
+
+    Returns:
+        dict[str, Any]: The breadcrumb to record.
+    """
+    is_http = crumb.get("type") == _HTTP_BREADCRUMB_TYPE or crumb.get("category") == _HTTP_BREADCRUMB_CATEGORY
+    data = crumb.get("data")
+    if is_http and isinstance(data, dict):
+        crumb["data"] = _without_url_query(cast("dict[str, Any]", data))
+    return crumb
+
+
+def _before_send_transaction(event: "Event", _hint: dict[str, Any]) -> "Event":
+    """Remove the query string and the fragment from the data of each span of a transaction.
+
+    Args:
+        event: The transaction event that the SDK is about to send.
+        _hint: The event hint (unused).
+
+    Returns:
+        Event: The transaction event to send.
+    """
+    spans = event.get("spans")
+    if not isinstance(spans, list):
+        return event
+    for span in spans:
+        data = span.get("data")
+        if isinstance(data, dict):
+            span["data"] = _without_url_query(cast("dict[str, Any]", data))
+    return event
 
 
 class SentrySettings(OpaqueSettings):
@@ -258,6 +320,9 @@ def sentry_initialize(
     All project-specific metadata is derived from *context* (or the global
     context installed via :func:`~aignostics_foundry_core.foundry.set_context`).
 
+    HTTP breadcrumbs and the spans of transactions carry no query string and no fragment.
+    Both can hold credentials, for example the signature of a signed URL.
+
     Args:
         integrations: List of Sentry SDK integrations to register, or ``None``.
         context: :class:`~aignostics_foundry_core.foundry.FoundryContext` providing
@@ -296,6 +361,8 @@ def sentry_initialize(
         profile_session_sample_rate=settings.profile_session_sample_rate,
         profile_lifecycle=settings.profile_lifecycle,
         enable_logs=settings.enable_logs,
+        before_breadcrumb=_before_breadcrumb,
+        before_send_transaction=_before_send_transaction,
         integrations=integrations if integrations is not None else [],
     )
     sentry_sdk.set_context(
