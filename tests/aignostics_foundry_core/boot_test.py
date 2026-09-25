@@ -2,18 +2,27 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import ssl
 import sys
 import types
-from unittest.mock import MagicMock
+from typing import TYPE_CHECKING
+from unittest.mock import MagicMock, patch
 
+import certifi
 import pytest
 
 import aignostics_foundry_core.boot as boot_mod
 from tests.conftest import TEST_PROJECT_NAME, TEST_PROJECT_PREFIX, make_context
 
+if TYPE_CHECKING:
+    from tests.aignostics_foundry_core.conftest import OtlpLogCapture
+
 _OTHER_PROJECT = "otherapp"
+_REJECTED_LOGGER = "noisy.lib"
+_REJECTED_MARKER = "boot_otlp_rejected_marker_4c7d"
+_KEPT_MARKER = "boot_otlp_kept_marker_8f2b"
 
 
 @pytest.mark.unit
@@ -134,3 +143,28 @@ def test_boot_forwards_otel_instrumentors_to_otel_initialize(monkeypatch: pytest
     )
 
     assert mock_otel.call_args.kwargs["instrumentors"] is sentinel_instrumentors
+
+
+@pytest.mark.integration
+def test_boot_applies_log_filter_to_otlp_sink(
+    monkeypatch: pytest.MonkeyPatch, otlp_log_exporter: OtlpLogCapture
+) -> None:
+    """boot() gives its log_filter to the OTLP log sink, which then drops the rejected records."""
+    monkeypatch.setattr(boot_mod, "_boot_called", False)
+    monkeypatch.setattr(sys, "argv", ["boot_test"])
+    # Keep boot() from changing the process-wide SSL setup and SSL_CERT_FILE.
+    monkeypatch.setenv("SSL_CERT_FILE", certifi.where())
+
+    with patch("truststore.inject_into_ssl"):
+        boot_mod.boot(
+            context=make_context(),
+            sentry_integrations=None,
+            log_filter=lambda record: record["name"] != _REJECTED_LOGGER,
+        )
+
+    logging.getLogger(_REJECTED_LOGGER).warning(_REJECTED_MARKER)
+    logging.getLogger(TEST_PROJECT_NAME).warning(_KEPT_MARKER)
+
+    bodies = otlp_log_exporter.bodies
+    assert _KEPT_MARKER in bodies
+    assert _REJECTED_MARKER not in bodies
