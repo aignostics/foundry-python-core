@@ -7,6 +7,9 @@ Special logger configurations:
 - psycopg.pool: Set to WARNING level to suppress verbose INFO logs from
   connection pool operations (getconn/putconn). Only non-nominal pool
   messages (warnings and errors) are logged.
+- httpx, httpx2 and urllib3: Set to WARNING level. These HTTP clients log each
+  request URL at INFO, and the URL can include the query string of a signed URL.
+  At WARNING, these request lines do not get to the log sinks or to Sentry.
 """
 
 import contextlib
@@ -31,6 +34,7 @@ if TYPE_CHECKING:
     from aignostics_foundry_core.foundry import FoundryContext
 
 _DEFAULT_PROJECT = "foundry"
+_HTTP_CLIENT_LOGGERS = ("httpx", "httpx2", "urllib3")
 
 
 def _validate_file_name(file_name: str | None) -> str | None:
@@ -186,6 +190,9 @@ def logging_initialize(
     handlers based on settings read from environment variables with the
     ``{ctx.env_prefix}LOG_`` prefix (derived from the context).
 
+    Sets the stdlib loggers ``psycopg``, ``psycopg.pool``, ``httpx``, ``httpx2``
+    and ``urllib3`` to WARNING. These levels are process-wide.
+
     Args:
         filter_func: Optional loguru filter callable; receives a ``Record``
             and returns ``True`` to keep the message, ``False`` to drop it.
@@ -233,5 +240,11 @@ def logging_initialize(
     logging.getLogger("psycopg").setLevel(logging.WARNING)
     logging.getLogger("psycopg.pool").setLevel(logging.WARNING)
     logger.trace("psycopg and psycopg.pool loggers set to WARNING to prevent deadlock and reduce noise")
+
+    # Suppress the INFO request lines of the HTTP clients. Each line contains the full request URL,
+    # which can include credentials in the query string (for example, the signature of a signed URL).
+    for http_client_logger in _HTTP_CLIENT_LOGGERS:
+        logging.getLogger(http_client_logger).setLevel(logging.WARNING)
+    logger.trace("{} loggers set to WARNING to keep request URLs out of the logs", ", ".join(_HTTP_CLIENT_LOGGERS))
 
     logger.trace("Logging initialized with level: {}", settings.level)

@@ -144,6 +144,11 @@ Settings class: `LogSettings`
 | `{PREFIX}LOG_FILE_NAME` | platform log dir | Path to the log file (validated on startup when `FILE_ENABLED` is true). |
 | `{PREFIX}LOG_REDIRECT_LOGGING` | `true` | Redirect stdlib `logging` to loguru via `InterceptHandler`. |
 
+`logging_initialize()` sets the stdlib loggers `httpx`, `httpx2` and `urllib3` to `WARNING`. These
+HTTP clients log each request URL at `INFO`, and the URL can contain credentials in its query string
+(for example, the signature of a signed URL). At `WARNING`, these request lines do not get to the log
+sinks or to Sentry. The `psycopg` and `psycopg.pool` loggers are also at `WARNING`.
+
 #### Sentry (`{PREFIX}SENTRY_`)
 
 Settings class: `SentrySettings`. Sentry is only initialised when `ENABLED=true` **and** `DSN` is
