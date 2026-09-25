@@ -1,21 +1,115 @@
 """Tests for aignostics_foundry_core.sentry."""
 
+from collections.abc import Generator
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+import sentry_sdk
 from pydantic import ValidationError
+from sentry_sdk.client import NonRecordingClient
+from sentry_sdk.transport import Transport
 
 from aignostics_foundry_core.foundry import set_context
 from aignostics_foundry_core.sentry import SentrySettings, sentry_initialize, set_sentry_user
 from tests.conftest import TEST_PROJECT_NAME, TEST_PROJECT_PREFIX, make_context
 
+if TYPE_CHECKING:
+    from sentry_sdk.envelope import Envelope
+    from sentry_sdk.integrations import Integration
+
+    from aignostics_foundry_core.foundry import FoundryContext
+
 _VALID_DSN = "https://abc123def456@o99999.ingest.de.sentry.io/1234567"
 _SENTRY_SET_USER = "sentry_sdk.set_user"
 _AUTH0_USER = "auth0|x"
 _SENTRY_PREFIX = f"{TEST_PROJECT_PREFIX}SENTRY_"
-_SENTRY_SDK_INIT = "sentry_sdk.init"
-_SENTRY_SDK_SET_CONTEXT = "sentry_sdk.set_context"
-_SENTRY_SDK_IGNORE_LOGGER = "sentry_sdk.integrations.logging.ignore_logger"
+_PROBE_MESSAGE = "probe"
+_EVENT_ITEM_TYPES = {"event", "transaction"}
+
+
+class _CapturingTransport(Transport):
+    """Sentry transport that keeps every envelope in memory instead of sending it."""
+
+    def __init__(self, options: dict[str, Any] | None = None) -> None:
+        """Initialise the transport with an empty envelope list."""
+        super().__init__(options)
+        self.envelopes: list[Envelope] = []
+
+    def capture_envelope(self, envelope: "Envelope") -> None:
+        """Store *envelope* for later inspection."""
+        self.envelopes.append(envelope)
+
+
+class SentryCapture:
+    """Handle returned by the ``sentry_capture`` fixture.
+
+    Starts Sentry through :func:`sentry_initialize` and gives access to the envelope
+    items that the SDK would have sent to Sentry.
+    """
+
+    def __init__(self, transport: _CapturingTransport) -> None:
+        """Wrap *transport*, which receives every envelope of the started client."""
+        self._transport = transport
+
+    def start(
+        self,
+        integrations: "list[Integration] | None" = None,
+        *,
+        context: "FoundryContext | None" = None,
+    ) -> bool:
+        """Call :func:`sentry_initialize` with *integrations* (and optional *context*).
+
+        Returns:
+            bool: The return value of :func:`sentry_initialize`.
+        """
+        return sentry_initialize(integrations, context=context)
+
+    def items(self, item_type: str) -> list[dict[str, Any]]:
+        """Return the JSON payloads of all captured envelope items of *item_type* (e.g. ``"log"``).
+
+        Calls :func:`sentry_sdk.flush` first so that buffered items arrive.
+        """
+        return self._payloads({item_type})
+
+    @property
+    def events(self) -> list[dict[str, Any]]:
+        """Payloads of all captured ``event`` and ``transaction`` items, read after :func:`sentry_sdk.flush`."""
+        return self._payloads(_EVENT_ITEM_TYPES)
+
+    def _payloads(self, item_types: set[str]) -> list[dict[str, Any]]:
+        sentry_sdk.flush()
+        return [
+            item.payload.json
+            for envelope in self._transport.envelopes
+            for item in envelope.items
+            if item.type in item_types and item.payload.json is not None
+        ]
+
+
+@pytest.fixture
+def sentry_capture(monkeypatch: pytest.MonkeyPatch) -> Generator[SentryCapture, None, None]:
+    """Enable Sentry with a valid DSN and capture all envelopes in memory.
+
+    Test-specific ``{PREFIX}SENTRY_*`` env vars must be set before ``start()`` because
+    :func:`sentry_initialize` reads the settings when it runs.
+
+    On teardown the client is closed, the isolation and current scopes are cleared and the
+    global scope gets a :class:`~sentry_sdk.client.NonRecordingClient`, so the next test
+    starts without an active client or user.
+
+    Yields:
+        SentryCapture: Handle to start Sentry and read the captured payloads.
+    """
+    monkeypatch.setenv(f"{_SENTRY_PREFIX}ENABLED", "true")
+    monkeypatch.setenv(f"{_SENTRY_PREFIX}DSN", _VALID_DSN)
+    transport = _CapturingTransport()
+    with patch("sentry_sdk.client.make_transport", return_value=transport):
+        yield SentryCapture(transport)
+    sentry_sdk.get_client().close()
+    sentry_sdk.get_isolation_scope().clear()
+    sentry_sdk.get_current_scope().clear()
+    sentry_sdk.get_global_scope().set_client(NonRecordingClient())
 
 
 @pytest.mark.integration
@@ -36,19 +130,14 @@ class TestSentryInitialize:
             result = sentry_initialize(integrations=None)
         assert result is False
 
-    def test_sentry_initialize_returns_true_and_calls_init_when_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Returns True and calls sentry_sdk.init with correct release when enabled with valid DSN."""
-        monkeypatch.setenv(f"{_SENTRY_PREFIX}ENABLED", "true")
-        monkeypatch.setenv(f"{_SENTRY_PREFIX}DSN", _VALID_DSN)
-        with (
-            patch(_SENTRY_SDK_INIT) as mock_init,
-            patch(_SENTRY_SDK_SET_CONTEXT),
-            patch(_SENTRY_SDK_IGNORE_LOGGER),
-        ):
-            result = sentry_initialize(integrations=None)
+    def test_sentry_initialize_returns_true_when_enabled(self, sentry_capture: SentryCapture) -> None:
+        """Returns True and events carry the release ``{name}@{version_full}`` when enabled with a valid DSN."""
+        result = sentry_capture.start()
+        sentry_sdk.capture_message(_PROBE_MESSAGE)
+
         assert result is True
-        mock_init.assert_called_once()
-        assert mock_init.call_args.kwargs["release"] == f"{TEST_PROJECT_NAME}@0.0.0"
+        (event,) = sentry_capture.events
+        assert event["release"] == f"{TEST_PROJECT_NAME}@0.0.0"
 
     def test_sentry_initialize_returns_false_when_enabled_but_dsn_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Returns False when enabled but no DSN is configured."""
@@ -57,46 +146,32 @@ class TestSentryInitialize:
         result = sentry_initialize(integrations=None)
         assert result is False
 
-    def test_sentry_initialize_uses_context_project_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """sentry_sdk.init release tag uses the context project name."""
-        monkeypatch.setenv(f"{_SENTRY_PREFIX}ENABLED", "true")
-        monkeypatch.setenv(f"{_SENTRY_PREFIX}DSN", _VALID_DSN)
-        ctx = make_context()
-        with (
-            patch(_SENTRY_SDK_INIT) as mock_init,
-            patch(_SENTRY_SDK_SET_CONTEXT),
-            patch(_SENTRY_SDK_IGNORE_LOGGER),
-        ):
-            result = sentry_initialize(integrations=None, context=ctx)
-        assert result is True
-        assert mock_init.call_args.kwargs["release"].startswith(f"{TEST_PROJECT_NAME}@")
+    def test_sentry_initialize_uses_context_project_name(self, sentry_capture: SentryCapture) -> None:
+        """The event release uses the project name of the given context."""
+        ctx = make_context(name="other_project", version="1.2.3")
+        sentry_capture.start(context=ctx)
+        sentry_sdk.capture_message(_PROBE_MESSAGE)
 
-    def test_sentry_initialize_uses_context_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """sentry_sdk.init environment arg matches context.environment."""
-        monkeypatch.setenv(f"{_SENTRY_PREFIX}ENABLED", "true")
-        monkeypatch.setenv(f"{_SENTRY_PREFIX}DSN", _VALID_DSN)
-        ctx = make_context(environment="staging")
-        with (
-            patch(_SENTRY_SDK_INIT) as mock_init,
-            patch(_SENTRY_SDK_SET_CONTEXT),
-            patch(_SENTRY_SDK_IGNORE_LOGGER),
-        ):
-            sentry_initialize(integrations=None, context=ctx)
-        assert mock_init.call_args.kwargs["environment"] == "staging"
+        (event,) = sentry_capture.events
+        assert event["release"] == "other_project@1.2.3"
 
-    def test_sentry_initialize_uses_sentry_context_flags(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """sentry_sdk.set_context receives runtime mode flags from the context."""
-        monkeypatch.setenv(f"{_SENTRY_PREFIX}ENABLED", "true")
-        monkeypatch.setenv(f"{_SENTRY_PREFIX}DSN", _VALID_DSN)
-        ctx = make_context(is_test=True)
-        with (
-            patch(_SENTRY_SDK_INIT),
-            patch(_SENTRY_SDK_SET_CONTEXT) as mock_set_ctx,
-            patch(_SENTRY_SDK_IGNORE_LOGGER),
-        ):
-            sentry_initialize(integrations=None, context=ctx)
-        ctx_data: dict[str, object] = mock_set_ctx.call_args.args[1]  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
-        assert ctx_data["test_mode"] is True
+    def test_sentry_initialize_uses_context_environment(self, sentry_capture: SentryCapture) -> None:
+        """The event environment matches context.environment."""
+        sentry_capture.start(context=make_context(environment="staging"))
+        sentry_sdk.capture_message(_PROBE_MESSAGE)
+
+        (event,) = sentry_capture.events
+        assert event["environment"] == "staging"
+
+    def test_sentry_initialize_uses_sentry_context_flags(self, sentry_capture: SentryCapture) -> None:
+        """The ``aignx/base`` event context carries the runtime mode flags of the context."""
+        sentry_capture.start(context=make_context(is_test=True))
+        sentry_sdk.capture_message(_PROBE_MESSAGE)
+
+        (event,) = sentry_capture.events
+        base_context = event["contexts"]["aignx/base"]
+        assert base_context["project_name"] == TEST_PROJECT_NAME
+        assert base_context["test_mode"] is True
 
 
 @pytest.mark.integration
