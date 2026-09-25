@@ -259,14 +259,16 @@ class TestSentryDataCollection:
         """The event of a failed FastAPI request carries request info but no request body at default settings.
 
         The SDK keeps the ``data`` key with an empty value and marks it as removed in ``_meta``.
+        The request can also produce a sampled transaction, so the error event is read by its item
+        type, and the secret is looked for in every captured payload.
         """
         sentry_capture.start()
         _post_secret_to_failing_fastapi_route()
 
-        (event,) = sentry_capture.events
+        (event,) = sentry_capture.items("event")
         assert "request" in event
         assert not event["request"].get("data")
-        assert _SECRET_LOCAL_VALUE not in json.dumps(event)
+        assert _SECRET_LOCAL_VALUE not in json.dumps(sentry_capture.events)
 
     def test_failed_fastapi_request_event_has_request_data_when_always(
         self, sentry_capture: SentryCapture, monkeypatch: pytest.MonkeyPatch
@@ -276,7 +278,7 @@ class TestSentryDataCollection:
         sentry_capture.start()
         _post_secret_to_failing_fastapi_route()
 
-        (event,) = sentry_capture.events
+        (event,) = sentry_capture.items("event")
         assert event["request"]["data"][_SECRET_LOCAL_NAME] == _SECRET_LOCAL_VALUE
 
 
