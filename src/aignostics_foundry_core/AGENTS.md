@@ -182,7 +182,7 @@ This file provides an overview of all modules in `aignostics_foundry_core`, thei
 - **Key Features**:
   - `SentrySettings(OpaqueSettings)` — uses the active FoundryContext.env_prefix to derive the env prefix (`{ctx.env_prefix}SENTRY_`). Fields: `enabled`, `dsn` (validated HTTPS Sentry URL), `debug`, `send_default_pii`, `include_local_variables` (default `False`; frame locals are not sent), `max_request_body_size` (`"never"` | `"small"` | `"medium"` | `"always"`, default `"never"`; request bodies are not sent), `max_breadcrumbs`, `sample_rate`, `traces_sample_rate`, `profiles_sample_rate`, `profile_session_sample_rate`, `profile_lifecycle`, `enable_logs`
   - `sentry_initialize(integrations, *, context=None)` — derives all project-specific values (name, version, environment, URLs, runtime flags) from *context* (or the global context); env prefix and env file are read from `ctx.env_prefix` and `ctx.env_file`; initialises Sentry SDK when enabled and DSN present; sets `aignx/base` context; suppresses noisy loggers; returns `True` on success, `False` otherwise
-  - `set_sentry_user(user, role_claim)` — maps Auth0 user claims (`sub` → `id`, `email`, `name`, …) into Sentry scope; pass `None` to clear context; no-op when `sentry_sdk` is absent
+  - `set_sentry_user(user, role_claim)` — maps `sub` → `id`, `org_id` and the optional role claim into Sentry scope; no other claims (no email, name or other personal data); pass `None` to clear context; no-op when `sentry_sdk` is absent
 - **Location**: `aignostics_foundry_core/sentry.py`
 - **Dependencies**: `sentry-sdk>=2,<3` (mandatory); `loguru>=0.7,<1`
 - **Import**: `from aignostics_foundry_core.sentry import SentrySettings, sentry_initialize, set_sentry_user`
