@@ -1,11 +1,14 @@
 """Tests for aignostics_foundry_core.sentry."""
 
+import json
 from collections.abc import Generator
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 import sentry_sdk
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sentry_sdk.client import NonRecordingClient
 from sentry_sdk.transport import Transport
@@ -28,6 +31,7 @@ _PROBE_MESSAGE = "probe"
 _EVENT_ITEM_TYPES = {"event", "transaction"}
 _SECRET_LOCAL_NAME = "client_secret"  # ruff: ignore[hardcoded-password-string]
 _SECRET_LOCAL_VALUE = "s3cr3t"  # ruff: ignore[hardcoded-password-string]
+_FAILING_ROUTE = "/fail"
 
 
 class _CapturingTransport(Transport):
@@ -111,6 +115,18 @@ def _capture_exception_with_secret_local() -> None:
 def _exception_frames(event: dict[str, Any]) -> list[dict[str, Any]]:
     """Return all stack frames of all exceptions in *event*."""
     return [frame for value in event["exception"]["values"] for frame in value["stacktrace"]["frames"]]
+
+
+def _post_secret_to_failing_fastapi_route() -> None:
+    """Send a JSON body with a secret to a FastAPI route that raises :class:`RuntimeError`."""
+    app = FastAPI()
+
+    @app.post(_FAILING_ROUTE)
+    def fail() -> None:  # pyright: ignore[reportUnusedFunction]
+        msg = "request failed"
+        raise RuntimeError(msg)
+
+    TestClient(app, raise_server_exceptions=False).post(_FAILING_ROUTE, json={_SECRET_LOCAL_NAME: _SECRET_LOCAL_VALUE})
 
 
 @pytest.fixture
@@ -225,6 +241,30 @@ class TestSentryDataCollection:
         (event,) = sentry_capture.events
         (frame,) = [f for f in _exception_frames(event) if f["function"] == _fail_with_secret_local.__name__]
         assert _SECRET_LOCAL_NAME in frame["vars"]
+
+    def test_failed_fastapi_request_event_has_no_request_data_by_default(self, sentry_capture: SentryCapture) -> None:
+        """The event of a failed FastAPI request carries request info but no request body at default settings.
+
+        The SDK keeps the ``data`` key with an empty value and marks it as removed in ``_meta``.
+        """
+        sentry_capture.start()
+        _post_secret_to_failing_fastapi_route()
+
+        (event,) = sentry_capture.events
+        assert "request" in event
+        assert not event["request"].get("data")
+        assert _SECRET_LOCAL_VALUE not in json.dumps(event)
+
+    def test_failed_fastapi_request_event_has_request_data_when_always(
+        self, sentry_capture: SentryCapture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The event of a failed FastAPI request carries the JSON body when MAX_REQUEST_BODY_SIZE is always."""
+        monkeypatch.setenv(f"{_SENTRY_PREFIX}MAX_REQUEST_BODY_SIZE", "always")
+        sentry_capture.start()
+        _post_secret_to_failing_fastapi_route()
+
+        (event,) = sentry_capture.events
+        assert event["request"]["data"][_SECRET_LOCAL_NAME] == _SECRET_LOCAL_VALUE
 
 
 @pytest.mark.integration
