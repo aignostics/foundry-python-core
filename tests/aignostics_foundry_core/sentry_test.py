@@ -3,7 +3,7 @@
 import json
 from collections.abc import Generator
 from typing import TYPE_CHECKING, Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 import sentry_sdk
@@ -24,8 +24,21 @@ if TYPE_CHECKING:
     from aignostics_foundry_core.foundry import FoundryContext
 
 _VALID_DSN = "https://abc123def456@o99999.ingest.de.sentry.io/1234567"
-_SENTRY_SET_USER = "sentry_sdk.set_user"
 _AUTH0_USER = "auth0|x"
+_AUTH0_ORG_ID = "org_123"
+_ROLE_CLAIM = "https://example.com/role"
+_FULL_AUTH0_CLAIMS: dict[str, Any] = {
+    "sub": _AUTH0_USER,
+    "email": "user@example.com",
+    "name": "Test User",
+    "nickname": "tester",
+    "given_name": "Test",
+    "family_name": "User",
+    "picture": "https://example.com/avatar.png",
+    "org_id": _AUTH0_ORG_ID,
+    "org_name": "Example Org",
+    "updated_at": "2026-01-01T00:00:00.000Z",
+}
 _SENTRY_PREFIX = f"{TEST_PROJECT_PREFIX}SENTRY_"
 _PROBE_MESSAGE = "probe"
 _EVENT_ITEM_TYPES = {"event", "transaction"}
@@ -327,52 +340,40 @@ class TestSentrySettings:
         assert settings.enabled is True
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 class TestSetSentryUser:
     """Behavioural tests for set_sentry_user()."""
 
-    def test_set_sentry_user_maps_sub_to_id(self) -> None:
-        """set_sentry_user maps 'sub' claim to 'id' in Sentry user context."""
-        mock_set_user = MagicMock()
-        with patch(_SENTRY_SET_USER, mock_set_user):
-            set_sentry_user({"sub": _AUTH0_USER})
-        mock_set_user.assert_called_once_with({"id": _AUTH0_USER})
+    def test_set_sentry_user_sends_only_id_and_org_id(self, sentry_capture: SentryCapture) -> None:
+        """Of a full Auth0 claim set, only ``sub`` (as ``id``) and ``org_id`` get to the event user."""
+        sentry_capture.start()
+        set_sentry_user(_FULL_AUTH0_CLAIMS)
+        sentry_sdk.capture_message(_PROBE_MESSAGE)
 
-    def test_set_sentry_user_none_clears_context(self) -> None:
-        """set_sentry_user(None) calls sentry_sdk.set_user(None) to clear context."""
-        mock_set_user = MagicMock()
-        with patch(_SENTRY_SET_USER, mock_set_user):
-            set_sentry_user(None)
-        mock_set_user.assert_called_once_with(None)
+        (event,) = sentry_capture.events
+        assert event["user"] == {"id": _AUTH0_USER, "org_id": _AUTH0_ORG_ID}
+
+    def test_set_sentry_user_includes_role_from_claim(self, sentry_capture: SentryCapture) -> None:
+        """The event user carries the value of the custom role claim when role_claim is provided."""
+        sentry_capture.start()
+        set_sentry_user({**_FULL_AUTH0_CLAIMS, _ROLE_CLAIM: "admin"}, role_claim=_ROLE_CLAIM)
+        sentry_sdk.capture_message(_PROBE_MESSAGE)
+
+        (event,) = sentry_capture.events
+        assert event["user"]["role"] == "admin"
+
+    def test_set_sentry_user_none_clears_user(self, sentry_capture: SentryCapture) -> None:
+        """set_sentry_user(None) removes a previously set user from later events."""
+        sentry_capture.start()
+        set_sentry_user(_FULL_AUTH0_CLAIMS)
+        set_sentry_user(None)
+        sentry_sdk.capture_message(_PROBE_MESSAGE)
+
+        (event,) = sentry_capture.events
+        assert "user" not in event
 
     def test_set_sentry_user_does_nothing_when_sdk_absent(self) -> None:
         """set_sentry_user is a no-op when sentry_sdk is not importable."""
         with patch("aignostics_foundry_core.sentry.find_spec", return_value=None):
             # Should not raise even though sentry_sdk is unavailable
             set_sentry_user({"sub": _AUTH0_USER})
-
-    def test_set_sentry_user_includes_role_from_claim(self) -> None:
-        """set_sentry_user includes role from a custom claim when role_claim is provided."""
-        mock_set_user = MagicMock()
-        with patch(_SENTRY_SET_USER, mock_set_user):
-            set_sentry_user(
-                {"sub": _AUTH0_USER, "https://my/role": "admin"},
-                role_claim="https://my/role",
-            )
-        assert mock_set_user.call_args[0][0]["role"] == "admin"
-
-    def test_set_sentry_user_maps_multiple_fields(self) -> None:
-        """set_sentry_user maps all standard Auth0 fields to Sentry user context."""
-        mock_set_user = MagicMock()
-        with patch(_SENTRY_SET_USER, mock_set_user):
-            set_sentry_user({
-                "sub": "auth0|abc",
-                "email": "user@example.com",
-                "name": "Test User",
-                "org_id": "org_123",
-            })
-        sentry_user = mock_set_user.call_args[0][0]
-        assert sentry_user["id"] == "auth0|abc"
-        assert sentry_user["email"] == "user@example.com"
-        assert sentry_user["name"] == "Test User"
-        assert sentry_user["org_id"] == "org_123"

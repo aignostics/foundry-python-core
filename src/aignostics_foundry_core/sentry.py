@@ -331,15 +331,21 @@ def set_sentry_user(user: dict[str, Any] | None, role_claim: str | None = None) 
     This function should be called after successful authentication
     to enrich error reports with user context.
 
+    Only IDs go to Sentry: ``sub`` becomes ``id`` and ``org_id`` stays ``org_id``.
+    When ``role_claim`` is set, that claim becomes ``role``. All other claims (for
+    example ``email``, ``name`` or ``picture``) are dropped, also when
+    ``send_default_pii`` is enabled.
+
     Args:
-        user: User dict from Auth0 containing fields like 'sub' (user ID),
-            'email', 'name', 'org_id', 'org_name', 'role', etc.
+        user: User dict from Auth0 containing claims like 'sub' (user ID) and
+            'org_id' (organization ID). Other claims are ignored.
             Pass None to clear user context.
         role_claim: Optional custom claim name for the user's role.
             If not specified, the role field will not be extracted.
 
     Example:
-        >>> set_sentry_user({"sub": "auth0|123", "email": "user@example.com", "org_id": "org123"})
+        >>> set_sentry_user({"sub": "auth0|123", "org_id": "org123"})
+        >>> set_sentry_user({"sub": "auth0|123", "https://x/role": "admin"}, role_claim="https://x/role")
         >>> set_sentry_user(None)  # Clear user context
     """
     if not find_spec("sentry_sdk"):
@@ -351,18 +357,10 @@ def set_sentry_user(user: dict[str, Any] | None, role_claim: str | None = None) 
         sentry_sdk.set_user(None)
         return
 
-    # Direct mappings from Auth0 user claims to Sentry user context
+    # Only IDs go to Sentry: personal data such as email or name stays out of error reports
     field_mappings: list[tuple[str, str]] = [
         ("sub", "id"),  # Auth0 user ID (e.g., "auth0|abc123")
-        ("email", "email"),
-        ("name", "name"),
         ("org_id", "org_id"),
-        ("org_name", "org_name"),
-        ("nickname", "nickname"),
-        ("given_name", "given_name"),
-        ("family_name", "family_name"),
-        ("picture", "picture"),
-        ("updated_at", "updated_at"),
     ]
 
     if role_claim:
