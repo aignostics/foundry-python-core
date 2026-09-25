@@ -161,6 +161,18 @@ class SentrySettings(OpaqueSettings):
         ),
     ]
 
+    include_local_variables: Annotated[
+        bool,
+        Field(
+            description=(
+                "Include the local variables of each stack frame in error events. Off by default because "
+                "locals can hold credentials and personal data "
+                "(https://docs.sentry.io/platforms/python/configuration/options/#include-local-variables)"
+            ),
+            default=False,
+        ),
+    ]
+
     max_breadcrumbs: Annotated[
         int,
         Field(
@@ -263,6 +275,7 @@ def sentry_initialize(
         max_breadcrumbs=settings.max_breadcrumbs,
         debug=settings.debug,
         send_default_pii=settings.send_default_pii,
+        include_local_variables=settings.include_local_variables,
         sample_rate=settings.sample_rate,
         traces_sample_rate=settings.traces_sample_rate,
         profiles_sample_rate=settings.profiles_sample_rate,
