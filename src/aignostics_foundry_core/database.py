@@ -211,6 +211,9 @@ def init_engine(
     Called during FastAPI lifespan startup or first job execution.
     Subsequent calls are no-ops (engine is already initialized).
 
+    The engine hides bound parameter values in SQLAlchemy error messages, because
+    these messages go to logs and Sentry.
+
     For multiprocessing: Engine is automatically reset in child processes via
     multiprocessing.util.register_after_fork().
 
@@ -255,6 +258,8 @@ def init_engine(
         "url": db_url,
         "pool_pre_ping": True,
         "echo": False,
+        # Keep bound parameter values out of error messages. They go to logs and Sentry.
+        "hide_parameters": True,
     }
     if not db_url.startswith("sqlite"):
         engine_kwargs["pool_size"] = pool_size

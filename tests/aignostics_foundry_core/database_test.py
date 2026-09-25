@@ -5,6 +5,8 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 
 import pytest
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aignostics_foundry_core.database import (
@@ -24,6 +26,7 @@ NON_SQLITE_DB_URL = "postgresql+asyncpg://u:p@localhost/db"
 DB_URL_ERROR_FRAGMENT = "DB_URL"
 
 SESSION_KWARG = "session"
+SENSITIVE_PARAMETER_VALUE = "sensitive-parameter-value-vpthp-128"
 
 
 @pytest.fixture(autouse=True)
@@ -73,6 +76,20 @@ class TestInitEngine:
         init_engine(sqlite_url)
         init_engine(sqlite_url)  # Must not raise; second call is a silent no-op
         await execute_with_session(noop)  # Session maker still functional
+
+    @pytest.mark.unit
+    async def test_failed_statement_error_hides_parameter_values(self, sqlite_url: str) -> None:
+        """A failed statement gives an error message without the bound parameter values."""
+
+        async def select_from_missing_table(session: AsyncSession) -> None:
+            await session.execute(text("SELECT * FROM missing_table WHERE x = :v"), {"v": SENSITIVE_PARAMETER_VALUE})
+
+        init_engine(sqlite_url)
+        with pytest.raises(OperationalError) as exc_info:
+            await execute_with_session(select_from_missing_table)
+
+        assert SENSITIVE_PARAMETER_VALUE not in str(exc_info.value)
+        assert "hide_parameters=True" in str(exc_info.value)
 
     @pytest.mark.unit
     async def test_init_engine_non_sqlite_url_accepted(self) -> None:
