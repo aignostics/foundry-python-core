@@ -173,6 +173,19 @@ class SentrySettings(OpaqueSettings):
         ),
     ]
 
+    max_request_body_size: Annotated[
+        Literal["never", "small", "medium", "always"],
+        Field(
+            description=(
+                "Maximum size of HTTP request bodies attached to events. Off (never) by default because "
+                "request bodies can hold credentials and personal data, and integrations send JSON bodies "
+                "even when send_default_pii is false "
+                "(https://docs.sentry.io/platforms/python/configuration/options/#max-request-body-size)"
+            ),
+            default="never",
+        ),
+    ]
+
     max_breadcrumbs: Annotated[
         int,
         Field(
@@ -276,6 +289,7 @@ def sentry_initialize(
         debug=settings.debug,
         send_default_pii=settings.send_default_pii,
         include_local_variables=settings.include_local_variables,
+        max_request_body_size=settings.max_request_body_size,
         sample_rate=settings.sample_rate,
         traces_sample_rate=settings.traces_sample_rate,
         profiles_sample_rate=settings.profiles_sample_rate,
