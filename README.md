@@ -169,7 +169,11 @@ set.
 | `{PREFIX}SENTRY_PROFILES_SAMPLE_RATE` | `0.1` | Profiler sample rate. |
 | `{PREFIX}SENTRY_PROFILE_SESSION_SAMPLE_RATE` | `0.1` | Profile session sample rate. |
 | `{PREFIX}SENTRY_PROFILE_LIFECYCLE` | `"trace"` | Profile lifecycle mode: `"trace"` or `"manual"`. |
-| `{PREFIX}SENTRY_ENABLE_LOGS` | `false` | Send log records to Sentry Logs. Log records can contain credentials and personal data. sentry-sdk 2.68.0 and later ignore this option. With these versions, set `capture_sentry_logs=True` on `LoggingIntegration` or `LoguruIntegration` and pass the integration to `boot(sentry_integrations=...)`. |
+
+Log records do not go to Sentry Logs, because they can contain credentials and personal data.
+To send them, pass `LoggingIntegration(capture_sentry_logs=True)` or
+`LoguruIntegration(capture_sentry_logs=True)` to `boot(sentry_integrations=...)`. foundry-core
+requires sentry-sdk 2.68.0 or later, and it has no `{PREFIX}SENTRY_ENABLE_LOGS` setting.
 
 #### OpenTelemetry (`{PREFIX}OTEL_`)
 
