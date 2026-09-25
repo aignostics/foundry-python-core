@@ -83,7 +83,9 @@ def boot(
             default) uses that function's own best-practice defaults
             (currently ``HTTPXClientInstrumentor``); pass ``[]`` to opt out.
         log_filter: Optional loguru filter callable forwarded to
-            :func:`~aignostics_foundry_core.log.logging_initialize`.
+            :func:`~aignostics_foundry_core.log.logging_initialize` (stderr and
+            file sinks) and to :func:`~aignostics_foundry_core.otel.otel_initialize`
+            (OTLP log sink).
         show_cmdline: Whether to include the process command line in the
             boot log message (default: ``True``).
     """
@@ -100,7 +102,7 @@ def boot(
         integrations=sentry_integrations,
         context=ctx,
     )
-    otel_initialized = otel_initialize(context=ctx, instrumentors=otel_instrumentors)
+    otel_initialized = otel_initialize(context=ctx, instrumentors=otel_instrumentors, log_filter=log_filter)
     _log_boot_message(
         context=ctx,
         show_cmdline=show_cmdline,

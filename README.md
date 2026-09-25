@@ -180,6 +180,10 @@ via OTLP/gRPC, e.g. to the internal OTel gateway backing the
 | `{PREFIX}OTEL_METRICS_ENABLED` | `true` | Export metrics (once `ENABLED`). |
 | `{PREFIX}OTEL_LOGS_ENABLED` | `false` | Bridge loguru records into OTLP log export (once `ENABLED`). |
 
+The OTLP log sink uses the same `{PREFIX}LOG_LEVEL` as the stderr and file sinks. It also uses the
+`log_filter` that the service passes to `boot()`. Records below the log level, and records that the
+filter rejects, do not go to the OTLP endpoint.
+
 Endpoint, service name, and all other exporter behaviour come from the **standard, unprefixed**
 [OpenTelemetry environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/)
 the SDK reads itself — not project-prefixed settings:
