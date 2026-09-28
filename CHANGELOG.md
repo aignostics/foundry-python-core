@@ -1,3 +1,48 @@
+## v0.18.0 (2026-09-28)
+
+### BREAKING CHANGE
+
+- SentrySettings has no enable_logs field, and
+{PREFIX}SENTRY_ENABLE_LOGS has no effect. Pass
+LoggingIntegration(capture_sentry_logs=True) or
+LoguruIntegration(capture_sentry_logs=True) to send log records to
+Sentry Logs. ([0062879](https://github.com/aignostics/foundry-python-core/commit/0062879c24ecc78a28198c96e8a78d0d2c85b54a))
+- foundry-core requires sentry-sdk 2.68.0 or later. ([d5765cc](https://github.com/aignostics/foundry-python-core/commit/d5765ccc0931a9c552b6e92b08c999721cf123c3))
+- {PREFIX}SENTRY_ENABLE_LOGS defaults to false. Log records no
+longer go to Sentry Logs unless a service opts in. ([fc5bc97](https://github.com/aignostics/foundry-python-core/commit/fc5bc972ea6e56539e2aac6501d9acdd1b5973b2))
+- Sentry no longer adds sentry-trace and baggage headers to
+outbound requests. Set {PREFIX}SENTRY_TRACE_PROPAGATION_TARGETS to a JSON list of
+host regexes to opt in. ([96de564](https://github.com/aignostics/foundry-python-core/commit/96de56496215335571fa770ea44f8679fa1f7083))
+- Sentry HTTP breadcrumbs and transaction spans no longer carry
+the query string or the fragment of the request URL. ([89a2574](https://github.com/aignostics/foundry-python-core/commit/89a25742498d29b123dbce9f4cc341850de1060b))
+- logging_initialize sets the httpx, httpx2 and urllib3 loggers
+to WARNING. INFO request lines no longer get to the log sinks. ([3708fb3](https://github.com/aignostics/foundry-python-core/commit/3708fb3aa0d95363d703abf8731bac8a1a66cba2))
+- the OTLP log sink drops records below {PREFIX}LOG_LEVEL and
+records that the boot() log_filter rejects. ([0845bbd](https://github.com/aignostics/foundry-python-core/commit/0845bbd3de92a6eca711f4a2894498e996119dbc))
+- set_sentry_user no longer sends email, name, nickname, given
+name, family name, picture, org name or updated_at to Sentry. ([7df3c1b](https://github.com/aignostics/foundry-python-core/commit/7df3c1b0779d35d160614ed5711c788576b3fb6b))
+- Sentry events no longer include request bodies. Set
+{PREFIX}SENTRY_MAX_REQUEST_BODY_SIZE to small, medium or always to restore them. ([bb4780a](https://github.com/aignostics/foundry-python-core/commit/bb4780ac8d8f54c4e76b8b59f12e1339c31fde92))
+- Sentry events no longer include frame local variables. Set
+{PREFIX}SENTRY_INCLUDE_LOCAL_VARIABLES=true to restore them. ([2deddf2](https://github.com/aignostics/foundry-python-core/commit/2deddf29bb7e661e202db4fc1013208518495229))
+
+### Fix
+
+- **sentry**: remove the enable_logs setting ([0062879](https://github.com/aignostics/foundry-python-core/commit/0062879c24ecc78a28198c96e8a78d0d2c85b54a))
+- **sentry**: disable Sentry logs by default ([fc5bc97](https://github.com/aignostics/foundry-python-core/commit/fc5bc972ea6e56539e2aac6501d9acdd1b5973b2))
+- **sentry**: send trace headers to allowed hosts ([96de564](https://github.com/aignostics/foundry-python-core/commit/96de56496215335571fa770ea44f8679fa1f7083))
+- **sentry**: strip query strings from breadcrumbs ([89a2574](https://github.com/aignostics/foundry-python-core/commit/89a25742498d29b123dbce9f4cc341850de1060b))
+- **log**: silence httpx and urllib3 request logs ([3708fb3](https://github.com/aignostics/foundry-python-core/commit/3708fb3aa0d95363d703abf8731bac8a1a66cba2))
+- **otel**: apply log level and filter to OTLP sink ([0845bbd](https://github.com/aignostics/foundry-python-core/commit/0845bbd3de92a6eca711f4a2894498e996119dbc))
+- **sentry**: send only user and org IDs ([7df3c1b](https://github.com/aignostics/foundry-python-core/commit/7df3c1b0779d35d160614ed5711c788576b3fb6b))
+- **sentry**: stop sending request bodies ([bb4780a](https://github.com/aignostics/foundry-python-core/commit/bb4780ac8d8f54c4e76b8b59f12e1339c31fde92))
+- **sentry**: stop sending frame local variables ([2deddf2](https://github.com/aignostics/foundry-python-core/commit/2deddf29bb7e661e202db4fc1013208518495229))
+- **database**: hide bound parameters in errors ([eea4aeb](https://github.com/aignostics/foundry-python-core/commit/eea4aebc4807ee721fd768dcba0428db063d5c8c))
+
+### Refactor
+
+- **sentry**: capture real events in tests ([4436aee](https://github.com/aignostics/foundry-python-core/commit/4436aeec2f7f612b37630c37d93e16d9603f6506))
+
 ## v0.17.1 (2026-09-21)
 
 ## v0.17.0 (2026-08-21)
