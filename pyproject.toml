@@ -111,7 +111,7 @@ dev = [
 ]
 
 [tool.uv]
-required-version = ">=0.9.7" # CVE-2025-54368, GHSA-w476-p2h3-79g9, GHSA-pqhf-p39g-3x64
+required-version = ">=0.13.4" # CVE-2025-54368, GHSA-w476-p2h3-79g9, GHSA-pqhf-p39g-3x64
 override-dependencies = [ # https://github.com/astral-sh/uv/issues/4422
     "nbconvert>=7.17.1",    # fix for CVE-2025-53000
     "pytest>=9.0.2",        # pytest-md-report depends on pytest<9 unnecessarily
