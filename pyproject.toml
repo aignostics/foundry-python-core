@@ -46,7 +46,7 @@ classifiers = [
     "Natural Language :: English"
 ]
 
-requires-python = ">=3.11, <3.15"
+requires-python = ">=3.15, <3.16"
 
 dependencies = [
     "asyncpg>=0.29,<1",
@@ -126,7 +126,7 @@ Issues = "https://github.com/aignostics/foundry-python-core/issues"
 
 
 [build-system]
-requires = ["uv_build>=0.11.7,<0.12.0"]
+requires = ["uv_build>=0.13.0,<0.14.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
