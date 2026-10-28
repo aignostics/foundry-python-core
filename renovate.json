@@ -16,7 +16,6 @@
   },
   "vulnerabilityAlerts": {
     "enabled": true,
-    "automerge": true,
     "minimumReleaseAge": null
   },
   "lockFileMaintenance": {
