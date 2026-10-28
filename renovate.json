@@ -43,19 +43,6 @@
       "groupName": "mise tools",
       "matchManagers": ["mise"],
       "separateMajorMinor": false
-    },
-    {
-      "description": "Bypass delay for security tools",
-      "matchPackageNames": [
-        "trivy",
-        "pip-audit",
-        "aquasecurity/trivy-action",
-        "pypa/pip-audit"
-      ],
-      "minimumReleaseAge": null,
-      "automerge": true,
-      "automergeType": "pr",
-      "groupName": "security-tool-updates"
     }
   ]
 }
