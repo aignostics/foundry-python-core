@@ -12,6 +12,8 @@ resolution-markers = [
 
 [manifest]
 overrides = [
+    { name = "authlib", specifier = ">=1.9.1" },
+    { name = "msgpack", specifier = ">=1.2.3" },
     { name = "nbconvert", specifier = ">=7.17.1" },
     { name = "pytest", specifier = ">=9.0.2" },
 ]
