@@ -115,6 +115,8 @@ required-version = ">=0.13.4" # CVE-2025-54368, GHSA-w476-p2h3-79g9, GHSA-pqhf-p
 override-dependencies = [ # https://github.com/astral-sh/uv/issues/4422
     "nbconvert>=7.17.1",    # fix for CVE-2025-53000
     "pytest>=9.0.2",        # pytest-md-report depends on pytest<9 unnecessarily
+    "authlib>=1.9.1",       # fix for CVE-2026-96760, CVE-2026-114614 to CVE-2026-114620
+    "msgpack>=1.2.3",       # fix for CVE-2026-114613
 ]
 
 [project.urls]
