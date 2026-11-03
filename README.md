@@ -176,6 +176,9 @@ To send them, pass `LoggingIntegration(capture_sentry_logs=True)` or
 `LoguruIntegration(capture_sentry_logs=True)` to `boot(sentry_integrations=...)`. foundry-core
 requires sentry-sdk 2.68.0 or later, and it has no `{PREFIX}SENTRY_ENABLE_LOGS` setting.
 
+The Sentry release is `<name>@<version>+<COMMIT_SHA>`, or `<name>@<version>` if `COMMIT_SHA` is
+not set. To link commits to the release, CI must create the same release name with `sentry-cli`.
+
 #### OpenTelemetry (`{PREFIX}OTEL_`)
 
 Settings class: `OTelSettings`. OpenTelemetry is only initialised when `ENABLED=true` **and** the

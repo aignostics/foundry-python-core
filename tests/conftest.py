@@ -97,6 +97,7 @@ def make_context(  # ruff: ignore[too-many-arguments]
     metadata: PackageMetadata | None = None,
     python_version: str = "",
     commit_sha: str | None = None,
+    version_full: str | None = None,
     **kwargs: bool,
 ) -> FoundryContext:
     """Create a minimal FoundryContext for testing.
@@ -118,6 +119,7 @@ def make_context(  # ruff: ignore[too-many-arguments]
         python_version: Python runtime version string (e.g. ``"3.11.9"``).  Defaults to
             ``""`` so contexts constructed in tests work without specifying a version.
         commit_sha: Optional commit SHA.
+        version_full: Optional full version. Defaults to *version*.
         **kwargs: Optional boolean flags forwarded to :class:`FoundryContext`
             (``is_test``, ``is_cli``, ``is_container``, ``is_library``).
     """
@@ -125,7 +127,7 @@ def make_context(  # ruff: ignore[too-many-arguments]
     return FoundryContext(
         name=name,
         version=version,
-        version_full=version,
+        version_full=version_full if version_full is not None else version,
         version_with_vcs_ref=version,
         environment=environment,
         env_prefix=env_prefix,
