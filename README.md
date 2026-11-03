@@ -49,6 +49,7 @@ boot()
 populate every field:
 
 - `name`, `version`, `version_full` — from `importlib.metadata`
+- `commit_sha` — from `COMMIT_SHA`; `None` when unset or blank
 - `environment` — resolved from env vars in priority order (see [Configuration reference](#configuration-reference) below)
 - `env_prefix` (`"MYPROJECT_"`) — used by every settings class; all env vars for this project share this prefix
 - `is_container`, `is_cli`, `is_test`, `is_library` — detected automatically
@@ -117,8 +118,8 @@ Read directly by `FoundryContext.from_package()` — no settings class.
 
 #### Build metadata
 
-Read by `FoundryContext.from_package()` to build `version_full` and `version_with_vcs_ref`. All
-optional; most useful in CI.
+Read by `FoundryContext.from_package()` to build `version_full` and `version_with_vcs_ref`.
+`COMMIT_SHA` also sets `commit_sha`. All optional; most useful in CI.
 
 | Variable | Default | Description |
 |---|---|---|
