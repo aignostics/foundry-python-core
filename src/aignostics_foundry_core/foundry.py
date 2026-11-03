@@ -191,6 +191,7 @@ class FoundryContext(BaseModel):
         environment = _detect_environment(name_upper)
         project_path = _find_project_path(package_name)
         vcs_ref = os.environ.get("VCS_REF") or (project_path and _get_vcs_ref_from_git(project_path)) or "unknown"
+        commit_sha = os.getenv("COMMIT_SHA", "unknown")
         env_prefix = f"{name_upper}_"
         env_files = _build_env_file_list(name, name_upper, environment)
         db_url_key = f"{env_prefix}DB_URL"
@@ -202,8 +203,8 @@ class FoundryContext(BaseModel):
         return cls(
             name=name,
             version=version,
-            version_full=_build_version_full(version, vcs_ref),
-            version_with_vcs_ref=_build_version_with_vcs_ref(version, vcs_ref),
+            version_full=_build_version_full(version, vcs_ref, commit_sha),
+            version_with_vcs_ref=_build_version_with_vcs_ref(version, vcs_ref, commit_sha),
             environment=environment,
             env_file=env_files,
             env_prefix=env_prefix,
@@ -257,17 +258,17 @@ def _get_vcs_ref_from_git(project_path: Path) -> str:
     return "unknown"
 
 
-def _build_version_full(version: str, vcs_ref: str) -> str:
+def _build_version_full(version: str, vcs_ref: str, commit_sha: str) -> str:
     """Append build metadata to *version* from environment variables.
 
     Args:
         version: The base version string (e.g. ``"1.2.3"``).
         vcs_ref: The VCS ref string (branch name, short SHA, or ``"unknown"``).
+        commit_sha: The commit SHA, or ``"unknown"``.
 
     Returns:
         The version string with optional ``+<metadata>`` suffix.
     """
-    commit_sha = os.getenv("COMMIT_SHA", "unknown")
     builder = os.getenv("BUILDER", "uv")
     build_date = os.getenv("BUILD_DATE", "unknown")
     ci_run_id = os.getenv("CI_RUN_ID", "unknown")
@@ -294,18 +295,18 @@ def _build_version_full(version: str, vcs_ref: str) -> str:
     return result
 
 
-def _build_version_with_vcs_ref(version: str, vcs_ref: str) -> str:
+def _build_version_with_vcs_ref(version: str, vcs_ref: str, commit_sha: str) -> str:
     """Append VCS ref and commit SHA to *version*, omitting CI build metadata.
 
     Args:
         version: The base version string (e.g. ``"1.2.3"``).
         vcs_ref: The VCS ref string (branch name, short SHA, or ``"unknown"``).
+        commit_sha: The commit SHA, or ``"unknown"``.
 
     Returns:
         The version string with optional ``+<vcs_ref>[-<commit_sha>]`` suffix,
         or the bare *version* when both values are ``"unknown"``.
     """
-    commit_sha = os.getenv("COMMIT_SHA", "unknown")
     parts = [p for p in [vcs_ref, commit_sha] if p != "unknown"]
     if not parts:
         return version
