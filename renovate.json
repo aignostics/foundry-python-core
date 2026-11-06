@@ -8,7 +8,7 @@
   "automergeType": "pr",
   "prCreation": "not-pending",
   "internalChecksFilter": "strict",
-  "platformAutomerge": "true",
+  "platformAutomerge": true,
   "labels": ["bot", "renovate", "dependencies", "skip:codecov"],
   "ignorePaths": ["plugins/manifest/package.json"],
   "pre-commit": {
