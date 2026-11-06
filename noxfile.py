@@ -59,10 +59,10 @@ def _setup_venv(session: nox.Session, all_extras: bool = True, resolution: str |
         session: The nox session
         all_extras: Whether to install all extras
         resolution: Optional uv resolution strategy (e.g. ``"lowest-direct"``).  When
-            set, ``--resolution <value>`` replaces ``--frozen`` so uv re-resolves
+            set, ``--resolution <value>`` replaces ``--locked`` so uv re-resolves
             rather than using the lockfile.
     """
-    args = ["uv", "sync", "--resolution", resolution] if resolution else ["uv", "sync", "--frozen"]
+    args = ["uv", "sync", "--resolution", resolution] if resolution else ["uv", "sync", "--locked"]
     if all_extras:
         args.append("--all-extras")
     session.run_install(
