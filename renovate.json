@@ -1,22 +1,23 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "description": [
+    "This repo is public. Mend does not apply the org config (aignostics/renovate-config, org-inherited-config.json)",
+    "to public repos. This file ports the org keys that this repo needs. The Renovate defaults already match",
+    "the org values for prCreation, internalChecksFilter and minimumReleaseAgeBehaviour.",
+    "rebaseWhen conflicted: a rebase pushes to the PR branch, and the org ruleset then dismisses the approval."
+  ],
+  "extends": ["config:best-practices"],
   "timezone": "Europe/Berlin",
-  "schedule": ["at any time"],
-  "minimumReleaseAge": "14 days",
+  "minimumReleaseAge": "5 days",
   "automerge": true,
-  "automergeType": "pr",
-  "prCreation": "not-pending",
-  "internalChecksFilter": "strict",
-  "platformAutomerge": "true",
-  "labels": ["bot", "renovate", "dependencies", "skip:codecov"],
-  "ignorePaths": ["plugins/manifest/package.json"],
+  "rebaseWhen": "conflicted",
+  "vulnerabilityAlerts": {
+    "description": "A vulnerability fix skips minimumReleaseAge. No automerge: a person checks the fix before the merge.",
+    "addLabels": ["security"],
+    "automerge": false
+  },
   "pre-commit": {
     "enabled": true
-  },
-  "vulnerabilityAlerts": {
-    "enabled": true,
-    "minimumReleaseAge": null
   },
   "lockFileMaintenance": {
     "enabled": true,
@@ -24,14 +25,37 @@
   },
   "packageRules": [
     {
-      "description": "Do not bump requires-python: dropping supported Python versions is a breaking change for this library",
-      "matchDepTypes": ["requires-python"],
-      "enabled": false
+      "description": [
+        "From the org config. Digest, pinDigest and lock file maintenance updates have no release timestamp.",
+        "Under timestamp-required, they stay pending forever and never automerge (renovatebot/renovate#45236).",
+        "Remove this rule when renovatebot/renovate#46645 is released."
+      ],
+      "matchUpdateTypes": ["digest", "pinDigest", "lockFileMaintenance"],
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
     },
     {
       "groupName": "minor and patch dependencies",
       "matchManagers": ["pep621"],
       "matchUpdateTypes": ["minor", "patch"]
+    },
+    {
+      "description": [
+        "One PR for each Python minor or major update: requires-python and .python-version.",
+        "Without this rule, requires-python goes into the pep621 group alone and CI tests the old .python-version.",
+        "Keep this rule after the pep621 group rule. No automerge: a person adds the classifier and accepts the PR."
+      ],
+      "groupName": "Python",
+      "matchPackageNames": ["python"],
+      "matchUpdateTypes": ["minor", "major"],
+      "automerge": false
+    },
+    {
+      "description": [
+        "Widen requires-python: raise only the upper bound. The default strategy also raises the lower bound,",
+        "and a dropped Python version is a breaking change for this library."
+      ],
+      "matchDepTypes": ["requires-python"],
+      "rangeStrategy": "widen"
     },
     {
       "groupName": "GitHub Actions",
