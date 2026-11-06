@@ -23,6 +23,18 @@
     "enabled": true,
     "schedule": ["before 5am on monday"]
   },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": [
+        "Pinned PyPI packages in mise tasks, for example: uv tool install keyring==25.7.0 --with pkg==1.2.3.",
+        "This repo is public, so the org custom managers do not apply here."
+      ],
+      "managerFilePatterns": ["/^tasks\\.toml$/", "/^mise\\.toml$/", "/^\\.mise/tasks//"],
+      "matchStrings": ["(?<depName>[A-Za-z0-9][A-Za-z0-9._-]*)==(?<currentValue>\\d[^\\s\"]*)"],
+      "datasourceTemplate": "pypi"
+    }
+  ],
   "packageRules": [
     {
       "description": [
@@ -69,7 +81,7 @@
     },
     {
       "groupName": "mise tools",
-      "matchManagers": ["mise"],
+      "matchManagers": ["mise", "custom.regex"],
       "separateMajorMinor": false
     }
   ]

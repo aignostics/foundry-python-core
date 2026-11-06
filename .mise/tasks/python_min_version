@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uvx --with packaging python
+#!/usr/bin/env -S uvx --with packaging==26.3 python
 # mise description="Print the minimum Python version from pyproject.toml requires-python"
 import tomllib
 from packaging.specifiers import SpecifierSet
