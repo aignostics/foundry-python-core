@@ -64,6 +64,13 @@ _SENTRY_TRACE_HEADER = "sentry-trace"
 _BAGGAGE_HEADER = "baggage"
 _APP_LOGGER_NAME = "app"
 _LOG_ITEM_TYPE = "log"
+_COMMIT_SHA = "c" * 40
+_MAX_RELEASE_LENGTH = 200
+_PROD_VERSION = "0.33.0"
+_PROD_VERSION_FULL = (
+    f"{_PROD_VERSION}+release/v{_PROD_VERSION}-{_COMMIT_SHA}"
+    "---run.1---build.2---builder.github/docker/buildx---built.2026-11-03T09:04:14Z"
+)
 
 
 class _CapturingTransport(Transport):
@@ -264,11 +271,40 @@ class TestSentryInitialize:
         assert result is False
 
     def test_sentry_initialize_returns_true_when_enabled(self, sentry_capture: SentryCapture) -> None:
-        """Returns True and events carry the release ``{name}@{version_full}`` when enabled with a valid DSN."""
+        """Returns True and events carry the release ``{name}@{version}`` when enabled with a valid DSN."""
         result = sentry_capture.start()
         sentry_sdk.capture_message(_PROBE_MESSAGE)
 
         assert result is True
+        (event,) = sentry_capture.events
+        assert event["release"] == f"{TEST_PROJECT_NAME}@0.0.0"
+
+    def test_sentry_initialize_release_has_commit_sha(self, sentry_capture: SentryCapture) -> None:
+        """The event release is ``{name}@{version}+{commit_sha}`` when the context has a commit SHA."""
+        sentry_capture.start(context=make_context(version="1.2.3", commit_sha=_COMMIT_SHA))
+        sentry_sdk.capture_message(_PROBE_MESSAGE)
+
+        (event,) = sentry_capture.events
+        assert event["release"] == f"{TEST_PROJECT_NAME}@1.2.3+{_COMMIT_SHA}"
+
+    def test_sentry_initialize_release_is_valid_with_full_build_metadata(self, sentry_capture: SentryCapture) -> None:
+        """The event release is a valid Sentry release when version_full holds prod build metadata."""
+        ctx = make_context(version=_PROD_VERSION, version_full=_PROD_VERSION_FULL, commit_sha=_COMMIT_SHA)
+        sentry_capture.start(context=ctx)
+        sentry_sdk.capture_message(_PROBE_MESSAGE)
+
+        (event,) = sentry_capture.events
+        release = event["release"]
+        assert release == f"{TEST_PROJECT_NAME}@{_PROD_VERSION}+{_COMMIT_SHA}"
+        assert "/" not in release
+        assert "\\" not in release
+        assert len(release) <= _MAX_RELEASE_LENGTH
+
+    def test_sentry_initialize_release_drops_invalid_commit_sha(self, sentry_capture: SentryCapture) -> None:
+        """The event release has no SHA suffix when the commit SHA makes the release invalid."""
+        sentry_capture.start(context=make_context(commit_sha="feature/x"))
+        sentry_sdk.capture_message(_PROBE_MESSAGE)
+
         (event,) = sentry_capture.events
         assert event["release"] == f"{TEST_PROJECT_NAME}@0.0.0"
 
