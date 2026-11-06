@@ -15,6 +15,7 @@ on:
       - '.config/mise.toml'
       - '.config/mise/config.toml'
       - '.config/mise/conf.d/*.toml'
+      - '.python-version'
 
 jobs:
   sync-lockfile:
