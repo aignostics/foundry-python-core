@@ -4,7 +4,7 @@ adr-tools = "3.0.0"
 "github:minamijoyo/hcledit" = "v0.2.18"
 gh = "2.102.0"
 jq = "1.8.2"
-"pipx:keyring" = { version = "25.7.0", uvx_args = "--with keyrings.google-artifactregistry-auth" }
+"pipx:keyring" = { version = "25.7.0", uvx_args = "--with keyrings.google-artifactregistry-auth==1.1.2" }
 trivy = "0.76.0"
 uv = "0.13.4"
 
