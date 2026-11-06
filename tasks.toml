@@ -28,7 +28,7 @@ description = "Install dev dependencies and pre-commit hooks"
 run = """
 uv tool install keyring==25.7.0 --with keyrings.google-artifactregistry-auth==1.1.2
 if [ -f uv.lock ]; then
-  uv sync --all-extras --frozen
+  uv sync --all-extras --locked
 else
   uv sync --all-extras
 fi
