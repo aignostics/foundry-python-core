@@ -6,7 +6,7 @@ runs:
   steps:
 
     - name: Install mise
-      uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4.2.0
+      uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5.2.5
 
     - name: Initialize mise and install Python dependencies
       shell: bash
