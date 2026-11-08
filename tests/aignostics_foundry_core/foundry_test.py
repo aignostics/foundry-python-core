@@ -27,6 +27,7 @@ ERROR_MSG_FRAGMENT = "set_context"
 VCS_REF_VALUE = "abc123"
 VCS_REF_OVERRIDE = "ci-override-ref"
 COMMIT_SHA_VALUE = "deadbeef"
+COMMIT_SHA_FULL = "c" * 40
 CI_RUN_ID_VALUE = "99"
 CI_RUN_NUMBER_VALUE = "42"
 BUILD_DATE_VALUE = "2024-01-15"
@@ -269,6 +270,35 @@ def test_from_package_version_full_omits_builder_and_extra_when_all_unknown(
     ctx = FoundryContext.from_package(PACKAGE_NAME)
     assert "builder." not in ctx.version_full
     assert "---" not in ctx.version_full
+
+
+# ---------------------------------------------------------------------------
+# from_package — commit_sha
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_from_package_commit_sha_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """commit_sha equals COMMIT_SHA when it is set."""
+    monkeypatch.setenv("COMMIT_SHA", COMMIT_SHA_FULL)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.commit_sha == COMMIT_SHA_FULL
+
+
+@pytest.mark.unit
+def test_from_package_commit_sha_none_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    """commit_sha is None when COMMIT_SHA is unset."""
+    monkeypatch.delenv("COMMIT_SHA", raising=False)
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.commit_sha is None
+
+
+@pytest.mark.unit
+def test_from_package_commit_sha_none_when_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    """commit_sha is None when COMMIT_SHA is empty."""
+    monkeypatch.setenv("COMMIT_SHA", "")
+    ctx = FoundryContext.from_package(PACKAGE_NAME)
+    assert ctx.commit_sha is None
 
 
 # ---------------------------------------------------------------------------
