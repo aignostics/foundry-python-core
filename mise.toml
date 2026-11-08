@@ -1,5 +1,5 @@
 [tools]
-act = "0.2.95"
+act = "0.2.96"
 adr-tools = "3.0.0"
 "github:minamijoyo/hcledit" = "v0.2.19"
 gh = "2.103.3"
