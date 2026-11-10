@@ -30,7 +30,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Dev Environment
-        uses: ./.github/actions/setup-dev-env
+        uses: $/.github/actions/setup-dev-env
 
       - name: Validate and set environment suffix
         id: env_suffix
@@ -54,7 +54,7 @@ jobs:
       - name: Test / Unit
         id: unit
         continue-on-error: true
-        uses: ./.github/actions/run-tests
+        uses: $/.github/actions/run-tests
         with:
           test-type: unit
           mise-task: test_unit
@@ -65,7 +65,7 @@ jobs:
       - name: Test / Integration
         id: integration
         continue-on-error: true
-        uses: ./.github/actions/run-tests
+        uses: $/.github/actions/run-tests
         with:
           test-type: integration
           mise-task: test_integration
@@ -76,7 +76,7 @@ jobs:
       - name: Test / E2E
         id: e2e
         continue-on-error: true
-        uses: ./.github/actions/run-tests
+        uses: $/.github/actions/run-tests
         with:
           test-type: e2e
           mise-task: test_e2e

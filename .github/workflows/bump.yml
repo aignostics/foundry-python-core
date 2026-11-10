@@ -31,7 +31,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Dev Environment
-        uses: ./.github/actions/setup-dev-env
+        uses: $/.github/actions/setup-dev-env
 
       - name: Configure git identity
         run: |
