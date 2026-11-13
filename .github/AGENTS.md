@@ -178,9 +178,8 @@ Cancels in-progress runs for same branch
 * Security
 * Adherence to AGENTS.md guidelines
 
-**Secrets required**:
-
-* `ANTHROPIC_API_KEY`
+**Authentication**: workload identity federation through the repository-level
+`ANTHROPIC_*` Actions variables; no secret is needed.
 
 ## Git Conventions
 
@@ -268,9 +267,8 @@ Cancels in-progress runs for same branch
 * `CODECOV_TOKEN` - Codecov coverage reporting
 * `SONAR_TOKEN` - SonarCloud analysis
 
-**Claude Code**:
-
-* `ANTHROPIC_API_KEY` - Claude API access
+**Claude Code**: no secret; workload identity federation through the
+repository-level `ANTHROPIC_*` Actions variables.
 
 ## Debugging CI Failures
 
