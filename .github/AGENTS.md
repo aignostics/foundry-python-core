@@ -109,8 +109,9 @@ Cancels in-progress runs for same branch
 
 **Secrets required**:
 
-* `CODECOV_TOKEN`
 * `SONAR_TOKEN`
+
+Codecov needs no secret: the upload uses OIDC, and the job needs `id-token: write`.
 
 ## Reusable Workflows
 
@@ -265,7 +266,6 @@ Cancels in-progress runs for same branch
 
 **Code Quality**:
 
-* `CODECOV_TOKEN` - Codecov coverage reporting
 * `SONAR_TOKEN` - SonarCloud analysis
 
 **Claude Code**:

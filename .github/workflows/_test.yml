@@ -3,8 +3,6 @@ name: "> Test"
 on:
   workflow_call:
     secrets:
-      CODECOV_TOKEN:
-        required: true
       SONAR_TOKEN:
         required: true
       AIGNOSTICS_FOUNDRY_CORE_LOGFIRE_TOKEN:
@@ -103,14 +101,15 @@ jobs:
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         if: ${{ !cancelled() && (env.GITHUB_WORKFLOW_RUNTIME != 'ACT') }}
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          use_oidc: true
           slug: aignostics/foundry-python-core
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() && (env.GITHUB_WORKFLOW_RUNTIME != 'ACT') }}
-        uses: codecov/test-results-action@0fa95f0e1eeaafde2c782583b36b28ad0d8c77d3 # v1.2.1
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          use_oidc: true
+          report_type: test_results
 
       - name: SonarQube Scan
         if: ${{ !cancelled() && (env.GITHUB_WORKFLOW_RUNTIME != 'ACT') }}
