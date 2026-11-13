@@ -52,7 +52,6 @@ jobs:
       id-token: write
       packages: write
     secrets:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       AIGNOSTICS_FOUNDRY_CORE_LOGFIRE_TOKEN: ${{ secrets.AIGNOSTICS_FOUNDRY_CORE_LOGFIRE_TOKEN }}
       AIGNOSTICS_FOUNDRY_CORE_SENTRY_DSN: ${{ secrets.AIGNOSTICS_FOUNDRY_CORE_SENTRY_DSN }}

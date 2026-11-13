@@ -25,7 +25,6 @@ workflows:
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9'
         - 'codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5'
-        - 'codecov/test-results-action@0fa95f0e1eeaafde2c782583b36b28ad0d8c77d3'
         - 'jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195'
         - 'sonarsource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304'
     '.github/workflows/_scheduled-test-hourly.yml':
@@ -36,7 +35,6 @@ workflows:
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9'
         - 'codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5'
-        - 'codecov/test-results-action@0fa95f0e1eeaafde2c782583b36b28ad0d8c77d3'
         - 'jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195'
         - 'sonarsource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304'
     '.github/workflows/audit-scheduled.yml': []
@@ -101,11 +99,6 @@ dependencies:
         repo_id: 200299178
         uses:
             - 'actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd'
-    'codecov/test-results-action@0fa95f0e1eeaafde2c782583b36b28ad0d8c77d3':
-        ref: 'v1.2.1'
-        commit: 'sha1-0fa95f0e1eeaafde2c782583b36b28ad0d8c77d3'
-        owner_id: 8226205
-        repo_id: 761956558
     'crazy-max/ghaction-github-labeler@548a7c3603594ec17c819e1239f281a3b801ab4d':
         ref: 'v6.0.0'
         commit: 'sha1-548a7c3603594ec17c819e1239f281a3b801ab4d'
