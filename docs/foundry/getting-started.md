@@ -112,7 +112,7 @@ These services are active automatically at the organisation level:
 | [CodeQL](https://github.com/aignostics/foundry-python-core/security/code-scanning) | Static security analysis | Runs weekly (Tuesdays 3:22 AM UTC) via included workflow |
 | [CodeCov](https://app.codecov.io/gh/aignostics/foundry-python-core) | Coverage tracking & PR comments | Org-level; coverage uploads automatic |
 | [Dependabot](https://github.com/aignostics/foundry-python-core/settings/security_analysis) | Dependency vulnerability alerts | Enabled by default via enterprise policy |
-| [Claude Code](https://github.com/aignostics/foundry-python-core/actions) | AI-powered PR reviews (`claude` label) | `ANTHROPIC_API_KEY` is org-wide; no setup required |
+| [Claude Code](https://github.com/aignostics/foundry-python-core/actions) | AI-powered PR reviews (`claude` label) | Workload identity federation through the `ANTHROPIC_*` Actions variables; org-wide for private and internal repositories, set on the repository for public ones |
 
 ### Renovate
 

@@ -179,9 +179,8 @@ Codecov needs no secret: the upload uses OIDC, and the job needs `id-token: writ
 * Security
 * Adherence to AGENTS.md guidelines
 
-**Secrets required**:
-
-* `ANTHROPIC_API_KEY`
+**Authentication**: workload identity federation through the repository-level
+`ANTHROPIC_*` Actions variables; no secret is needed.
 
 ## Git Conventions
 
@@ -268,9 +267,8 @@ Codecov needs no secret: the upload uses OIDC, and the job needs `id-token: writ
 
 * `SONAR_TOKEN` - SonarCloud analysis
 
-**Claude Code**:
-
-* `ANTHROPIC_API_KEY` - Claude API access
+**Claude Code**: no secret; workload identity federation through the
+repository-level `ANTHROPIC_*` Actions variables.
 
 ## Debugging CI Failures
 
