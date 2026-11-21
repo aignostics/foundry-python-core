@@ -6,59 +6,59 @@ workflows:
     '.github/workflows/_audit.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9'
-        - 'jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195'
+        - 'jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d'
     '.github/workflows/_codeql.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
-        - 'github/codeql-action@9b3254085494b55a0f7c4c2b3d2d52cc712ce370'
+        - 'github/codeql-action@33d7b85da1a04171e211befe2c739303b9a4c066'
     '.github/workflows/_lint.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
-        - 'jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195'
+        - 'jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d'
     '.github/workflows/_package-publish.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
-        - 'jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195'
+        - 'jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d'
         - 'slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d'
     '.github/workflows/_scheduled-audit.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9'
-        - 'jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195'
+        - 'jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d'
     '.github/workflows/_scheduled-test-daily.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9'
         - 'codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5'
-        - 'jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195'
-        - 'sonarsource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304'
+        - 'jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d'
+        - 'sonarsource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4'
     '.github/workflows/_scheduled-test-hourly.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9'
-        - 'jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195'
+        - 'jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d'
     '.github/workflows/_test.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9'
         - 'codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5'
-        - 'jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195'
-        - 'sonarsource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304'
+        - 'jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d'
+        - 'sonarsource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4'
     '.github/workflows/audit-scheduled.yml': []
     '.github/workflows/bump.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510'
-        - 'jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195'
+        - 'jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d'
     '.github/workflows/check-action-pins.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'suzuki-shunsuke/pinact-action@b1a1f46bb10f2908950d95f626ca8cc109e2cf7d'
     '.github/workflows/ci-cd.yml': []
     '.github/workflows/claude-code-automation-pr-review.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
-        - 'anthropics/claude-code-action@d535f5172dec02b204866b393d6b20b9b2aaf98d'
+        - 'anthropics/claude-code-action@f3b070c88125d33dbae5653df5f143101d4ea9dc'
     '.github/workflows/codeql-scheduled.yml': []
     '.github/workflows/git-conventions.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
-        - 'jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195'
+        - 'jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d'
     '.github/workflows/labels-sync.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'crazy-max/ghaction-github-labeler@548a7c3603594ec17c819e1239f281a3b801ab4d'
     '.github/workflows/mise-lock-sync.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
-        - 'jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195'
+        - 'jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d'
         - 'stefanzweifel/git-auto-commit-action@d0b01107b5db882071f96de5dd4b54961ea93f4c'
     '.github/workflows/test-scheduled-production-daily.yml': []
     '.github/workflows/test-scheduled-production-hourly.yml': []
@@ -85,9 +85,9 @@ dependencies:
         commit: 'sha1-cf430e030ddbb5b0abf93d22962f4752f3646cd9'
         owner_id: 44036562
         repo_id: 192625955
-    'anthropics/claude-code-action@d535f5172dec02b204866b393d6b20b9b2aaf98d':
-        ref: 'v1.0.266'
-        commit: 'sha1-d535f5172dec02b204866b393d6b20b9b2aaf98d'
+    'anthropics/claude-code-action@f3b070c88125d33dbae5653df5f143101d4ea9dc':
+        ref: 'v1.0.276'
+        commit: 'sha1-f3b070c88125d33dbae5653df5f143101d4ea9dc'
         owner_id: 76263028
         repo_id: 986421638
         uses:
@@ -104,14 +104,14 @@ dependencies:
         commit: 'sha1-548a7c3603594ec17c819e1239f281a3b801ab4d'
         owner_id: 1951866
         repo_id: 216050313
-    'github/codeql-action@9b3254085494b55a0f7c4c2b3d2d52cc712ce370':
-        ref: 'v4.39.1'
-        commit: 'sha1-9b3254085494b55a0f7c4c2b3d2d52cc712ce370'
+    'github/codeql-action@33d7b85da1a04171e211befe2c739303b9a4c066':
+        ref: 'v4.39.3'
+        commit: 'sha1-33d7b85da1a04171e211befe2c739303b9a4c066'
         owner_id: 9919
         repo_id: 259445878
-    'jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195':
-        ref: 'v5.2.5'
-        commit: 'sha1-6612f0ef07ed2a736cd1e00a94a065522dd41195'
+    'jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d':
+        ref: 'v5.2.9'
+        commit: 'sha1-236a21c3b91f5db6d4e174b348674a0f0caac06d'
         owner_id: 216188
         repo_id: 738284564
     'oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6':
@@ -124,9 +124,9 @@ dependencies:
         commit: 'sha1-dcb1066f776dd043e64d0e8ba94ca15cc7e1875d'
         owner_id: 6962987
         repo_id: 306439799
-    'sonarsource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304':
-        ref: 'v8.4.0'
-        commit: 'sha1-4d1dc0c91ee400dcf8a6dddf2f705ac36542e304'
+    'sonarsource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4':
+        ref: 'v8.5.0'
+        commit: 'sha1-59202af334b4ba7b5db01b701b8e79f8b3bef0f4'
         owner_id: 545988
         repo_id: 366408409
     'stefanzweifel/git-auto-commit-action@d0b01107b5db882071f96de5dd4b54961ea93f4c':
