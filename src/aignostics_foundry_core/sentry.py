@@ -28,6 +28,8 @@ _HTTP_BREADCRUMB_TYPE = "http"
 _HTTP_BREADCRUMB_CATEGORY = "httplib"
 _URL_DATA_KEY = "url"
 _URL_PART_DATA_KEYS = frozenset({"http.query", "http.fragment"})
+_MAX_RELEASE_LENGTH = 200
+_INVALID_RELEASE_CHARS = ("/", "\\")
 
 
 def _validate_url_scheme(parsed_url: urllib.parse.ParseResult) -> None:
@@ -175,6 +177,27 @@ def _before_send_transaction(event: "Event", _hint: dict[str, Any]) -> "Event":
         if isinstance(data, dict):
             span["data"] = _without_url_query(cast("dict[str, Any]", data))
     return event
+
+
+def _release_name(ctx: "FoundryContext") -> str:
+    """Return the Sentry release ``<name>@<version>[+<commit_sha>]``.
+
+    Drops the SHA suffix if Sentry rejects the full name.
+
+    Args:
+        ctx: The context that gives the name, the version and the commit SHA.
+
+    Returns:
+        str: The release name.
+    """
+    base = f"{ctx.name}@{ctx.version}"
+    if not ctx.commit_sha:
+        return base
+    release = f"{base}+{ctx.commit_sha}"
+    if len(release) > _MAX_RELEASE_LENGTH or any(char in release for char in _INVALID_RELEASE_CHARS):
+        logger.warning("Sentry release '{}' is invalid, using '{}'.", release, base)
+        return base
+    return release
 
 
 class SentrySettings(OpaqueSettings):
@@ -329,6 +352,10 @@ def sentry_initialize(
     HTTP breadcrumbs and the spans of transactions carry no query string and no fragment.
     Both can hold credentials, for example the signature of a signed URL.
 
+    The release is ``<name>@<version>+<commit_sha>``, or ``<name>@<version>`` if the context
+    has no commit SHA. It does not use ``version_full``: that value can contain ``/``, and
+    Sentry drops such a release. CI can build the same name to link commits.
+
     Args:
         integrations: List of Sentry SDK integrations to register, or ``None``.
         context: :class:`~aignostics_foundry_core.foundry.FoundryContext` providing
@@ -353,7 +380,7 @@ def sentry_initialize(
     from sentry_sdk.integrations.logging import ignore_logger  # ruff: ignore[import-outside-top-level]
 
     sentry_sdk.init(
-        release=f"{ctx.name}@{ctx.version_full}",
+        release=_release_name(ctx),
         environment=ctx.environment,
         dsn=settings.dsn.get_secret_value().strip(),
         max_breadcrumbs=settings.max_breadcrumbs,

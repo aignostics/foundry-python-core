@@ -49,6 +49,7 @@ boot()
 populate every field:
 
 - `name`, `version`, `version_full` — from `importlib.metadata`
+- `commit_sha` — from `COMMIT_SHA`; `None` when unset or blank
 - `environment` — resolved from env vars in priority order (see [Configuration reference](#configuration-reference) below)
 - `env_prefix` (`"MYPROJECT_"`) — used by every settings class; all env vars for this project share this prefix
 - `is_container`, `is_cli`, `is_test`, `is_library` — detected automatically
@@ -117,8 +118,8 @@ Read directly by `FoundryContext.from_package()` — no settings class.
 
 #### Build metadata
 
-Read by `FoundryContext.from_package()` to build `version_full` and `version_with_vcs_ref`. All
-optional; most useful in CI.
+Read by `FoundryContext.from_package()` to build `version_full` and `version_with_vcs_ref`.
+`COMMIT_SHA` also sets `commit_sha`. All optional; most useful in CI.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -174,6 +175,9 @@ Log records do not go to Sentry Logs, because they can contain credentials and p
 To send them, pass `LoggingIntegration(capture_sentry_logs=True)` or
 `LoguruIntegration(capture_sentry_logs=True)` to `boot(sentry_integrations=...)`. foundry-core
 requires sentry-sdk 2.68.0 or later, and it has no `{PREFIX}SENTRY_ENABLE_LOGS` setting.
+
+The Sentry release is `<name>@<version>+<COMMIT_SHA>`, or `<name>@<version>` if `COMMIT_SHA` is
+not set. To link commits to the release, CI must create the same release name with `sentry-cli`.
 
 #### OpenTelemetry (`{PREFIX}OTEL_`)
 
