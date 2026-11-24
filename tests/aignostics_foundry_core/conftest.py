@@ -16,7 +16,7 @@ from aignostics_foundry_core.log import InterceptHandler
 from tests.conftest import TEST_PROJECT_PREFIX
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Iterator
+    from collections.abc import Generator
 
     from opentelemetry.sdk._logs import LoggerProvider  # pyright: ignore[reportPrivateImportUsage]
 
@@ -31,7 +31,7 @@ _LOGGERS_SET_BY_LOGGING_INITIALIZE = ("psycopg", "psycopg.pool", "httpx", "httpx
 
 
 @contextmanager
-def stdlib_logging_restored() -> Iterator[None]:
+def stdlib_logging_restored() -> Generator[None, None, None]:
     """Undo the process-wide logging changes of ``logging_initialize`` on exit.
 
     On exit, removes all loguru sinks and the ``InterceptHandler`` on the stdlib
