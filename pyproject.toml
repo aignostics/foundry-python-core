@@ -191,6 +191,7 @@ ignore = [
     "blocking-open-call-in-async-function", # async functions should not open files with blocking methods like `open`
     "hardcoded-bind-all-interfaces",     # bind to all ports
     "start-process-with-partial-path",     # subprocess with partial path
+    "pytest-fixture-autouse",  # autouse fixtures reset global state for test isolation
 ]
 
 [tool.ruff.format]

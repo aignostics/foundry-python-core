@@ -15,7 +15,7 @@ from aignostics_foundry_core.log import InterceptHandler, LogSettings, logging_i
 from tests.conftest import TEST_PROJECT_PREFIX
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Generator
 
     from loguru import Message, Record
 
@@ -36,7 +36,7 @@ _SIGNED_URL_QUERY = "sig=secret"
 
 
 @contextmanager
-def _captured_records() -> "Iterator[list[Record]]":
+def _captured_records() -> "Generator[list[Record], None, None]":
     """Collect every loguru record at TRACE and above while the block runs.
 
     Yields:
